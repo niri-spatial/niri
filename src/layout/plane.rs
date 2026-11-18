@@ -1188,8 +1188,8 @@ mod tests {
         let plane = WorkspacePlane::new(plane_id, vec![0, 1, 2, 3], 1).unwrap();
         let mut planes = WorkspacePlanes::new(plane);
 
-        let extracted = planes
-            .extract_workspaces_where(|workspace| *workspace == 0 || *workspace == 2);
+        let extracted =
+            planes.extract_workspaces_where(|workspace| *workspace == 0 || *workspace == 2);
 
         assert_eq!(planes.active_plane().active_workspace(), &1);
         assert_eq!(extracted.active_plane().workspaces(), &[0, 2]);
