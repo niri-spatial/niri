@@ -9,7 +9,7 @@
 //! plane-aware rendering are implemented in later steps.
 
 use std::fmt;
-use std::ops::{Deref, DerefMut};
+use std::ops::{Deref, DerefMut, Index, IndexMut};
 
 use crate::utils::id::IdCounter;
 
@@ -252,12 +252,57 @@ pub struct WorkspacePlanes<T> {
 }
 
 impl<T> WorkspacePlanes<T> {
+    /// Creates an empty collection.
+    ///
+    /// This is used while no outputs are connected. Monitors themselves must
+    /// always contain at least one plane.
+    pub fn empty() -> Self {
+        Self {
+            planes: vec![],
+            active_plane_idx: 0,
+        }
+    }
+
     /// Creates a collection containing one initial plane.
     pub fn new(initial_plane: WorkspacePlane<T>) -> Self {
         Self {
             planes: vec![initial_plane],
             active_plane_idx: 0,
         }
+    }
+
+    /// Creates a collection from planes in depth order.
+    pub fn from_planes(
+        planes: Vec<WorkspacePlane<T>>,
+        active_plane_idx: usize,
+    ) -> Result<Self, PlaneError> {
+        if planes.is_empty() {
+            if active_plane_idx != 0 {
+                return Err(PlaneError::PlaneIndexOutOfBounds {
+                    index: active_plane_idx,
+                    len: 0,
+                });
+            }
+
+            return Ok(Self::empty());
+        }
+
+        if active_plane_idx >= planes.len() {
+            return Err(PlaneError::PlaneIndexOutOfBounds {
+                index: active_plane_idx,
+                len: planes.len(),
+            });
+        }
+
+        Ok(Self {
+            planes,
+            active_plane_idx,
+        })
+    }
+
+    /// Returns whether the collection contains no planes.
+    pub fn is_empty(&self) -> bool {
+        self.planes.is_empty()
     }
 
     /// Returns the number of planes in the collection.
@@ -430,6 +475,21 @@ impl<T> WorkspacePlanes<T> {
     /// Removing the active plane selects the plane that takes its place, or
     /// the new last plane when the former active plane was last.
     pub fn remove_plane(&mut self, index: usize) -> Result<WorkspacePlane<T>, PlaneError> {
+        if self.planes.len() == 1 {
+            return Err(PlaneError::CannotRemoveLastPlane);
+        }
+
+        self.remove_plane_allow_empty(index)
+    }
+
+    /// Removes a plane even when it is the final plane.
+    ///
+    /// This is reserved for the no-output compatibility collection, which
+    /// historically allowed its workspace list to become empty.
+    fn remove_plane_allow_empty(
+        &mut self,
+        index: usize,
+    ) -> Result<WorkspacePlane<T>, PlaneError> {
         if index >= self.planes.len() {
             return Err(PlaneError::PlaneIndexOutOfBounds {
                 index,
@@ -437,22 +497,286 @@ impl<T> WorkspacePlanes<T> {
             });
         }
 
-        if self.planes.len() == 1 {
-            return Err(PlaneError::CannotRemoveLastPlane);
-        }
-
         let removed = self.planes.remove(index);
 
-        if index < self.active_plane_idx || self.active_plane_idx == self.planes.len() {
+        if self.planes.is_empty() {
+            self.active_plane_idx = 0;
+        } else if index < self.active_plane_idx || self.active_plane_idx == self.planes.len() {
             self.active_plane_idx -= 1;
         }
 
         Ok(removed)
     }
 
+    /// Extracts workspaces matching a predicate, preserving their plane groups.
+    ///
+    /// A plane split across the two collections keeps its stable identity in
+    /// the collection that retains the original workspaces; the extracted
+    /// fragment receives a fresh identity.
+    pub fn extract_workspaces_where(
+        &mut self,
+        mut predicate: impl FnMut(&T) -> bool,
+    ) -> Self {
+        let original_active_plane_idx = self.active_plane_idx;
+        let mut retained = Vec::new();
+        let mut extracted = Vec::new();
+        let mut retained_active_plane_idx = None;
+        let mut extracted_active_plane_idx = None;
+
+        for (plane_idx, plane) in self.planes.drain(..).enumerate() {
+            let WorkspacePlane {
+                id,
+                workspaces,
+                active_workspace_idx,
+            } = plane;
+            let mut matching = Vec::new();
+            let mut remaining = Vec::new();
+            let mut matching_active_idx = None;
+            let mut remaining_active_idx = None;
+
+            for (workspace_idx, workspace) in workspaces.into_iter().enumerate() {
+                if predicate(&workspace) {
+                    if workspace_idx == active_workspace_idx {
+                        matching_active_idx = Some(matching.len());
+                    }
+                    matching.push(workspace);
+                } else {
+                    if workspace_idx == active_workspace_idx {
+                        remaining_active_idx = Some(remaining.len());
+                    }
+                    remaining.push(workspace);
+                }
+            }
+
+            if !matching.is_empty() {
+                let extracted_id = if remaining.is_empty() { id } else { PlaneId::next() };
+                let active_idx = matching_active_idx
+                    .unwrap_or_else(|| active_workspace_idx.min(matching.len() - 1));
+
+                if plane_idx == original_active_plane_idx {
+                    extracted_active_plane_idx = Some(extracted.len());
+                }
+
+                extracted.push(WorkspacePlane {
+                    id: extracted_id,
+                    workspaces: matching,
+                    active_workspace_idx: active_idx,
+                });
+            }
+
+            if !remaining.is_empty() {
+                let active_idx = remaining_active_idx
+                    .unwrap_or_else(|| active_workspace_idx.min(remaining.len() - 1));
+
+                if plane_idx == original_active_plane_idx {
+                    retained_active_plane_idx = Some(retained.len());
+                }
+
+                retained.push(WorkspacePlane {
+                    id,
+                    workspaces: remaining,
+                    active_workspace_idx: active_idx,
+                });
+            }
+        }
+
+        self.planes = retained;
+        self.active_plane_idx = retained_active_plane_idx
+            .unwrap_or_else(|| original_active_plane_idx.min(self.planes.len().saturating_sub(1)));
+
+        let extracted_active_plane_idx = extracted_active_plane_idx
+            .unwrap_or_else(|| original_active_plane_idx.min(extracted.len().saturating_sub(1)));
+
+        Self {
+            planes: extracted,
+            active_plane_idx: extracted_active_plane_idx,
+        }
+    }
+
     /// Consumes the collection and returns its planes in depth order.
     pub fn into_planes(self) -> Vec<WorkspacePlane<T>> {
         self.planes
+    }
+}
+
+/// Flat compatibility view for workspaces while no outputs are connected.
+///
+/// Unlike a monitor, the no-output layout historically treated all workspaces
+/// as one flat list. This wrapper preserves that API while retaining the
+/// original plane grouping and active plane selection for output reconnection.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NoOutputWorkspacePlanes<T> {
+    planes: WorkspacePlanes<T>,
+}
+
+impl<T> NoOutputWorkspacePlanes<T> {
+    /// Creates an empty no-output workspace collection.
+    pub fn empty() -> Self {
+        Self {
+            planes: WorkspacePlanes::empty(),
+        }
+    }
+
+    /// Creates the no-output view from a plane collection.
+    pub fn from_planes(planes: WorkspacePlanes<T>) -> Self {
+        Self { planes }
+    }
+
+    /// Creates one initial plane from a legacy flat workspace list.
+    pub fn from_workspaces(workspaces: Vec<T>) -> Result<Self, PlaneError> {
+        if workspaces.is_empty() {
+            return Ok(Self::empty());
+        }
+
+        let plane = WorkspacePlane::new(PlaneId::next(), workspaces, 0)?;
+        Ok(Self::from_planes(WorkspacePlanes::new(plane)))
+    }
+
+    /// Returns the number of workspaces across all planes.
+    pub fn len(&self) -> usize {
+        self.planes.iter_workspaces().count()
+    }
+
+    /// Returns whether there are no workspaces.
+    pub fn is_empty(&self) -> bool {
+        self.planes.is_empty()
+    }
+
+    /// Iterates over all workspaces in depth and vertical order.
+    pub fn iter(&self) -> impl Iterator<Item = &T> {
+        self.planes.iter_workspaces().map(|(_, _, workspace)| workspace)
+    }
+
+    /// Iterates mutably over all workspaces in depth and vertical order.
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut T> {
+        self.planes
+            .iter_workspaces_mut()
+            .map(|(_, _, workspace)| workspace)
+    }
+
+    /// Appends a workspace to the active plane, creating a plane if needed.
+    pub fn push(&mut self, workspace: T) {
+        if self.planes.is_empty() {
+            let plane = WorkspacePlane::new(PlaneId::next(), vec![workspace], 0)
+                .expect("a plane created with one workspace must be valid");
+            self.planes.push_plane(plane)
+                .expect("a newly generated plane ID must be unique");
+        } else {
+            self.planes.active_plane_mut().push_workspace(workspace);
+        }
+    }
+
+    /// Inserts a workspace at its flattened index.
+    pub fn insert(&mut self, index: usize, workspace: T) {
+        let len = self.len();
+        assert!(index <= len, "workspace index out of bounds");
+
+        if self.planes.is_empty() {
+            self.push(workspace);
+            return;
+        }
+
+        let mut offset = 0;
+        for plane in self.planes.iter_planes_mut() {
+            let plane_len = plane.workspace_count();
+            if index <= offset + plane_len {
+                plane.insert_workspace(index - offset, workspace)
+                    .expect("the flattened workspace index must be valid");
+                return;
+            }
+            offset += plane_len;
+        }
+
+        unreachable!("a valid flattened workspace index must belong to a plane");
+    }
+
+    /// Removes a workspace at its flattened index.
+    ///
+    /// If it was the only workspace in its plane, the entire plane is removed.
+    pub fn remove(&mut self, index: usize) -> T {
+        let (plane_idx, workspace_idx) = self
+            .planes
+            .iter_planes()
+            .enumerate()
+            .scan(0usize, |offset, (plane_idx, plane)| {
+                let start = *offset;
+                *offset += plane.workspace_count();
+                Some((plane_idx, plane, start))
+            })
+            .find_map(|(plane_idx, plane, start)| {
+                (index < start + plane.workspace_count())
+                    .then_some((plane_idx, index - start))
+            })
+            .expect("workspace index out of bounds");
+
+        if self.planes.plane(plane_idx).unwrap().workspace_count() == 1 {
+            self.planes
+                .remove_plane_allow_empty(plane_idx)
+                .expect("the selected plane index must be valid")
+                .into_workspaces()
+                .into_iter()
+                .next()
+                .expect("a plane must contain a workspace");
+        } else {
+            self.planes
+                .plane_mut(plane_idx)
+                .unwrap()
+                .remove_workspace(workspace_idx)
+                .expect("the selected workspace index must be valid")
+        }
+    }
+
+    /// Returns a workspace at its flattened index.
+    pub fn get(&self, index: usize) -> Option<&T> {
+        self.iter().nth(index)
+    }
+
+    /// Returns mutable access to a workspace at its flattened index.
+    pub fn get_mut(&mut self, index: usize) -> Option<&mut T> {
+        self.iter_mut().nth(index)
+    }
+
+    /// Consumes the flat view and returns its structured plane collection.
+    pub fn into_planes(self) -> WorkspacePlanes<T> {
+        self.planes
+    }
+}
+
+impl<T> Default for NoOutputWorkspacePlanes<T> {
+    fn default() -> Self {
+        Self::empty()
+    }
+}
+
+impl<T> Index<usize> for NoOutputWorkspacePlanes<T> {
+    type Output = T;
+
+    fn index(&self, index: usize) -> &Self::Output {
+        self.get(index).expect("workspace index out of bounds")
+    }
+}
+
+impl<T> IndexMut<usize> for NoOutputWorkspacePlanes<T> {
+    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+        self.get_mut(index).expect("workspace index out of bounds")
+    }
+}
+
+impl<'a, T> IntoIterator for &'a NoOutputWorkspacePlanes<T> {
+    type Item = &'a T;
+    type IntoIter = std::vec::IntoIter<&'a T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter().collect::<Vec<_>>().into_iter()
+    }
+}
+
+impl<'a, T> IntoIterator for &'a mut NoOutputWorkspacePlanes<T> {
+    type Item = &'a mut T;
+    type IntoIter = std::vec::IntoIter<&'a mut T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter_mut().collect::<Vec<_>>().into_iter()
     }
 }
 
