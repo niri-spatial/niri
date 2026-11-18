@@ -703,15 +703,20 @@ impl<T> NoOutputWorkspacePlanes<T> {
             .map(|(_, _, workspace)| workspace)
     }
 
-    /// Appends a workspace to the active plane, creating a plane if needed.
+    /// Appends a workspace to the end of the flat view, creating a plane if needed.
     pub fn push(&mut self, workspace: T) {
         if self.planes.is_empty() {
             let plane = WorkspacePlane::new(PlaneId::next(), vec![workspace], 0)
                 .expect("a plane created with one workspace must be valid");
-            self.planes.push_plane(plane)
+            self.planes
+                .push_plane(plane)
                 .expect("a newly generated plane ID must be unique");
         } else {
-            self.planes.active_plane_mut().push_workspace(workspace);
+            let last_plane_idx = self.planes.plane_count() - 1;
+            self.planes
+                .plane_mut(last_plane_idx)
+                .unwrap()
+                .push_workspace(workspace);
         }
     }
 
