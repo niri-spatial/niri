@@ -862,7 +862,7 @@ impl<W: LayoutElement> Layout<W> {
                     }
 
                     let primary = &mut monitors[primary_idx];
-                    primary.append_planes(workspaces);
+                    primary.append_planes(workspaces, OutputId::new(output));
 
                     MonitorSet::Normal {
                         monitors,
