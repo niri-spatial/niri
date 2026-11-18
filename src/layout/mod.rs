@@ -1219,7 +1219,7 @@ impl<W: LayoutElement> Layout<W> {
         match &mut self.monitor_set {
             MonitorSet::Normal { monitors, .. } => {
                 for mon in monitors {
-                    for ws in &mut mon.workspaces {
+                    for ws in mon.workspaces.iter_mut() {
                         if ws.has_window(window) {
                             ws.update_window(window, serial);
                             return;
@@ -1461,7 +1461,7 @@ impl<W: LayoutElement> Layout<W> {
         }
 
         for mon in self.monitors() {
-            for ws in &mon.workspaces {
+            for ws in mon.workspaces.iter() {
                 if ws.has_window(window) {
                     return ws.scroll_amount_to_activate(window);
                 }
@@ -1674,7 +1674,7 @@ impl<W: LayoutElement> Layout<W> {
         match &self.monitor_set {
             MonitorSet::Normal { monitors, .. } => {
                 for mon in monitors {
-                    for ws in &mon.workspaces {
+                    for ws in mon.workspaces.iter() {
                         for (tile, layout) in ws.tiles_with_ipc_layouts() {
                             f(tile.window(), Some(&mon.output), Some(ws.id()), layout);
                         }
@@ -1699,7 +1699,7 @@ impl<W: LayoutElement> Layout<W> {
         match &mut self.monitor_set {
             MonitorSet::Normal { monitors, .. } => {
                 for mon in monitors {
-                    for ws in &mut mon.workspaces {
+                    for ws in mon.workspaces.iter_mut() {
                         for win in ws.windows_mut() {
                             f(win, Some(&mon.output));
                         }
@@ -2527,7 +2527,7 @@ impl<W: LayoutElement> Layout<W> {
             monitor.verify_invariants();
 
             if idx == primary_idx {
-                for ws in &monitor.workspaces {
+                for ws in monitor.workspaces.iter() {
                     if ws.original_output.matches(&monitor.output) {
                         // This is the primary monitor's own workspace.
                         continue;
@@ -2554,7 +2554,7 @@ impl<W: LayoutElement> Layout<W> {
             // FIXME: verify that primary doesn't have any workspaces for which their own monitor
             // exists.
 
-            for workspace in &monitor.workspaces {
+            for workspace in monitor.workspaces.iter() {
                 assert!(
                     seen_workspace_id.insert(workspace.id()),
                     "workspace id must be unique"
@@ -4409,7 +4409,7 @@ impl<W: LayoutElement> Layout<W> {
         match &mut self.monitor_set {
             MonitorSet::Normal { monitors, .. } => {
                 for mon in monitors {
-                    for ws in &mut mon.workspaces {
+                    for ws in mon.workspaces.iter_mut() {
                         if ws.has_window(&window) {
                             return ws.interactive_resize_begin(window, edges);
                         }
@@ -4442,7 +4442,7 @@ impl<W: LayoutElement> Layout<W> {
         match &mut self.monitor_set {
             MonitorSet::Normal { monitors, .. } => {
                 for mon in monitors {
-                    for ws in &mut mon.workspaces {
+                    for ws in mon.workspaces.iter_mut() {
                         if ws.has_window(window) {
                             return ws.interactive_resize_update(window, delta);
                         }
@@ -4471,7 +4471,7 @@ impl<W: LayoutElement> Layout<W> {
         match &mut self.monitor_set {
             MonitorSet::Normal { monitors, .. } => {
                 for mon in monitors {
-                    for ws in &mut mon.workspaces {
+                    for ws in mon.workspaces.iter_mut() {
                         if ws.has_window(window) {
                             ws.interactive_resize_end(Some(window));
                             return;
@@ -4743,7 +4743,7 @@ impl<W: LayoutElement> Layout<W> {
         match &mut self.monitor_set {
             MonitorSet::Normal { monitors, .. } => {
                 for mon in monitors {
-                    for ws in &mut mon.workspaces {
+                    for ws in mon.workspaces.iter_mut() {
                         if ws.has_window(window) {
                             ws.clear_unmap_snapshot(window);
                             return;
@@ -4804,7 +4804,7 @@ impl<W: LayoutElement> Layout<W> {
         match &mut self.monitor_set {
             MonitorSet::Normal { monitors, .. } => {
                 for mon in monitors {
-                    for ws in &mut mon.workspaces {
+                    for ws in mon.workspaces.iter_mut() {
                         if ws.has_window(window) {
                             ws.start_close_animation_for_window(renderer, window, blocker);
                             return;
