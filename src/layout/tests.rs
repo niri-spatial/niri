@@ -2006,7 +2006,7 @@ fn removing_output_must_keep_empty_focus_on_primary() {
 
     // The workspace from the removed output was inserted at position 0, so the active workspace
     // must change to 1 to keep the focus on the empty workspace.
-    assert_eq!(monitors[0].active_workspace_idx, 1);
+    assert_eq!(monitors[0].active_workspace_idx(), 1);
 }
 
 #[test]
@@ -2274,7 +2274,7 @@ fn move_workspace_to_output() {
     assert_eq!(active_monitor_idx, 1);
     assert_eq!(monitors[0].workspaces.len(), 1);
     assert!(!monitors[0].workspaces[0].has_windows());
-    assert_eq!(monitors[1].active_workspace_idx, 0);
+    assert_eq!(monitors[1].active_workspace_idx(), 0);
     assert_eq!(monitors[1].workspaces.len(), 2);
     assert!(monitors[1].workspaces[0].has_windows());
 }
@@ -2304,7 +2304,7 @@ fn open_right_of_on_different_workspace() {
 
     let mon = monitors.into_iter().next().unwrap();
     assert_eq!(
-        mon.active_workspace_idx, 1,
+        mon.active_workspace_idx(), 1,
         "the second workspace must remain active"
     );
     assert_eq!(
@@ -2347,7 +2347,7 @@ fn open_right_of_on_different_workspace_ewaf() {
 
     let mon = monitors.into_iter().next().unwrap();
     assert_eq!(
-        mon.active_workspace_idx, 2,
+        mon.active_workspace_idx(), 2,
         "the second workspace must remain active"
     );
     assert_eq!(
@@ -2698,7 +2698,7 @@ fn output_active_workspace_is_preserved() {
         unreachable!()
     };
 
-    assert_eq!(monitors[0].active_workspace_idx, 1);
+    assert_eq!(monitors[0].active_workspace_idx(), 1);
 }
 
 #[test]
@@ -2723,7 +2723,7 @@ fn output_active_workspace_is_preserved_with_other_outputs() {
         unreachable!()
     };
 
-    assert_eq!(monitors[1].active_workspace_idx, 1);
+    assert_eq!(monitors[1].active_workspace_idx(), 1);
 }
 
 #[test]
@@ -3495,7 +3495,7 @@ fn move_column_to_workspace_down_focus_false_on_floating_window() {
         unreachable!()
     };
 
-    assert_eq!(monitors[0].active_workspace_idx, 0);
+    assert_eq!(monitors[0].active_workspace_idx(), 0);
 }
 
 #[test]
@@ -3518,7 +3518,7 @@ fn move_column_to_workspace_focus_false_on_floating_window() {
         unreachable!()
     };
 
-    assert_eq!(monitors[0].active_workspace_idx, 0);
+    assert_eq!(monitors[0].active_workspace_idx(), 0);
 }
 
 #[test]
