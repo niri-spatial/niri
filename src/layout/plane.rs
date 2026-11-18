@@ -55,6 +55,9 @@ pub enum PlaneError {
 
     /// The last plane cannot be removed.
     CannotRemoveLastPlane,
+
+    /// No plane with the requested stable identity exists.
+    UnknownPlaneId,
 }
 
 impl fmt::Display for PlaneError {
@@ -83,6 +86,7 @@ impl fmt::Display for PlaneError {
             Self::CannotRemoveLastPlane => {
                 write!(f, "cannot remove the last plane from a collection")
             }
+            Self::UnknownPlaneId => write!(f, "no plane with this ID exists"),
         }
     }
 }
@@ -320,10 +324,7 @@ impl<T> WorkspacePlanes<T> {
 
     /// Activates a plane by its stable identity.
     pub fn activate_plane_by_id(&mut self, id: PlaneId) -> Result<(), PlaneError> {
-        let index = self.index_of(id).ok_or(PlaneError::PlaneIndexOutOfBounds {
-            index: self.planes.len(),
-            len: self.planes.len(),
-        })?;
+        let index = self.index_of(id).ok_or(PlaneError::UnknownPlaneId)?;
 
         self.active_plane_idx = index;
         Ok(())
@@ -490,6 +491,7 @@ mod tests {
         ));
         assert_eq!(plane.workspace_count(), 1);
     }
+
     #[test]
     fn creates_collection_with_initial_plane_active() {
         let plane = WorkspacePlane::new(PlaneId::new(1), vec!["one"], 0).unwrap();
@@ -550,7 +552,10 @@ mod tests {
         let first = WorkspacePlane::new(PlaneId::new(1), vec!["one"], 0).unwrap();
         let mut planes = WorkspacePlanes::new(first);
 
-        assert!(planes.activate_plane_by_id(PlaneId::new(99)).is_err());
+        assert!(matches!(
+            planes.activate_plane_by_id(PlaneId::new(99)),
+            Err(PlaneError::UnknownPlaneId)
+        ));
         assert_eq!(planes.active_plane_idx(), 0);
     }
 
@@ -599,5 +604,4 @@ mod tests {
         ));
         assert_eq!(planes.plane_count(), 1);
     }
-
 }
