@@ -1161,7 +1161,7 @@ mod tests {
 
     #[test]
     fn splitting_a_plane_keeps_the_original_id_with_the_remaining_workspaces() {
-        let original_id = PlaneId::new(102);
+        let original_id = PlaneId::new(u64::MAX - 1);
         let plane = WorkspacePlane::new(original_id, vec![0, 1, 2, 3], 2).unwrap();
         let mut planes = WorkspacePlanes::new(plane);
 
