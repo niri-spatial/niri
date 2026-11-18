@@ -2704,6 +2704,18 @@ fn output_active_workspace_is_preserved() {
 }
 
 #[test]
+fn new_output_starts_with_one_empty_workspace() {
+    let layout = check_ops([Op::AddOutput(1)]);
+
+    let MonitorSet::Normal { monitors, .. } = layout.monitor_set else {
+        unreachable!()
+    };
+    assert_eq!(monitors[0].plane_count(), 1);
+    assert_eq!(monitors[0].workspaces.len(), 1);
+    assert_eq!(monitors[0].active_workspace_idx(), 0);
+}
+
+#[test]
 fn secondary_output_disconnect_and_reconnect_preserves_planes() {
     let ops = [
         Op::AddOutput(1),
