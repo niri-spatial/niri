@@ -316,12 +316,12 @@ impl<T> WorkspacePlanes<T> {
     }
 
     /// Iterates over planes in depth order.
-    pub fn iter(&self) -> impl Iterator<Item = &WorkspacePlane<T>> {
+    pub fn iter_planes(&self) -> impl Iterator<Item = &WorkspacePlane<T>> {
         self.planes.iter()
     }
 
     /// Iterates mutably over planes in depth order.
-    pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut WorkspacePlane<T>> {
+    pub fn iter_planes_mut(&mut self) -> impl Iterator<Item = &mut WorkspacePlane<T>> {
         self.planes.iter_mut()
     }
 
@@ -700,12 +700,12 @@ mod tests {
         planes.push_plane(second).unwrap();
 
         assert_eq!(planes.len(), 2);
-        assert_eq!(planes[0], "a");
+        assert_eq!(planes.iter().copied().collect::<Vec<_>>(), vec!["a", "b"]);
         assert_eq!(planes[planes.active_workspace_idx()], "b");
 
         planes.activate_plane(1).unwrap();
         assert_eq!(planes.len(), 1);
-        assert_eq!(planes[0], "c");
+        assert_eq!(planes.iter().copied().collect::<Vec<_>>(), vec!["c"]);
     }
 
     #[test]
