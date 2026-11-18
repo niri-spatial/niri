@@ -43,6 +43,18 @@ pub enum PlaneError {
 
     /// The last workspace in a plane cannot be removed.
     CannotRemoveLastWorkspace,
+
+    /// A plane with the same identity already exists in the collection.
+    DuplicatePlaneId,
+
+    /// The requested plane index is outside the collection.
+    PlaneIndexOutOfBounds {
+        index: usize,
+        len: usize,
+    },
+
+    /// The last plane cannot be removed.
+    CannotRemoveLastPlane,
 }
 
 impl fmt::Display for PlaneError {
@@ -63,6 +75,13 @@ impl fmt::Display for PlaneError {
             }
             Self::CannotRemoveLastWorkspace => {
                 write!(f, "cannot remove the last workspace from a plane")
+            }
+            Self::DuplicatePlaneId => write!(f, "a plane with this ID already exists"),
+            Self::PlaneIndexOutOfBounds { index, len } => {
+                write!(f, "plane index {index} is out of bounds for {len} planes")
+            }
+            Self::CannotRemoveLastPlane => {
+                write!(f, "cannot remove the last plane from a collection")
             }
         }
     }
@@ -210,6 +229,170 @@ impl<T> WorkspacePlane<T> {
     }
 }
 
+
+/// An ordered collection of depth planes for one monitor.
+///
+/// The planes are stored in depth order. `active_plane_idx` identifies the
+/// currently selected plane. Each plane independently tracks its active
+/// workspace, so switching planes does not lose the vertical position.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WorkspacePlanes<T> {
+    planes: Vec<WorkspacePlane<T>>,
+    active_plane_idx: usize,
+}
+
+impl<T> WorkspacePlanes<T> {
+    /// Creates a collection containing one initial plane.
+    pub fn new(initial_plane: WorkspacePlane<T>) -> Self {
+        Self {
+            planes: vec![initial_plane],
+            active_plane_idx: 0,
+        }
+    }
+
+    /// Returns the number of planes in the collection.
+    pub fn plane_count(&self) -> usize {
+        self.planes.len()
+    }
+
+    /// Returns the active plane's index in depth order.
+    pub const fn active_plane_idx(&self) -> usize {
+        self.active_plane_idx
+    }
+
+    /// Returns the active plane.
+    pub fn active_plane(&self) -> &WorkspacePlane<T> {
+        &self.planes[self.active_plane_idx]
+    }
+
+    /// Returns mutable access to the active plane.
+    pub fn active_plane_mut(&mut self) -> &mut WorkspacePlane<T> {
+        &mut self.planes[self.active_plane_idx]
+    }
+
+    /// Returns the plane at a depth-order index.
+    pub fn plane(&self, index: usize) -> Option<&WorkspacePlane<T>> {
+        self.planes.get(index)
+    }
+
+    /// Returns mutable access to a plane at a depth-order index.
+    pub fn plane_mut(&mut self, index: usize) -> Option<&mut WorkspacePlane<T>> {
+        self.planes.get_mut(index)
+    }
+
+    /// Finds a plane by its stable identity.
+    pub fn plane_by_id(&self, id: PlaneId) -> Option<&WorkspacePlane<T>> {
+        self.planes.iter().find(|plane| plane.id() == id)
+    }
+
+    /// Finds mutable access to a plane by its stable identity.
+    pub fn plane_by_id_mut(&mut self, id: PlaneId) -> Option<&mut WorkspacePlane<T>> {
+        self.planes.iter_mut().find(|plane| plane.id() == id)
+    }
+
+    /// Finds the current depth-order index for a plane identity.
+    pub fn index_of(&self, id: PlaneId) -> Option<usize> {
+        self.planes.iter().position(|plane| plane.id() == id)
+    }
+
+    /// Iterates over planes in depth order.
+    pub fn iter(&self) -> impl Iterator<Item = &WorkspacePlane<T>> {
+        self.planes.iter()
+    }
+
+    /// Iterates mutably over planes in depth order.
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut WorkspacePlane<T>> {
+        self.planes.iter_mut()
+    }
+
+    /// Activates a plane by its depth-order index.
+    pub fn activate_plane(&mut self, index: usize) -> Result<(), PlaneError> {
+        if index >= self.planes.len() {
+            return Err(PlaneError::PlaneIndexOutOfBounds {
+                index,
+                len: self.planes.len(),
+            });
+        }
+
+        self.active_plane_idx = index;
+        Ok(())
+    }
+
+    /// Activates a plane by its stable identity.
+    pub fn activate_plane_by_id(&mut self, id: PlaneId) -> Result<(), PlaneError> {
+        let index = self.index_of(id).ok_or(PlaneError::PlaneIndexOutOfBounds {
+            index: self.planes.len(),
+            len: self.planes.len(),
+        })?;
+
+        self.active_plane_idx = index;
+        Ok(())
+    }
+
+    /// Inserts a plane at a depth-order index.
+    ///
+    /// Inserting at or before the active index preserves the previously
+    /// active plane by shifting its index.
+    pub fn insert_plane(
+        &mut self,
+        index: usize,
+        plane: WorkspacePlane<T>,
+    ) -> Result<(), PlaneError> {
+        if self.planes.iter().any(|existing| existing.id() == plane.id()) {
+            return Err(PlaneError::DuplicatePlaneId);
+        }
+
+        if index > self.planes.len() {
+            return Err(PlaneError::PlaneIndexOutOfBounds {
+                index,
+                len: self.planes.len(),
+            });
+        }
+
+        self.planes.insert(index, plane);
+        if index <= self.active_plane_idx {
+            self.active_plane_idx += 1;
+        }
+
+        Ok(())
+    }
+
+    /// Appends a plane at the back of the depth order.
+    pub fn push_plane(&mut self, plane: WorkspacePlane<T>) -> Result<(), PlaneError> {
+        self.insert_plane(self.planes.len(), plane)
+    }
+
+    /// Removes a plane while preserving the active plane where possible.
+    ///
+    /// Removing the active plane selects the plane that takes its place, or
+    /// the new last plane when the former active plane was last.
+    pub fn remove_plane(&mut self, index: usize) -> Result<WorkspacePlane<T>, PlaneError> {
+        if index >= self.planes.len() {
+            return Err(PlaneError::PlaneIndexOutOfBounds {
+                index,
+                len: self.planes.len(),
+            });
+        }
+
+        if self.planes.len() == 1 {
+            return Err(PlaneError::CannotRemoveLastPlane);
+        }
+
+        let removed = self.planes.remove(index);
+
+        if index < self.active_plane_idx || self.active_plane_idx == self.planes.len() {
+            self.active_plane_idx -= 1;
+        }
+
+        Ok(removed)
+    }
+
+    /// Consumes the collection and returns its planes in depth order.
+    pub fn into_planes(self) -> Vec<WorkspacePlane<T>> {
+        self.planes
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -307,4 +490,114 @@ mod tests {
         ));
         assert_eq!(plane.workspace_count(), 1);
     }
+    #[test]
+    fn creates_collection_with_initial_plane_active() {
+        let plane = WorkspacePlane::new(PlaneId::new(1), vec!["one"], 0).unwrap();
+        let planes = WorkspacePlanes::new(plane);
+
+        assert_eq!(planes.plane_count(), 1);
+        assert_eq!(planes.active_plane_idx(), 0);
+        assert_eq!(planes.active_plane().id(), PlaneId::new(1));
+    }
+
+    #[test]
+    fn inserts_plane_before_active_and_preserves_active_identity() {
+        let first = WorkspacePlane::new(PlaneId::new(1), vec!["one"], 0).unwrap();
+        let mut planes = WorkspacePlanes::new(first);
+        let second = WorkspacePlane::new(PlaneId::new(2), vec!["two"], 0).unwrap();
+
+        planes.insert_plane(0, second).unwrap();
+
+        assert_eq!(planes.plane_count(), 2);
+        assert_eq!(planes.active_plane_idx(), 1);
+        assert_eq!(planes.active_plane().id(), PlaneId::new(1));
+    }
+
+    #[test]
+    fn rejects_duplicate_plane_ids() {
+        let first = WorkspacePlane::new(PlaneId::new(1), vec!["one"], 0).unwrap();
+        let mut planes = WorkspacePlanes::new(first);
+        let duplicate = WorkspacePlane::new(PlaneId::new(1), vec!["duplicate"], 0).unwrap();
+
+        assert!(matches!(
+            planes.push_plane(duplicate),
+            Err(PlaneError::DuplicatePlaneId)
+        ));
+        assert_eq!(planes.plane_count(), 1);
+    }
+
+    #[test]
+    fn activates_plane_by_id_and_preserves_its_workspace_selection() {
+        let first = WorkspacePlane::new(PlaneId::new(1), vec!["one-a", "one-b"], 1).unwrap();
+        let mut planes = WorkspacePlanes::new(first);
+        let second = WorkspacePlane::new(PlaneId::new(2), vec!["two-a", "two-b"], 0).unwrap();
+
+        planes.push_plane(second).unwrap();
+        planes.activate_plane_by_id(PlaneId::new(2)).unwrap();
+
+        assert_eq!(planes.active_plane_idx(), 1);
+        assert_eq!(planes.active_plane().id(), PlaneId::new(2));
+        assert_eq!(*planes.active_plane().active_workspace(), "two-a");
+
+        planes.activate_plane_by_id(PlaneId::new(1)).unwrap();
+
+        assert_eq!(planes.active_plane_idx(), 0);
+        assert_eq!(*planes.active_plane().active_workspace(), "one-b");
+    }
+
+    #[test]
+    fn rejects_activation_of_unknown_plane() {
+        let first = WorkspacePlane::new(PlaneId::new(1), vec!["one"], 0).unwrap();
+        let mut planes = WorkspacePlanes::new(first);
+
+        assert!(planes.activate_plane_by_id(PlaneId::new(99)).is_err());
+        assert_eq!(planes.active_plane_idx(), 0);
+    }
+
+    #[test]
+    fn removing_plane_before_active_preserves_active_identity() {
+        let first = WorkspacePlane::new(PlaneId::new(1), vec!["one"], 0).unwrap();
+        let mut planes = WorkspacePlanes::new(first);
+        let second = WorkspacePlane::new(PlaneId::new(2), vec!["two"], 0).unwrap();
+        let third = WorkspacePlane::new(PlaneId::new(3), vec!["three"], 0).unwrap();
+
+        planes.push_plane(second).unwrap();
+        planes.push_plane(third).unwrap();
+        planes.activate_plane_by_id(PlaneId::new(3)).unwrap();
+
+        assert_eq!(planes.remove_plane(0).unwrap().id(), PlaneId::new(1));
+
+        assert_eq!(planes.active_plane_idx(), 1);
+        assert_eq!(planes.active_plane().id(), PlaneId::new(3));
+    }
+
+    #[test]
+    fn removing_active_last_plane_selects_new_last() {
+        let first = WorkspacePlane::new(PlaneId::new(1), vec!["one"], 0).unwrap();
+        let mut planes = WorkspacePlanes::new(first);
+        let second = WorkspacePlane::new(PlaneId::new(2), vec!["two"], 0).unwrap();
+        let third = WorkspacePlane::new(PlaneId::new(3), vec!["three"], 0).unwrap();
+
+        planes.push_plane(second).unwrap();
+        planes.push_plane(third).unwrap();
+        planes.activate_plane_by_id(PlaneId::new(3)).unwrap();
+
+        assert_eq!(planes.remove_plane(2).unwrap().id(), PlaneId::new(3));
+
+        assert_eq!(planes.active_plane_idx(), 1);
+        assert_eq!(planes.active_plane().id(), PlaneId::new(2));
+    }
+
+    #[test]
+    fn cannot_remove_last_plane() {
+        let first = WorkspacePlane::new(PlaneId::new(1), vec!["one"], 0).unwrap();
+        let mut planes = WorkspacePlanes::new(first);
+
+        assert!(matches!(
+            planes.remove_plane(0),
+            Err(PlaneError::CannotRemoveLastPlane)
+        ));
+        assert_eq!(planes.plane_count(), 1);
+    }
+
 }
