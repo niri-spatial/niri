@@ -1422,6 +1422,20 @@ impl State {
                 // FIXME: granular
                 self.niri.queue_redraw_all();
             }
+            Action::FocusPlaneBackward => {
+                self.niri.layout.focus_plane_backward();
+                self.maybe_warp_cursor_to_focus();
+                self.niri.layer_shell_on_demand_focus = None;
+                // FIXME: granular
+                self.niri.queue_redraw_all();
+            }
+            Action::FocusPlaneForward => {
+                self.niri.layout.focus_plane_forward();
+                self.maybe_warp_cursor_to_focus();
+                self.niri.layer_shell_on_demand_focus = None;
+                // FIXME: granular
+                self.niri.queue_redraw_all();
+            }
             Action::FocusWorkspaceDown => {
                 self.niri.layout.switch_workspace_down();
                 self.maybe_warp_cursor_to_focus();
