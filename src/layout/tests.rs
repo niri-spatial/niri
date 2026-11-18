@@ -2766,8 +2766,14 @@ fn secondary_output_disconnect_and_reconnect_preserves_planes() {
     };
     assert_eq!(monitors.len(), 1);
     assert_eq!(monitors[0].plane_count(), 3);
-    assert_eq!(monitors[0].workspaces.plane(1).unwrap().id(), first_plane_id);
-    assert_eq!(monitors[0].workspaces.plane(2).unwrap().id(), second_plane_id);
+    assert_eq!(
+        monitors[0].workspaces.plane(1).unwrap().id(),
+        first_plane_id
+    );
+    assert_eq!(
+        monitors[0].workspaces.plane(2).unwrap().id(),
+        second_plane_id
+    );
 
     Op::AddOutput(2).apply(&mut layout);
 
@@ -2780,8 +2786,14 @@ fn secondary_output_disconnect_and_reconnect_preserves_planes() {
     assert_eq!(monitors[1].active_plane_idx(), 1);
     assert_eq!(monitors[1].active_plane_id(), second_plane_id);
     assert_eq!(monitors[1].active_workspace_idx(), 1);
-    assert_eq!(monitors[1].workspaces.plane(0).unwrap().id(), first_plane_id);
-    assert_eq!(monitors[1].workspaces.plane(1).unwrap().id(), second_plane_id);
+    assert_eq!(
+        monitors[1].workspaces.plane(0).unwrap().id(),
+        first_plane_id
+    );
+    assert_eq!(
+        monitors[1].workspaces.plane(1).unwrap().id(),
+        second_plane_id
+    );
 
     layout.verify_invariants();
 }
