@@ -4,9 +4,9 @@
 //! vertical workspace sequence, and the active workspace index is local to
 //! that plane.
 //!
-//! This module deliberately does not change Monitor or rendering yet. It
-//! establishes and tests the plane-level invariant before the layout is
-//! migrated to use it.
+//! Monitor now owns a WorkspacePlanes collection. The layout still exposes
+//! only the active plane through its compatibility view; depth switching and
+//! plane-aware rendering are implemented in later steps.
 
 use std::fmt;
 use std::ops::{Deref, DerefMut};
@@ -690,6 +690,32 @@ mod tests {
 
         assert_eq!(planes.active_plane_idx(), 1);
         assert_eq!(planes.active_plane().id(), PlaneId::new(2));
+    }
+
+    #[test]
+    fn dereferences_to_the_active_plane_workspaces() {
+        let first = WorkspacePlane::new(PlaneId::new(1), vec!["a", "b"], 1).unwrap();
+        let mut planes = WorkspacePlanes::new(first);
+        let second = WorkspacePlane::new(PlaneId::new(2), vec!["c"], 0).unwrap();
+        planes.push_plane(second).unwrap();
+
+        assert_eq!(planes.len(), 2);
+        assert_eq!(planes[0], "a");
+        assert_eq!(planes[planes.active_workspace_idx()], "b");
+
+        planes.activate_plane(1).unwrap();
+        assert_eq!(planes.len(), 1);
+        assert_eq!(planes[0], "c");
+    }
+
+    #[test]
+    fn consumes_workspaces_from_all_planes_in_plane_order() {
+        let first = WorkspacePlane::new(PlaneId::new(1), vec!["a", "b"], 0).unwrap();
+        let mut planes = WorkspacePlanes::new(first);
+        let second = WorkspacePlane::new(PlaneId::new(2), vec!["c"], 0).unwrap();
+        planes.push_plane(second).unwrap();
+
+        assert_eq!(planes.into_workspaces(), vec!["a", "b", "c"]);
     }
 
     #[test]
