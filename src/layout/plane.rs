@@ -457,8 +457,11 @@ impl<T> WorkspacePlanes<T> {
             });
         }
 
+        let was_empty = self.planes.is_empty();
         self.planes.insert(index, plane);
-        if index <= self.active_plane_idx {
+        if was_empty {
+            self.active_plane_idx = 0;
+        } else if index <= self.active_plane_idx {
             self.active_plane_idx += 1;
         }
 
