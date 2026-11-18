@@ -652,6 +652,19 @@ impl<T> NoOutputWorkspacePlanes<T> {
         self.planes.active_plane_idx()
     }
 
+    /// Returns the stable identity of a plane at the given depth index.
+    pub fn plane_id(&self, index: usize) -> Option<PlaneId> {
+        self.planes.plane(index).map(WorkspacePlane::id)
+    }
+
+    /// Returns the active plane's stable identity, if the collection is non-empty.
+    pub fn active_plane_id(&self) -> Option<PlaneId> {
+        self.planes.is_empty().then_some(()).map_or_else(
+            || Some(self.planes.active_plane().id()),
+            |_| None,
+        )
+    }
+
     /// Returns the active workspace's index within the active plane.
     pub fn active_workspace_idx(&self) -> Option<usize> {
         (!self.planes.is_empty()).then(|| self.planes.active_workspace_idx())
@@ -1103,6 +1116,59 @@ mod tests {
         planes.push_plane(second).unwrap();
 
         assert_eq!(planes.into_workspaces(), vec!["a", "b", "c"]);
+    }
+
+    #[test]
+    fn extracting_workspaces_preserves_plane_groups_and_selection() {
+        let first_id = PlaneId::new(100);
+        let second_id = PlaneId::new(101);
+        let first = WorkspacePlane::new(first_id, vec![10, 11], 1).unwrap();
+        let second = WorkspacePlane::new(second_id, vec![20, 21], 1).unwrap();
+        let mut planes = WorkspacePlanes::new(first);
+        planes.push_plane(second).unwrap();
+        planes.activate_plane(1).unwrap();
+
+        let extracted = planes.extract_workspaces_where(|workspace| *workspace >= 20);
+
+        assert_eq!(planes.plane_count(), 1);
+        assert_eq!(planes.active_plane_idx(), 0);
+        assert_eq!(planes.active_plane().id(), first_id);
+        assert_eq!(planes.active_workspace_idx(), 1);
+        assert_eq!(planes.active_plane().workspaces(), &[10, 11]);
+
+        assert_eq!(extracted.plane_count(), 1);
+        assert_eq!(extracted.active_plane_idx(), 0);
+        assert_eq!(extracted.active_plane().id(), second_id);
+        assert_eq!(extracted.active_workspace_idx(), 1);
+        assert_eq!(extracted.active_plane().workspaces(), &[20, 21]);
+    }
+
+    #[test]
+    fn no_output_flat_view_keeps_plane_structure() {
+        let first_id = PlaneId::new(200);
+        let second_id = PlaneId::new(201);
+        let first = WorkspacePlane::new(first_id, vec![1, 2], 1).unwrap();
+        let second = WorkspacePlane::new(second_id, vec![3, 4], 0).unwrap();
+        let mut planes = WorkspacePlanes::new(first);
+        planes.push_plane(second).unwrap();
+        planes.activate_plane(1).unwrap();
+        let mut flat = NoOutputWorkspacePlanes::from_planes(planes);
+
+        assert_eq!(flat.iter().copied().collect::<Vec<_>>(), vec![1, 2, 3, 4]);
+        assert_eq!(flat.plane_count(), 2);
+        assert_eq!(flat.active_plane_idx(), 1);
+        assert_eq!(flat.active_workspace_idx(), Some(0));
+        assert_eq!(flat.active_plane_id(), Some(second_id));
+
+        assert_eq!(flat.remove(0), 1);
+        assert_eq!(flat.remove(1), 3);
+        assert_eq!(flat.remove(0), 2);
+        assert_eq!(flat.plane_count(), 1);
+        assert_eq!(flat.active_plane_id(), Some(second_id));
+        assert_eq!(flat.iter().copied().collect::<Vec<_>>(), vec![4]);
+
+        assert_eq!(flat.remove(0), 4);
+        assert!(flat.is_empty());
     }
 
     #[test]
