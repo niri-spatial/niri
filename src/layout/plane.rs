@@ -740,13 +740,13 @@ impl<T> Deref for WorkspacePlanes<T> {
     /// visible vertical workspace sequence. Monitor-wide operations must use
     /// iter_workspaces() to include inactive planes.
     fn deref(&self) -> &Self::Target {
-        self.active_plane().workspaces()
+        &self.active_plane().workspaces
     }
 }
 
 impl<T> DerefMut for WorkspacePlanes<T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        self.active_plane_mut().workspaces_mut()
+        &mut self.active_plane_mut().workspaces
     }
 }
 
