@@ -366,7 +366,10 @@ impl<W: LayoutElement> Monitor<W> {
                 .activate_workspace(active_workspace_idx)
                 .expect("the plane's active workspace index must be valid");
 
-            let plane_original_output = plane.workspaces()[0].original_output.clone();
+            // New boundary workspaces belong to the monitor's output, not
+            // necessarily to the first workspace in this plane. A no-output
+            // collection can contain workspaces configured for several outputs.
+            let plane_original_output = OutputId::new(&output);
 
             if options.layout.empty_workspace_above_first
                 && !(needs_initial_workspace && plane_idx == 0)
@@ -891,6 +894,9 @@ impl<W: LayoutElement> Monitor<W> {
         planes: NoOutputWorkspacePlanes<Workspace<W>>,
         original_output: OutputId,
     ) {
+        let empty_was_focused = self.active_workspace_idx() == self.workspaces.len() - 1;
+        let mut last_added_plane_idx = None;
+
         for mut plane in planes.into_planes().into_planes() {
             for workspace in plane.workspaces_mut() {
                 workspace.set_output(Some(self.output.clone()));
@@ -921,9 +927,24 @@ impl<W: LayoutElement> Monitor<W> {
             empty.original_output = original_output.clone();
             plane.push_workspace(empty);
 
+            let plane_idx = self.workspaces.plane_count();
             self.workspaces
                 .push_plane(plane)
                 .expect("transferred plane IDs must be unique");
+            last_added_plane_idx = Some(plane_idx);
+        }
+
+        // Before planes existed, disconnected workspaces were inserted before
+        // the primary monitor's trailing empty workspace. When that empty
+        // workspace was focused, the focus therefore moved to the new trailing
+        // empty workspace. Preserve that behavior by activating the last
+        // imported plane and its trailing workspace.
+        if empty_was_focused {
+            if let Some(plane_idx) = last_added_plane_idx {
+                self.activate_plane(plane_idx)
+                    .expect("the last imported plane index must be valid");
+                self.set_active_workspace_idx(self.workspaces.len() - 1);
+            }
         }
 
         self.workspace_switch = None;
