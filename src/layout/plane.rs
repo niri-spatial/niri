@@ -635,6 +635,21 @@ impl<T> NoOutputWorkspacePlanes<T> {
         Ok(Self::from_planes(WorkspacePlanes::new(plane)))
     }
 
+    /// Returns the number of depth planes.
+    pub fn plane_count(&self) -> usize {
+        self.planes.plane_count()
+    }
+
+    /// Returns the active plane's depth-order index, or zero when empty.
+    pub fn active_plane_idx(&self) -> usize {
+        self.planes.active_plane_idx()
+    }
+
+    /// Returns the active workspace's index within the active plane.
+    pub fn active_workspace_idx(&self) -> Option<usize> {
+        (!self.planes.is_empty()).then(|| self.planes.active_workspace_idx())
+    }
+
     /// Returns the number of workspaces across all planes.
     pub fn len(&self) -> usize {
         self.planes.iter_workspaces().count()
