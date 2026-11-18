@@ -971,6 +971,7 @@ impl<W: LayoutElement> Monitor<W> {
         }
 
         self.workspace_switch = None;
+        self.clean_up_workspaces();
     }
 
     pub fn move_down_or_to_workspace_down(&mut self) {
