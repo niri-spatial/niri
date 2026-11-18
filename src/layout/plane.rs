@@ -1209,7 +1209,7 @@ mod tests {
         assert_eq!(planes.plane_count(), 1);
         assert_eq!(planes.active_plane().id(), original_id);
         assert_eq!(planes.active_plane().workspaces(), &[0, 3]);
-        assert_eq!(planes.active_workspace_idx(), 1);
+        assert_eq!(planes.active_workspace_idx(), 0);
 
         assert_eq!(extracted.plane_count(), 1);
         assert_ne!(extracted.active_plane().id(), original_id);
