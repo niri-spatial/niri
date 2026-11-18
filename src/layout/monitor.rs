@@ -63,9 +63,8 @@ pub struct Monitor<W: LayoutElement> {
     // should only consider overlay and top layer-shell surfaces. However, Smithay doesn't easily
     // let you do this at the moment.
     working_area: Rectangle<f64, Logical>,
-    // Must always contain at least one.
-    /// Depth planes for this monitor. Existing workspace operations dereference
-    /// to the active plane's vertical workspace list.
+    /// Depth planes for this monitor. Each plane always contains at least one
+    /// workspace. Existing Y-axis operations dereference to the active plane.
     pub(super) workspaces: WorkspacePlanes<Workspace<W>>,
     /// ID of the previously active workspace.
     pub(super) previous_workspace_id: Option<WorkspaceId>,
