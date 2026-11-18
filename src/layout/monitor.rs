@@ -443,16 +443,57 @@ impl<W: LayoutElement> Monitor<W> {
     /// workspace, even when all workspaces were routed to another output.
     pub(super) fn ensure_workspace_plane(&mut self) {
         if self.workspaces.is_empty() {
-            let workspace = Workspace::new(
+            let mut workspace = Workspace::new(
                 self.output.clone(),
                 self.clock.clone(),
                 self.options.clone(),
             );
+            workspace.original_output = OutputId::new(&self.output);
             let plane = WorkspacePlane::new(PlaneId::next(), vec![workspace], 0)
                 .expect("a monitor fallback plane must contain one workspace");
             self.workspaces
                 .push_plane(plane)
                 .expect("a newly generated plane ID must be unique");
+        }
+    }
+
+    /// Restores the required empty boundary workspaces on every plane.
+    ///
+    /// Workspace routing can extract a plane's previous boundary workspace
+    /// when it belonged to another output. The remaining plane still needs
+    /// its own empty end workspace (and, when configured, an empty first one).
+    pub(super) fn ensure_workspace_boundaries(&mut self) {
+        let output = self.output.clone();
+        let output_id = OutputId::new(&output);
+        let clock = self.clock.clone();
+        let options = self.options.clone();
+        let empty_workspace_above_first = options.layout.empty_workspace_above_first;
+
+        for plane in self.workspaces.iter_planes_mut() {
+            if empty_workspace_above_first
+                && plane
+                    .workspaces()
+                    .first()
+                    .is_some_and(|workspace| workspace.has_windows_or_name())
+            {
+                let mut workspace =
+                    Workspace::new(output.clone(), clock.clone(), options.clone());
+                workspace.original_output = output_id.clone();
+                plane
+                    .insert_workspace(0, workspace)
+                    .expect("inserting the first workspace must succeed");
+            }
+
+            if plane
+                .workspaces()
+                .last()
+                .is_some_and(|workspace| workspace.has_windows_or_name())
+            {
+                let mut workspace =
+                    Workspace::new(output.clone(), clock.clone(), options.clone());
+                workspace.original_output = output_id.clone();
+                plane.push_workspace(workspace);
+            }
         }
     }
 
@@ -807,32 +848,37 @@ impl<W: LayoutElement> Monitor<W> {
 
     pub fn clean_up_workspaces(&mut self) {
         assert!(self.workspace_switch.is_none());
+        self.clean_up_plane_workspaces(self.workspaces.active_plane_idx());
+    }
 
-        let range_start = if self.options.layout.empty_workspace_above_first {
-            1
-        } else {
-            0
-        };
-        for idx in (range_start..self.workspaces.len() - 1).rev() {
-            if self.active_workspace_idx() == idx {
+    fn clean_up_plane_workspaces(&mut self, plane_idx: usize) {
+        let empty_workspace_above_first = self.options.layout.empty_workspace_above_first;
+        let range_start = if empty_workspace_above_first { 1 } else { 0 };
+        let plane = self
+            .workspaces
+            .plane_mut(plane_idx)
+            .expect("the plane index must be valid");
+
+        for idx in (range_start..plane.workspace_count() - 1).rev() {
+            if plane.active_workspace_idx() == idx {
                 continue;
             }
 
-            if !self.workspaces[idx].has_windows_or_name() {
-                self.workspaces.remove(idx);
-                if self.active_workspace_idx() > idx {
-                    self.set_active_workspace_idx(self.active_workspace_idx() - 1);
-                }
+            if !plane.workspaces()[idx].has_windows_or_name() {
+                plane
+                    .remove_workspace(idx)
+                    .expect("the workspace index must be valid");
             }
         }
 
         // Special case handling when empty_workspace_above_first is set and all workspaces
         // are empty.
-        if self.options.layout.empty_workspace_above_first && self.workspaces.len() == 2 {
-            assert!(!self.workspaces[0].has_windows_or_name());
-            assert!(!self.workspaces[1].has_windows_or_name());
-            self.workspaces.remove(1);
-            self.set_active_workspace_idx(0);
+        if empty_workspace_above_first && plane.workspace_count() == 2 {
+            assert!(!plane.workspaces()[0].has_windows_or_name());
+            assert!(!plane.workspaces()[1].has_windows_or_name());
+            plane
+                .remove_workspace(1)
+                .expect("the trailing workspace must exist");
         }
     }
 
@@ -1072,17 +1118,29 @@ impl<W: LayoutElement> Monitor<W> {
         idx: usize,
         activate: ActivateWindow,
     ) {
-        let source_workspace_idx = if let Some(window) = window {
+        let (source_plane_id, source_workspace_idx) = if let Some(window) = window {
             self.workspaces
-                .iter()
-                .position(|ws| ws.has_window(window))
+                .iter_workspaces()
+                .find_map(|(plane_id, workspace_idx, workspace)| {
+                    workspace
+                        .has_window(window)
+                        .then_some((plane_id, workspace_idx))
+                })
                 .unwrap()
         } else {
-            self.active_workspace_idx()
+            (
+                self.workspaces.active_plane().id(),
+                self.active_workspace_idx(),
+            )
         };
+        let source_plane_idx = self
+            .workspaces
+            .index_of(source_plane_id)
+            .expect("the source plane must still exist");
 
         let new_idx = min(idx, self.workspaces.len() - 1);
-        if new_idx == source_workspace_idx {
+        let target_plane_id = self.workspaces.active_plane().id();
+        if source_plane_id == target_plane_id && new_idx == source_workspace_idx {
             return;
         }
         let new_id = self.workspaces[new_idx].id();
@@ -1091,7 +1149,13 @@ impl<W: LayoutElement> Monitor<W> {
             window.is_none_or(|win| self.active_window().map(|win| win.id()) == Some(win))
         });
 
-        let workspace = &mut self.workspaces[source_workspace_idx];
+        let workspace = self
+            .workspaces
+            .plane_mut(source_plane_idx)
+            .expect("the source plane index must be valid")
+            .workspaces_mut()
+            .get_mut(source_workspace_idx)
+            .expect("the source workspace index must be valid");
         let transaction = Transaction::new();
         let removed = if let Some(window) = window {
             workspace.remove_tile(window, transaction)
@@ -1119,7 +1183,7 @@ impl<W: LayoutElement> Monitor<W> {
         );
 
         if self.workspace_switch.is_none() {
-            self.clean_up_workspaces();
+            self.clean_up_plane_workspaces(source_plane_idx);
         }
     }
 
