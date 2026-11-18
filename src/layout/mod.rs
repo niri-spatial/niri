@@ -771,6 +771,7 @@ impl<W: LayoutElement> Layout<W> {
                 // connected output. A connected monitor must still retain a
                 // valid workspace plane after the extraction.
                 primary.ensure_workspace_plane();
+                primary.ensure_workspace_boundaries();
 
                 if active_plane_had_matching_workspaces {
                     // FIXME: this can be coded in a way that the workspace switch won't be
