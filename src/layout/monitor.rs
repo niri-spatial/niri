@@ -408,13 +408,16 @@ impl<W: LayoutElement> Monitor<W> {
     /// Transfers this monitor's non-empty planes to the no-output state.
     pub fn into_planes(self) -> NoOutputWorkspacePlanes<Workspace<W>> {
         let mut planes = self.workspaces;
-        let mut retained = planes.extract_workspaces_where(Workspace::has_windows_or_name);
+        // Extract and discard empty unnamed workspaces so plane IDs remain
+        // attached to the workspaces that survive the output disconnection.
+        let _empty_workspaces =
+            planes.extract_workspaces_where(|ws| !ws.has_windows_or_name());
 
-        for (_, _, workspace) in retained.iter_workspaces_mut() {
+        for (_, _, workspace) in planes.iter_workspaces_mut() {
             workspace.set_output(None);
         }
 
-        NoOutputWorkspacePlanes::from_planes(retained)
+        NoOutputWorkspacePlanes::from_planes(planes)
     }
 
     pub fn output(&self) -> &Output {
