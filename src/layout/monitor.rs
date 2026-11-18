@@ -1294,7 +1294,8 @@ impl<W: LayoutElement> Monitor<W> {
             return;
         }
 
-        self.workspaces.swap(self.active_workspace_idx(), new_idx);
+        let active_workspace_idx = self.active_workspace_idx();
+        self.workspaces.swap(active_workspace_idx, new_idx);
 
         if self.active_workspace_idx() == self.workspaces.len() - 1 {
             // Insert a new empty workspace.
