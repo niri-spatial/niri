@@ -4925,6 +4925,10 @@ impl<W: LayoutElement> Layout<W> {
         }
     }
 
+    /// Iterates over workspaces, flattening each monitor's planes in depth order.
+    ///
+    /// The returned index is the flattened workspace index for that monitor,
+    /// preserving the existing index-based layout and IPC interfaces.
     pub fn workspaces(
         &self,
     ) -> impl Iterator<Item = (Option<&Monitor<W>>, usize, &Workspace<W>)> + '_ {
