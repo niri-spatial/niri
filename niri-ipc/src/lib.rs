@@ -470,6 +470,10 @@ pub enum Action {
     },
     /// Center all fully visible columns on the screen.
     CenterVisibleColumns {},
+    /// Focus the plane behind the current plane.
+    FocusPlaneBackward {},
+    /// Focus the plane in front of the current plane.
+    FocusPlaneForward {},
     /// Focus the workspace below.
     FocusWorkspaceDown {},
     /// Focus the workspace above.
