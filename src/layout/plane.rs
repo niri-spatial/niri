@@ -456,7 +456,7 @@ impl<T> WorkspacePlanes<T> {
     }
 }
 
-
+/// Compatibility view: dereference to the active plane's workspace list.
 impl<T> Deref for WorkspacePlanes<T> {
     type Target = Vec<T>;
 
