@@ -1155,6 +1155,25 @@ mod tests {
     }
 
     #[test]
+    fn splitting_a_plane_keeps_the_original_id_with_the_remaining_workspaces() {
+        let original_id = PlaneId::new(102);
+        let plane = WorkspacePlane::new(original_id, vec![0, 1, 2, 3], 2).unwrap();
+        let mut planes = WorkspacePlanes::new(plane);
+
+        let extracted = planes.extract_workspaces_where(|workspace| *workspace == 1 || *workspace == 2);
+
+        assert_eq!(planes.plane_count(), 1);
+        assert_eq!(planes.active_plane().id(), original_id);
+        assert_eq!(planes.active_plane().workspaces(), &[0, 3]);
+        assert_eq!(planes.active_workspace_idx(), 1);
+
+        assert_eq!(extracted.plane_count(), 1);
+        assert_ne!(extracted.active_plane().id(), original_id);
+        assert_eq!(extracted.active_plane().workspaces(), &[1, 2]);
+        assert_eq!(extracted.active_workspace_idx(), 1);
+    }
+
+    #[test]
     fn no_output_flat_view_keeps_plane_structure() {
         let first_id = PlaneId::new(200);
         let second_id = PlaneId::new(201);
