@@ -942,7 +942,7 @@ impl<W: LayoutElement> Layout<W> {
                     AddWindowTarget::Workspace(ws_id) => {
                         let mon_idx = monitors
                             .iter()
-                            .position(|mon| mon.workspaces.iter().any(|ws| ws.id() == ws_id))
+                            .position(|mon| mon.workspaces.iter_workspaces().any(|(_, _, ws)| ws.id() == ws_id))
                             .unwrap();
 
                         (
@@ -978,7 +978,7 @@ impl<W: LayoutElement> Layout<W> {
                             let mon_idx = monitors
                                 .iter()
                                 .position(|mon| {
-                                    mon.workspaces.iter().any(|ws| ws.has_window(next_to))
+                                    mon.workspaces.iter_workspaces().any(|(_, _, ws)| ws.has_window(next_to))
                                 })
                                 .unwrap();
                             (mon_idx, MonitorAddWindowTarget::NextTo(next_to))
@@ -1137,37 +1137,69 @@ impl<W: LayoutElement> Layout<W> {
         match &mut self.monitor_set {
             MonitorSet::Normal { monitors, .. } => {
                 for mon in monitors {
-                    for (idx, ws) in mon.workspaces.iter_mut().enumerate() {
-                        if ws.has_window(window) {
-                            let removed = ws.remove_tile(window, transaction);
+                    let location = mon.workspaces.iter_planes().find_map(|plane| {
+                        plane
+                            .workspaces()
+                            .iter()
+                            .position(|ws| ws.has_window(window))
+                            .map(|workspace_idx| {
+                                (
+                                    plane.id(),
+                                    workspace_idx,
+                                    plane.active_workspace_idx(),
+                                    plane.workspace_count(),
+                                )
+                            })
+                    });
 
-                            // Clean up empty workspaces that are not active and not last.
-                            if !ws.has_windows_or_name()
-                                && idx != mon.active_workspace_idx()
-                                && idx != mon.workspaces.len() - 1
-                                && mon.workspace_switch.is_none()
-                            {
-                                mon.workspaces.remove(idx);
+                    let Some((plane_id, workspace_idx, active_workspace_idx, workspace_count)) =
+                        location
+                    else {
+                        continue;
+                    };
 
-                                if idx < mon.active_workspace_idx() {
-                                    mon.set_active_workspace_idx(mon.active_workspace_idx() - 1);
-                                }
-                            }
+                    let (removed, is_empty) = {
+                        let plane = mon.workspaces.plane_by_id_mut(plane_id).unwrap();
+                        let workspace = &mut plane.workspaces_mut()[workspace_idx];
+                        let removed = workspace.remove_tile(window, transaction);
+                        (removed, !workspace.has_windows_or_name())
+                    };
 
-                            // Special case handling when empty_workspace_above_first is set and all
-                            // workspaces are empty.
-                            if mon.options.layout.empty_workspace_above_first
-                                && mon.workspaces.len() == 2
-                                && mon.workspace_switch.is_none()
-                            {
-                                assert!(!mon.workspaces[0].has_windows_or_name());
-                                assert!(!mon.workspaces[1].has_windows_or_name());
-                                mon.workspaces.remove(1);
-                                mon.set_active_workspace_idx(0);
-                            }
-                            return Some(removed);
+                    let is_active_plane = mon.active_plane_id() == plane_id;
+                    let can_clean_up = !is_active_plane || mon.workspace_switch.is_none();
+
+                    // Clean up empty workspaces that are not active and not last
+                    // within their own plane.
+                    if is_empty
+                        && workspace_idx != active_workspace_idx
+                        && workspace_idx + 1 != workspace_count
+                        && can_clean_up
+                    {
+                        mon.workspaces
+                            .plane_by_id_mut(plane_id)
+                            .unwrap()
+                            .remove_workspace(workspace_idx)
+                            .expect("the selected workspace must exist");
+                    }
+
+                    // Preserve the existing empty_workspace_above_first behavior
+                    // independently within each plane.
+                    if mon.options.layout.empty_workspace_above_first && can_clean_up {
+                        let plane = mon.workspaces.plane_by_id_mut(plane_id).unwrap();
+                        if plane.workspace_count() == 2
+                            && !plane.workspaces()[0].has_windows_or_name()
+                            && !plane.workspaces()[1].has_windows_or_name()
+                        {
+                            plane
+                                .remove_workspace(1)
+                                .expect("the last workspace can be removed when a plane has two");
+                            plane
+                                .activate_workspace(0)
+                                .expect("the remaining workspace must exist");
                         }
                     }
+
+                    return Some(removed);
                 }
             }
             MonitorSet::NoOutputs { workspaces, .. } => {
@@ -1219,7 +1251,7 @@ impl<W: LayoutElement> Layout<W> {
         match &mut self.monitor_set {
             MonitorSet::Normal { monitors, .. } => {
                 for mon in monitors {
-                    for ws in mon.workspaces.iter_mut() {
+                    for (_, _, ws) in mon.workspaces.iter_workspaces_mut() {
                         if ws.has_window(window) {
                             ws.update_window(window, serial);
                             return;
@@ -1366,7 +1398,7 @@ impl<W: LayoutElement> Layout<W> {
             MonitorSet::Normal { monitors, .. } => {
                 for mon in monitors {
                     // Mapped windows on inactive planes still commit and must remain discoverable.
-                    for ws in mon.workspaces.iter() {
+                    for (_, _, ws) in mon.workspaces.iter_workspaces() {
                         if let Some(window) = ws.find_wl_surface(wl_surface) {
                             return Some((window, Some(&mon.output)));
                         }
@@ -1399,7 +1431,7 @@ impl<W: LayoutElement> Layout<W> {
             MonitorSet::Normal { monitors, .. } => {
                 for mon in monitors {
                     // Mapped windows on inactive planes still commit and must remain discoverable.
-                    for ws in mon.workspaces.iter_mut() {
+                    for (_, _, ws) in mon.workspaces.iter_workspaces_mut() {
                         if let Some(window) = ws.find_wl_surface_mut(wl_surface) {
                             return Some((window, Some(&mon.output)));
                         }
@@ -1461,7 +1493,7 @@ impl<W: LayoutElement> Layout<W> {
         }
 
         for mon in self.monitors() {
-            for ws in mon.workspaces.iter() {
+            for (_, _, ws) in mon.workspaces.iter_workspaces() {
                 if ws.has_window(window) {
                     return ws.scroll_amount_to_activate(window);
                 }
@@ -1634,7 +1666,7 @@ impl<W: LayoutElement> Layout<W> {
             .into_iter();
 
         let mon = monitors.iter().find(|mon| &mon.output == output).unwrap();
-        let mon_windows = mon.workspaces.iter().flat_map(|ws| ws.windows());
+        let mon_windows = mon.workspaces.iter_workspaces().flat_map(|(_, _, ws)| ws.windows());
 
         moving_window.chain(mon_windows)
     }
@@ -1656,7 +1688,7 @@ impl<W: LayoutElement> Layout<W> {
             .iter_mut()
             .find(|mon| &mon.output == output)
             .unwrap();
-        let mon_windows = mon.workspaces.iter_mut().flat_map(|ws| ws.windows_mut());
+        let mon_windows = mon.workspaces.iter_workspaces_mut().flat_map(|(_, _, ws)| ws.windows_mut());
 
         moving_window.chain(mon_windows)
     }
@@ -1674,7 +1706,7 @@ impl<W: LayoutElement> Layout<W> {
         match &self.monitor_set {
             MonitorSet::Normal { monitors, .. } => {
                 for mon in monitors {
-                    for ws in mon.workspaces.iter() {
+                    for (_, _, ws) in mon.workspaces.iter_workspaces() {
                         for (tile, layout) in ws.tiles_with_ipc_layouts() {
                             f(tile.window(), Some(&mon.output), Some(ws.id()), layout);
                         }
@@ -1699,7 +1731,7 @@ impl<W: LayoutElement> Layout<W> {
         match &mut self.monitor_set {
             MonitorSet::Normal { monitors, .. } => {
                 for mon in monitors {
-                    for ws in mon.workspaces.iter_mut() {
+                    for (_, _, ws) in mon.workspaces.iter_workspaces_mut() {
                         for win in ws.windows_mut() {
                             f(win, Some(&mon.output));
                         }
@@ -2527,7 +2559,7 @@ impl<W: LayoutElement> Layout<W> {
             monitor.verify_invariants();
 
             if idx == primary_idx {
-                for ws in monitor.workspaces.iter() {
+                for (_, _, ws) in monitor.workspaces.iter_workspaces() {
                     if ws.original_output.matches(&monitor.output) {
                         // This is the primary monitor's own workspace.
                         continue;
@@ -2554,7 +2586,7 @@ impl<W: LayoutElement> Layout<W> {
             // FIXME: verify that primary doesn't have any workspaces for which their own monitor
             // exists.
 
-            for workspace in monitor.workspaces.iter() {
+            for (_, _, workspace) in monitor.workspaces.iter_workspaces() {
                 assert!(
                     seen_workspace_id.insert(workspace.id()),
                     "workspace id must be unique"
@@ -4409,7 +4441,7 @@ impl<W: LayoutElement> Layout<W> {
         match &mut self.monitor_set {
             MonitorSet::Normal { monitors, .. } => {
                 for mon in monitors {
-                    for ws in mon.workspaces.iter_mut() {
+                    for (_, _, ws) in mon.workspaces.iter_workspaces_mut() {
                         if ws.has_window(&window) {
                             return ws.interactive_resize_begin(window, edges);
                         }
@@ -4442,7 +4474,7 @@ impl<W: LayoutElement> Layout<W> {
         match &mut self.monitor_set {
             MonitorSet::Normal { monitors, .. } => {
                 for mon in monitors {
-                    for ws in mon.workspaces.iter_mut() {
+                    for (_, _, ws) in mon.workspaces.iter_workspaces_mut() {
                         if ws.has_window(window) {
                             return ws.interactive_resize_update(window, delta);
                         }
@@ -4471,7 +4503,7 @@ impl<W: LayoutElement> Layout<W> {
         match &mut self.monitor_set {
             MonitorSet::Normal { monitors, .. } => {
                 for mon in monitors {
-                    for ws in mon.workspaces.iter_mut() {
+                    for (_, _, ws) in mon.workspaces.iter_workspaces_mut() {
                         if ws.has_window(window) {
                             ws.interactive_resize_end(Some(window));
                             return;
@@ -4743,7 +4775,7 @@ impl<W: LayoutElement> Layout<W> {
         match &mut self.monitor_set {
             MonitorSet::Normal { monitors, .. } => {
                 for mon in monitors {
-                    for ws in mon.workspaces.iter_mut() {
+                    for (_, _, ws) in mon.workspaces.iter_workspaces_mut() {
                         if ws.has_window(window) {
                             ws.clear_unmap_snapshot(window);
                             return;
@@ -4804,7 +4836,7 @@ impl<W: LayoutElement> Layout<W> {
         match &mut self.monitor_set {
             MonitorSet::Normal { monitors, .. } => {
                 for mon in monitors {
-                    for ws in mon.workspaces.iter_mut() {
+                    for (_, _, ws) in mon.workspaces.iter_workspaces_mut() {
                         if ws.has_window(window) {
                             ws.start_close_animation_for_window(renderer, window, blocker);
                             return;
