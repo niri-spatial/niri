@@ -880,9 +880,12 @@ impl<W: LayoutElement> Monitor<W> {
     ///
     /// Each imported plane remains a separate depth layer, and its active
     /// vertical workspace is retained.
-    pub fn append_planes(&mut self, planes: NoOutputWorkspacePlanes<Workspace<W>>) {
+    pub fn append_planes(
+        &mut self,
+        planes: NoOutputWorkspacePlanes<Workspace<W>>,
+        original_output: OutputId,
+    ) {
         for mut plane in planes.into_planes().into_planes() {
-            let original_output = plane.workspaces()[0].original_output.clone();
             for workspace in plane.workspaces_mut() {
                 workspace.set_output(Some(self.output.clone()));
                 workspace.update_config(self.options.clone());
