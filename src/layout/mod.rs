@@ -37,7 +37,7 @@ use std::rc::Rc;
 use std::time::Duration;
 
 use monitor::{InsertHint, InsertPosition, InsertWorkspace, MonitorAddWindowTarget};
-use plane::{NoOutputWorkspacePlanes, WorkspacePlanes};
+use plane::NoOutputWorkspacePlanes;
 use niri_config::utils::MergeWith as _;
 use niri_config::{
     Config, CornerRadius, LayoutPart, PresetSize, Workspace as WorkspaceConfig, WorkspaceReference,
