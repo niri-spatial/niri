@@ -564,6 +564,27 @@ impl<W: LayoutElement> Monitor<W> {
     /// The final plane cannot be removed. If the active plane is removed, the
     /// neighboring plane becomes active and its previously active workspace is
     /// retained.
+    /// Focuses the adjacent plane farther back in depth order.
+    ///
+    /// Plane indices increase toward the front, so the first plane is the
+    /// farthest back. The focus stays in place at the back edge.
+    pub fn focus_plane_backward(&mut self) {
+        let index = self.active_plane_idx().saturating_sub(1);
+        self.activate_plane(index)
+            .expect("the previous plane index must be valid");
+    }
+
+    /// Focuses the adjacent plane closer to the front in depth order.
+    ///
+    /// The focus stays in place at the front edge.
+    pub fn focus_plane_forward(&mut self) {
+        let index = self.active_plane_idx().saturating_add(1);
+        if index < self.plane_count() {
+            self.activate_plane(index)
+                .expect("the next plane index must be valid");
+        }
+    }
+
     pub fn remove_plane(
         &mut self,
         index: usize,
