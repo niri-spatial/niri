@@ -457,6 +457,7 @@ binds {
     // ...
 
     // Switch between depth planes (the Z axis).
+    Mod+Alt+I          { create-plane; }
     Mod+U              { focus-plane-backward; }
     Mod+I              { focus-plane-forward; }
 
