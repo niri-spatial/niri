@@ -2704,6 +2704,77 @@ fn output_active_workspace_is_preserved() {
 }
 
 #[test]
+fn secondary_output_disconnect_and_reconnect_preserves_planes() {
+    let ops = [
+        Op::AddOutput(1),
+        Op::AddOutput(2),
+        Op::FocusOutput(2),
+        Op::AddWindow {
+            params: TestWindowParams::new(1),
+        },
+        Op::FocusWorkspaceDown,
+        Op::AddWindow {
+            params: TestWindowParams::new(2),
+        },
+    ];
+    let mut layout = check_ops(ops);
+
+    let (first_plane_id, second_plane_id) = {
+        let MonitorSet::Normal { monitors, .. } = &mut layout.monitor_set else {
+            unreachable!()
+        };
+        let monitor = &mut monitors[1];
+        assert_eq!(monitor.active_workspace_idx(), 1);
+        let first_plane_id = monitor.active_plane_id();
+        let second_plane_id = monitor.add_plane();
+        (first_plane_id, second_plane_id)
+    };
+
+    Op::AddWindow {
+        params: TestWindowParams::new(3),
+    }
+    .apply(&mut layout);
+    Op::FocusWorkspaceDown.apply(&mut layout);
+    Op::AddWindow {
+        params: TestWindowParams::new(4),
+    }
+    .apply(&mut layout);
+
+    let MonitorSet::Normal { monitors, .. } = &layout.monitor_set else {
+        unreachable!()
+    };
+    assert_eq!(monitors[1].plane_count(), 2);
+    assert_eq!(monitors[1].active_plane_id(), second_plane_id);
+    assert_eq!(monitors[1].active_workspace_idx(), 1);
+
+    Op::RemoveOutput(2).apply(&mut layout);
+
+    let MonitorSet::Normal { monitors, .. } = &layout.monitor_set else {
+        unreachable!()
+    };
+    assert_eq!(monitors.len(), 1);
+    assert_eq!(monitors[0].plane_count(), 3);
+    assert_eq!(monitors[0].workspaces.plane(1).unwrap().id(), first_plane_id);
+    assert_eq!(monitors[0].workspaces.plane(2).unwrap().id(), second_plane_id);
+
+    Op::AddOutput(2).apply(&mut layout);
+
+    let MonitorSet::Normal { monitors, .. } = &layout.monitor_set else {
+        unreachable!()
+    };
+    assert_eq!(monitors.len(), 2);
+    assert_eq!(monitors[0].plane_count(), 1);
+    assert_eq!(monitors[1].plane_count(), 2);
+    assert_eq!(monitors[1].active_plane_idx(), 1);
+    assert_eq!(monitors[1].active_plane_id(), second_plane_id);
+    assert_eq!(monitors[1].active_workspace_idx(), 1);
+    assert_eq!(monitors[1].workspaces.plane(0).unwrap().id(), first_plane_id);
+    assert_eq!(monitors[1].workspaces.plane(1).unwrap().id(), second_plane_id);
+
+    layout.verify_invariants();
+}
+
+#[test]
 fn output_disconnect_and_reconnect_preserves_planes() {
     let ops = [
         Op::AddOutput(1),
