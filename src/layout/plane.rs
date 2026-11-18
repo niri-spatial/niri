@@ -294,6 +294,15 @@ impl<T> WorkspacePlanes<T> {
             });
         }
 
+        for (index, plane) in planes.iter().enumerate() {
+            if planes[..index]
+                .iter()
+                .any(|previous| previous.id() == plane.id())
+            {
+                return Err(PlaneError::DuplicatePlaneId);
+            }
+        }
+
         Ok(Self {
             planes,
             active_plane_idx,
@@ -659,10 +668,11 @@ impl<T> NoOutputWorkspacePlanes<T> {
 
     /// Returns the active plane's stable identity, if the collection is non-empty.
     pub fn active_plane_id(&self) -> Option<PlaneId> {
-        self.planes.is_empty().then_some(()).map_or_else(
-            || Some(self.planes.active_plane().id()),
-            |_| None,
-        )
+        if self.planes.is_empty() {
+            None
+        } else {
+            Some(self.planes.active_plane().id())
+        }
     }
 
     /// Returns the active workspace's index within the active plane.
