@@ -9,6 +9,11 @@
 //! migrated to use it.
 
 use std::fmt;
+use std::ops::{Deref, DerefMut};
+
+use crate::utils::id::IdCounter;
+
+static PLANE_ID_COUNTER: IdCounter = IdCounter::new();
 
 /// Stable identity for a depth plane.
 ///
@@ -21,6 +26,11 @@ impl PlaneId {
     /// Creates a plane ID.
     pub const fn new(id: u64) -> Self {
         Self(id)
+    }
+
+    /// Allocates a process-unique plane ID.
+    pub fn next() -> Self {
+        Self::new(PLANE_ID_COUNTER.next())
     }
 
     /// Returns the underlying ID.
@@ -260,6 +270,16 @@ impl<T> WorkspacePlanes<T> {
         self.active_plane_idx
     }
 
+    /// Returns the active workspace's index within the active plane.
+    pub fn active_workspace_idx(&self) -> usize {
+        self.active_plane().active_workspace_idx()
+    }
+
+    /// Activates a workspace within the active plane.
+    pub fn activate_workspace(&mut self, index: usize) -> Result<(), PlaneError> {
+        self.active_plane_mut().activate_workspace(index)
+    }
+
     /// Returns the active plane.
     pub fn active_plane(&self) -> &WorkspacePlane<T> {
         &self.planes[self.active_plane_idx]
@@ -334,6 +354,17 @@ impl<T> WorkspacePlanes<T> {
                 .enumerate()
                 .map(move |(workspace_idx, workspace)| (plane_id, workspace_idx, workspace))
         })
+    }
+
+    /// Consumes the collection and flattens all planes into workspace order.
+    ///
+    /// This is used by existing monitor migration paths while they are being
+    /// upgraded to preserve plane groups.
+    pub fn into_workspaces(self) -> Vec<T> {
+        self.planes
+            .into_iter()
+            .flat_map(WorkspacePlane::into_workspaces)
+            .collect()
     }
 
     /// Activates a plane by its depth-order index.
@@ -671,5 +702,42 @@ mod tests {
             Err(PlaneError::CannotRemoveLastPlane)
         ));
         assert_eq!(planes.plane_count(), 1);
+    }
+}
+
+impl<T> Deref for WorkspacePlanes<T> {
+    type Target = Vec<T>;
+
+    /// Dereferences to the active plane's workspace list.
+    ///
+    /// Existing layout operations therefore continue to operate on the
+    /// visible vertical workspace sequence. Monitor-wide operations must use
+    /// iter_workspaces() to include inactive planes.
+    fn deref(&self) -> &Self::Target {
+        self.active_plane().workspaces()
+    }
+}
+
+impl<T> DerefMut for WorkspacePlanes<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.active_plane_mut().workspaces_mut()
+    }
+}
+
+impl<'a, T> IntoIterator for &'a WorkspacePlanes<T> {
+    type Item = &'a T;
+    type IntoIter = std::slice::Iter<'a, T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.active_plane().workspaces().iter()
+    }
+}
+
+impl<'a, T> IntoIterator for &'a mut WorkspacePlanes<T> {
+    type Item = &'a mut T;
+    type IntoIter = std::slice::IterMut<'a, T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.active_plane_mut().workspaces_mut().iter_mut()
     }
 }
