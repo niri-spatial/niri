@@ -3663,7 +3663,9 @@ impl<W: LayoutElement> Layout<W> {
             let active_workspace_idx = monitor.active_workspace_idx();
             for (idx, ws) in monitor.workspaces.iter_mut().enumerate() {
                 // Cancel the gesture on other workspaces.
-                if &monitor.output != output || idx != workspace_idx.unwrap_or(active_workspace_idx) {
+                if &monitor.output != output
+                    || idx != workspace_idx.unwrap_or(active_workspace_idx)
+                {
                     ws.view_offset_gesture_end(None);
                     continue;
                 }
