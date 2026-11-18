@@ -197,9 +197,7 @@ impl<T> WorkspacePlane<T> {
 
         let removed = self.workspaces.remove(index);
 
-        if index < self.active_workspace_idx
-            || self.active_workspace_idx == self.workspaces.len()
-        {
+        if index < self.active_workspace_idx || self.active_workspace_idx == self.workspaces.len() {
             self.active_workspace_idx -= 1;
         }
 
