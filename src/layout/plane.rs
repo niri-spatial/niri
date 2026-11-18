@@ -456,6 +456,44 @@ impl<T> WorkspacePlanes<T> {
     }
 }
 
+
+impl<T> Deref for WorkspacePlanes<T> {
+    type Target = Vec<T>;
+
+    /// Dereferences to the active plane's workspace list.
+    ///
+    /// Existing layout operations therefore continue to operate on the
+    /// visible vertical workspace sequence. Monitor-wide operations must use
+    /// iter_workspaces() to include inactive planes.
+    fn deref(&self) -> &Self::Target {
+        &self.active_plane().workspaces
+    }
+}
+
+impl<T> DerefMut for WorkspacePlanes<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.active_plane_mut().workspaces
+    }
+}
+
+impl<'a, T> IntoIterator for &'a WorkspacePlanes<T> {
+    type Item = &'a T;
+    type IntoIter = std::slice::Iter<'a, T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.active_plane().workspaces().iter()
+    }
+}
+
+impl<'a, T> IntoIterator for &'a mut WorkspacePlanes<T> {
+    type Item = &'a mut T;
+    type IntoIter = std::slice::IterMut<'a, T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.active_plane_mut().workspaces_mut().iter_mut()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -728,42 +766,5 @@ mod tests {
             Err(PlaneError::CannotRemoveLastPlane)
         ));
         assert_eq!(planes.plane_count(), 1);
-    }
-}
-
-impl<T> Deref for WorkspacePlanes<T> {
-    type Target = Vec<T>;
-
-    /// Dereferences to the active plane's workspace list.
-    ///
-    /// Existing layout operations therefore continue to operate on the
-    /// visible vertical workspace sequence. Monitor-wide operations must use
-    /// iter_workspaces() to include inactive planes.
-    fn deref(&self) -> &Self::Target {
-        &self.active_plane().workspaces
-    }
-}
-
-impl<T> DerefMut for WorkspacePlanes<T> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.active_plane_mut().workspaces
-    }
-}
-
-impl<'a, T> IntoIterator for &'a WorkspacePlanes<T> {
-    type Item = &'a T;
-    type IntoIter = std::slice::Iter<'a, T>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.active_plane().workspaces().iter()
-    }
-}
-
-impl<'a, T> IntoIterator for &'a mut WorkspacePlanes<T> {
-    type Item = &'a mut T;
-    type IntoIter = std::slice::IterMut<'a, T>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.active_plane_mut().workspaces_mut().iter_mut()
     }
 }
