@@ -350,6 +350,9 @@ impl<W: LayoutElement> Monitor<W> {
                     assert!(ws.has_windows_or_name());
                 }
 
+                if ws.original_output.is_empty() {
+                    ws.original_output = OutputId::new(&output);
+                }
                 ws.set_output(Some(output.clone()));
                 ws.update_config(options.clone());
 
@@ -363,17 +366,21 @@ impl<W: LayoutElement> Monitor<W> {
                 .activate_workspace(active_workspace_idx)
                 .expect("the plane's active workspace index must be valid");
 
+            let plane_original_output = plane.workspaces()[0].original_output.clone();
+
             if options.layout.empty_workspace_above_first
                 && !(needs_initial_workspace && plane_idx == 0)
             {
-                let ws = Workspace::new(output.clone(), clock.clone(), options.clone());
+                let mut ws = Workspace::new(output.clone(), clock.clone(), options.clone());
+                ws.original_output = plane_original_output.clone();
                 plane
                     .insert_workspace(0, ws)
                     .expect("inserting the first workspace must succeed");
             }
 
             if !needs_initial_workspace {
-                let ws = Workspace::new(output.clone(), clock.clone(), options.clone());
+                let mut ws = Workspace::new(output.clone(), clock.clone(), options.clone());
+                ws.original_output = plane_original_output;
                 plane.push_workspace(ws);
             }
         }
