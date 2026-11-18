@@ -36,16 +36,10 @@ pub enum PlaneError {
     EmptyPlane,
 
     /// The requested active workspace index is outside the plane.
-    ActiveWorkspaceOutOfBounds {
-        index: usize,
-        len: usize,
-    },
+    ActiveWorkspaceOutOfBounds { index: usize, len: usize },
 
     /// The requested workspace index is outside the plane.
-    WorkspaceIndexOutOfBounds {
-        index: usize,
-        len: usize,
-    },
+    WorkspaceIndexOutOfBounds { index: usize, len: usize },
 
     /// The last workspace in a plane cannot be removed.
     CannotRemoveLastWorkspace,
@@ -56,10 +50,16 @@ impl fmt::Display for PlaneError {
         match self {
             Self::EmptyPlane => write!(f, "a plane must contain at least one workspace"),
             Self::ActiveWorkspaceOutOfBounds { index, len } => {
-                write!(f, "active workspace index {index} is out of bounds for {len} workspaces")
+                write!(
+                    f,
+                    "active workspace index {index} is out of bounds for {len} workspaces"
+                )
             }
             Self::WorkspaceIndexOutOfBounds { index, len } => {
-                write!(f, "workspace index {index} is out of bounds for {len} workspaces")
+                write!(
+                    f,
+                    "workspace index {index} is out of bounds for {len} workspaces"
+                )
             }
             Self::CannotRemoveLastWorkspace => {
                 write!(f, "cannot remove the last workspace from a plane")
@@ -197,10 +197,8 @@ impl<T> WorkspacePlane<T> {
 
         let removed = self.workspaces.remove(index);
 
-        if index < self.active_workspace_idx {
-            self.active_workspace_idx -= 1;
-        } else if index == self.active_workspace_idx
-            && self.active_workspace_idx == self.workspaces.len()
+        if index < self.active_workspace_idx
+            || self.active_workspace_idx == self.workspaces.len()
         {
             self.active_workspace_idx -= 1;
         }
