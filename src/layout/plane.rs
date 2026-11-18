@@ -309,6 +309,39 @@ impl<T> WorkspacePlanes<T> {
         self.planes.iter_mut()
     }
 
+    /// Iterates over every workspace in plane order.
+    ///
+    /// The workspace index is local to its plane. This is useful for
+    /// monitor-wide operations such as workspace lookup and output migration,
+    /// which must include workspaces on inactive planes.
+    pub fn iter_workspaces(&self) -> impl Iterator<Item = (PlaneId, usize, &T)> {
+        self.planes.iter().flat_map(|plane| {
+            let plane_id = plane.id();
+            plane
+                .workspaces()
+                .iter()
+                .enumerate()
+                .map(move |(workspace_idx, workspace)| (plane_id, workspace_idx, workspace))
+        })
+    }
+
+    /// Iterates mutably over every workspace in plane order.
+    ///
+    /// The workspace index is local to its plane. This is the mutable
+    /// counterpart to Self::iter_workspaces.
+    pub fn iter_workspaces_mut(
+        &mut self,
+    ) -> impl Iterator<Item = (PlaneId, usize, &mut T)> {
+        self.planes.iter_mut().flat_map(|plane| {
+            let plane_id = plane.id();
+            plane
+                .workspaces_mut()
+                .iter_mut()
+                .enumerate()
+                .map(move |(workspace_idx, workspace)| (plane_id, workspace_idx, workspace))
+        })
+    }
+
     /// Activates a plane by its depth-order index.
     pub fn activate_plane(&mut self, index: usize) -> Result<(), PlaneError> {
         if index >= self.planes.len() {
@@ -526,6 +559,45 @@ mod tests {
             Err(PlaneError::DuplicatePlaneId)
         ));
         assert_eq!(planes.plane_count(), 1);
+    }
+
+    #[test]
+    fn iterates_workspaces_in_plane_order_with_plane_local_indices() {
+        let first = WorkspacePlane::new(PlaneId::new(10), vec!["a", "b"], 0).unwrap();
+        let mut planes = WorkspacePlanes::new(first);
+        let second = WorkspacePlane::new(PlaneId::new(20), vec!["c"], 0).unwrap();
+        planes.push_plane(second).unwrap();
+
+        let workspaces: Vec<_> = planes
+            .iter_workspaces()
+            .map(|(plane_id, workspace_idx, workspace)| {
+                (plane_id, workspace_idx, *workspace)
+            })
+            .collect();
+
+        assert_eq!(
+            workspaces,
+            vec![
+                (PlaneId::new(10), 0, "a"),
+                (PlaneId::new(10), 1, "b"),
+                (PlaneId::new(20), 0, "c"),
+            ]
+        );
+    }
+
+    #[test]
+    fn iterates_mutably_over_workspaces_in_all_planes() {
+        let first = WorkspacePlane::new(PlaneId::new(1), vec![0, 0], 0).unwrap();
+        let mut planes = WorkspacePlanes::new(first);
+        let second = WorkspacePlane::new(PlaneId::new(2), vec![0], 0).unwrap();
+        planes.push_plane(second).unwrap();
+
+        for (plane_id, workspace_idx, workspace) in planes.iter_workspaces_mut() {
+            *workspace += plane_id.get() as usize + workspace_idx;
+        }
+
+        assert_eq!(planes.plane(0).unwrap().workspaces(), &[1, 2]);
+        assert_eq!(planes.plane(1).unwrap().workspaces(), &[2]);
     }
 
     #[test]
