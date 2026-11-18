@@ -764,7 +764,7 @@ impl<W: LayoutElement> Layout<W> {
                             workspaces.push(ws);
                         }
 
-                        if i <= primary.active_workspace_idx
+                        if i <= primary.active_workspace_idx()
                             // Generally when moving the currently active workspace, we want to
                             // fall back to the workspace above, so as not to end up on the last
                             // empty workspace. However, with empty workspace above first, when
@@ -776,10 +776,11 @@ impl<W: LayoutElement> Layout<W> {
                             // first monitor to connect can end up with the first empty workspace
                             // focused instead of the first named workspace.
                             && !(primary.options.layout.empty_workspace_above_first
-                                && primary.active_workspace_idx == 1)
+                                && primary.active_workspace_idx() == 1)
                         {
-                            primary.active_workspace_idx =
-                                primary.active_workspace_idx.saturating_sub(1);
+                            primary.set_active_workspace_idx(
+                                primary.active_workspace_idx().saturating_sub(1),
+                            );
                         }
                     }
                 }
@@ -856,7 +857,7 @@ impl<W: LayoutElement> Layout<W> {
 
                 self.last_active_workspace_id.insert(
                     monitor.output_name().clone(),
-                    monitor.workspaces[monitor.active_workspace_idx].id(),
+                    monitor.workspaces[monitor.active_workspace_idx()].id(),
                 );
 
                 let mut workspaces = monitor.into_workspaces();
@@ -1159,14 +1160,16 @@ impl<W: LayoutElement> Layout<W> {
 
                             // Clean up empty workspaces that are not active and not last.
                             if !ws.has_windows_or_name()
-                                && idx != mon.active_workspace_idx
+                                && idx != mon.active_workspace_idx()
                                 && idx != mon.workspaces.len() - 1
                                 && mon.workspace_switch.is_none()
                             {
                                 mon.workspaces.remove(idx);
 
-                                if idx < mon.active_workspace_idx {
-                                    mon.active_workspace_idx -= 1;
+                                if idx < mon.active_workspace_idx() {
+                                    mon.set_active_workspace_idx(
+                                        mon.active_workspace_idx() - 1,
+                                    );
                                 }
                             }
 
@@ -1179,7 +1182,7 @@ impl<W: LayoutElement> Layout<W> {
                                 assert!(!mon.workspaces[0].has_windows_or_name());
                                 assert!(!mon.workspaces[1].has_windows_or_name());
                                 mon.workspaces.remove(1);
-                                mon.active_workspace_idx = 0;
+                                mon.set_active_workspace_idx(0);
                             }
                             return Some(removed);
                         }
@@ -1509,7 +1512,7 @@ impl<W: LayoutElement> Layout<W> {
             return true;
         }
 
-        ws_idx == mon.active_workspace_idx
+        ws_idx == mon.active_workspace_idx()
     }
 
     pub fn activate_window(&mut self, window: &W::Id) {
@@ -1608,7 +1611,7 @@ impl<W: LayoutElement> Layout<W> {
         };
 
         let mon = &monitors[*active_monitor_idx];
-        Some(&mon.workspaces[mon.active_workspace_idx])
+        Some(&mon.workspaces[mon.active_workspace_idx()])
     }
 
     pub fn active_workspace_mut(&mut self) -> Option<&mut Workspace<W>> {
@@ -1622,7 +1625,7 @@ impl<W: LayoutElement> Layout<W> {
         };
 
         let mon = &mut monitors[*active_monitor_idx];
-        Some(&mut mon.workspaces[mon.active_workspace_idx])
+        Some(&mut mon.workspaces[mon.active_workspace_idx()])
     }
 
     pub fn windows_for_output(&self, output: &Output) -> impl Iterator<Item = &W> + '_ {
@@ -3319,10 +3322,10 @@ impl<W: LayoutElement> Layout<W> {
             } else {
                 let mon_idx = *active_monitor_idx;
                 let mon = &monitors[mon_idx];
-                (mon_idx, mon.active_workspace_idx)
+                (mon_idx, mon.active_workspace_idx())
             };
 
-            let workspace_idx = target_ws_idx.unwrap_or(monitors[new_idx].active_workspace_idx);
+            let workspace_idx = target_ws_idx.unwrap_or(monitors[new_idx].active_workspace_idx());
             if mon_idx == new_idx && ws_idx == workspace_idx {
                 return;
             }
@@ -3413,7 +3416,7 @@ impl<W: LayoutElement> Layout<W> {
             };
 
             let workspace_idx = target_ws_idx
-                .unwrap_or(monitors[new_idx].active_workspace_idx)
+                .unwrap_or(monitors[new_idx].active_workspace_idx())
                 .min(monitors[new_idx].workspaces.len() - 1);
             self.add_column_by_idx(new_idx, workspace_idx, column, activate);
         }
@@ -3429,7 +3432,7 @@ impl<W: LayoutElement> Layout<W> {
             return false;
         };
 
-        let idx = monitors[*active_monitor_idx].active_workspace_idx;
+        let idx = monitors[*active_monitor_idx].active_workspace_idx();
         self.move_workspace_to_output_by_id(idx, None, output)
     }
 
@@ -3479,13 +3482,13 @@ impl<W: LayoutElement> Layout<W> {
         // Only switch active monitor if the workspace to be moved is the currently focused one on
         // the current monitor.
         let activate =
-            current_idx == *active_monitor_idx && old_idx == current.active_workspace_idx;
+            current_idx == *active_monitor_idx && old_idx == current.active_workspace_idx();
 
         let mut ws = current.remove_workspace_by_idx(old_idx);
         ws.original_output = OutputId::new(new_output);
 
         let target = &mut monitors[target_idx];
-        target.insert_workspace(ws, target.active_workspace_idx + 1, activate);
+        target.insert_workspace(ws, target.active_workspace_idx() + 1, activate);
 
         if activate {
             *active_monitor_idx = target_idx;
@@ -3661,7 +3664,7 @@ impl<W: LayoutElement> Layout<W> {
             for (idx, ws) in monitor.workspaces.iter_mut().enumerate() {
                 // Cancel the gesture on other workspaces.
                 if &monitor.output != output
-                    || idx != workspace_idx.unwrap_or(monitor.active_workspace_idx)
+                    || idx != workspace_idx.unwrap_or(monitor.active_workspace_idx())
                 {
                     ws.view_offset_gesture_end(None);
                     continue;
@@ -4512,7 +4515,7 @@ impl<W: LayoutElement> Layout<W> {
             let Some(monitor) = self.active_monitor() else {
                 return;
             };
-            let index = monitor.active_workspace_idx;
+            let index = monitor.active_workspace_idx();
             (monitor, index)
         };
 
@@ -4894,7 +4897,7 @@ impl<W: LayoutElement> Layout<W> {
                     }
 
                     for (ws_idx, ws) in mon.workspaces.iter_mut().enumerate() {
-                        let is_focused = is_active && ws_idx == mon.active_workspace_idx;
+                        let is_focused = is_active && ws_idx == mon.active_workspace_idx();
                         ws.refresh(is_active, is_focused);
 
                         if let Some(is_scrolling) = ongoing_scrolling_dnd {
@@ -4906,7 +4909,7 @@ impl<W: LayoutElement> Layout<W> {
                             }
                         } else {
                             // Cancel the view offset gesture after workspace switches, moves, etc.
-                            if !self.overview_open && ws_idx != mon.active_workspace_idx {
+                            if !self.overview_open && ws_idx != mon.active_workspace_idx() {
                                 ws.view_offset_gesture_end(None);
                             }
                         }
