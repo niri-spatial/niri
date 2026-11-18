@@ -942,7 +942,11 @@ impl<W: LayoutElement> Layout<W> {
                     AddWindowTarget::Workspace(ws_id) => {
                         let mon_idx = monitors
                             .iter()
-                            .position(|mon| mon.workspaces.iter_workspaces().any(|(_, _, ws)| ws.id() == ws_id))
+                            .position(|mon| {
+                                mon.workspaces
+                                    .iter_workspaces()
+                                    .any(|(_, _, ws)| ws.id() == ws_id)
+                            })
                             .unwrap();
 
                         (
@@ -978,7 +982,9 @@ impl<W: LayoutElement> Layout<W> {
                             let mon_idx = monitors
                                 .iter()
                                 .position(|mon| {
-                                    mon.workspaces.iter_workspaces().any(|(_, _, ws)| ws.has_window(next_to))
+                                    mon.workspaces
+                                        .iter_workspaces()
+                                        .any(|(_, _, ws)| ws.has_window(next_to))
                                 })
                                 .unwrap();
                             (mon_idx, MonitorAddWindowTarget::NextTo(next_to))
@@ -1666,7 +1672,10 @@ impl<W: LayoutElement> Layout<W> {
             .into_iter();
 
         let mon = monitors.iter().find(|mon| &mon.output == output).unwrap();
-        let mon_windows = mon.workspaces.iter_workspaces().flat_map(|(_, _, ws)| ws.windows());
+        let mon_windows = mon
+            .workspaces
+            .iter_workspaces()
+            .flat_map(|(_, _, ws)| ws.windows());
 
         moving_window.chain(mon_windows)
     }
@@ -1688,7 +1697,10 @@ impl<W: LayoutElement> Layout<W> {
             .iter_mut()
             .find(|mon| &mon.output == output)
             .unwrap();
-        let mon_windows = mon.workspaces.iter_workspaces_mut().flat_map(|(_, _, ws)| ws.windows_mut());
+        let mon_windows = mon
+            .workspaces
+            .iter_workspaces_mut()
+            .flat_map(|(_, _, ws)| ws.windows_mut());
 
         moving_window.chain(mon_windows)
     }
