@@ -37,12 +37,12 @@ use std::rc::Rc;
 use std::time::Duration;
 
 use monitor::{InsertHint, InsertPosition, InsertWorkspace, MonitorAddWindowTarget};
-use plane::NoOutputWorkspacePlanes;
 use niri_config::utils::MergeWith as _;
 use niri_config::{
     Config, CornerRadius, LayoutPart, PresetSize, Workspace as WorkspaceConfig, WorkspaceReference,
 };
 use niri_ipc::{ColumnDisplay, PositionChange, SizeChange, WindowLayout};
+use plane::NoOutputWorkspacePlanes;
 use scrolling::{Column, ColumnWidth};
 use smithay::backend::renderer::element::surface::WaylandSurfaceRenderElement;
 use smithay::backend::renderer::element::utils::RescaleRenderElement;
@@ -763,8 +763,8 @@ impl<W: LayoutElement> Layout<W> {
                     .extract_workspaces_where(|ws| ws.original_output.matches(&output));
                 // Drop empty unnamed workspaces without changing the IDs of
                 // planes that are being restored to their original output.
-                let _empty_workspaces = transferred
-                    .extract_workspaces_where(|ws| !ws.has_windows_or_name());
+                let _empty_workspaces =
+                    transferred.extract_workspaces_where(|ws| !ws.has_windows_or_name());
                 let workspaces = transferred;
 
                 if active_plane_had_matching_workspaces {
