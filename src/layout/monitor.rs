@@ -417,8 +417,7 @@ impl<W: LayoutElement> Monitor<W> {
         let mut planes = self.workspaces;
         // Extract and discard empty unnamed workspaces so plane IDs remain
         // attached to the workspaces that survive the output disconnection.
-        let _empty_workspaces =
-            planes.extract_workspaces_where(|ws| !ws.has_windows_or_name());
+        let _empty_workspaces = planes.extract_workspaces_where(|ws| !ws.has_windows_or_name());
 
         for (_, _, workspace) in planes.iter_workspaces_mut() {
             workspace.set_output(None);
@@ -919,7 +918,7 @@ impl<W: LayoutElement> Monitor<W> {
             );
             // Keep generated boundary workspaces with the transferred plane so
             // reconnecting its original output restores the complete plane.
-            empty.original_output = original_output;
+            empty.original_output = original_output.clone();
             plane.push_workspace(empty);
 
             self.workspaces
