@@ -506,10 +506,7 @@ impl<T> WorkspacePlanes<T> {
     ///
     /// This is reserved for the no-output compatibility collection, which
     /// historically allowed its workspace list to become empty.
-    fn remove_plane_allow_empty(
-        &mut self,
-        index: usize,
-    ) -> Result<WorkspacePlane<T>, PlaneError> {
+    fn remove_plane_allow_empty(&mut self, index: usize) -> Result<WorkspacePlane<T>, PlaneError> {
         if index >= self.planes.len() {
             return Err(PlaneError::PlaneIndexOutOfBounds {
                 index,
@@ -533,10 +530,7 @@ impl<T> WorkspacePlanes<T> {
     /// A plane split across the two collections keeps its stable identity in
     /// the collection that retains the original workspaces; the extracted
     /// fragment receives a fresh identity.
-    pub fn extract_workspaces_where(
-        &mut self,
-        mut predicate: impl FnMut(&T) -> bool,
-    ) -> Self {
+    pub fn extract_workspaces_where(&mut self, mut predicate: impl FnMut(&T) -> bool) -> Self {
         let original_active_plane_idx = self.active_plane_idx;
         let mut retained = Vec::new();
         let mut extracted = Vec::new();
@@ -569,7 +563,11 @@ impl<T> WorkspacePlanes<T> {
             }
 
             if !matching.is_empty() {
-                let extracted_id = if remaining.is_empty() { id } else { PlaneId::next() };
+                let extracted_id = if remaining.is_empty() {
+                    id
+                } else {
+                    PlaneId::next()
+                };
                 let active_idx = matching_active_idx
                     .unwrap_or_else(|| active_workspace_idx.min(matching.len() - 1));
 
@@ -693,7 +691,9 @@ impl<T> NoOutputWorkspacePlanes<T> {
 
     /// Iterates over all workspaces in depth and vertical order.
     pub fn iter(&self) -> impl Iterator<Item = &T> {
-        self.planes.iter_workspaces().map(|(_, _, workspace)| workspace)
+        self.planes
+            .iter_workspaces()
+            .map(|(_, _, workspace)| workspace)
     }
 
     /// Iterates mutably over all workspaces in depth and vertical order.
@@ -734,7 +734,8 @@ impl<T> NoOutputWorkspacePlanes<T> {
         for plane in self.planes.iter_planes_mut() {
             let plane_len = plane.workspace_count();
             if index <= offset + plane_len {
-                plane.insert_workspace(index - offset, workspace)
+                plane
+                    .insert_workspace(index - offset, workspace)
                     .expect("the flattened workspace index must be valid");
                 return;
             }
@@ -758,8 +759,7 @@ impl<T> NoOutputWorkspacePlanes<T> {
                 Some((plane_idx, plane, start))
             })
             .find_map(|(plane_idx, plane, start)| {
-                (index < start + plane.workspace_count())
-                    .then_some((plane_idx, index - start))
+                (index < start + plane.workspace_count()).then_some((plane_idx, index - start))
             })
             .expect("workspace index out of bounds");
 
@@ -770,7 +770,7 @@ impl<T> NoOutputWorkspacePlanes<T> {
                 .into_workspaces()
                 .into_iter()
                 .next()
-                .expect("a plane must contain a workspace");
+                .expect("a plane must contain a workspace")
         } else {
             self.planes
                 .plane_mut(plane_idx)
