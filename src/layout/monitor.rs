@@ -11,7 +11,7 @@ use smithay::output::Output;
 use smithay::utils::{Logical, Point, Rectangle, Size};
 
 use super::insert_hint_element::{InsertHintElement, InsertHintRenderElement};
-use super::plane::{PlaneId, WorkspacePlane, WorkspacePlanes};
+use super::plane::{PlaneError, PlaneId, WorkspacePlane, WorkspacePlanes};
 use super::scrolling::{Column, ColumnWidth};
 use super::tile::Tile;
 use super::workspace::{
@@ -369,6 +369,90 @@ impl<W: LayoutElement> Monitor<W> {
 
     pub fn output_name(&self) -> &String {
         &self.output_name
+    }
+
+    /// Returns the number of depth planes on this monitor.
+    pub fn plane_count(&self) -> usize {
+        self.workspaces.plane_count()
+    }
+
+    /// Returns the active plane's index in depth order.
+    pub fn active_plane_idx(&self) -> usize {
+        self.workspaces.active_plane_idx()
+    }
+
+    /// Returns the active plane's stable identity.
+    pub fn active_plane_id(&self) -> PlaneId {
+        self.workspaces.active_plane().id()
+    }
+
+    /// Inserts an existing plane into this monitor.
+    ///
+    /// Workspaces are updated to use this monitor's output and current options.
+    pub fn insert_plane(
+        &mut self,
+        index: usize,
+        mut plane: WorkspacePlane<Workspace<W>>,
+    ) -> Result<(), PlaneError> {
+        for workspace in plane.workspaces_mut() {
+            workspace.set_output(Some(self.output.clone()));
+            workspace.update_config(self.options.clone());
+        }
+
+        self.workspaces.insert_plane(index, plane)
+    }
+
+    /// Creates a new empty plane immediately after the active plane and activates it.
+    pub fn add_plane(&mut self) -> PlaneId {
+        let index = self.active_plane_idx() + 1;
+        let workspace = Workspace::new(
+            self.output.clone(),
+            self.clock.clone(),
+            self.options.clone(),
+        );
+        let plane = WorkspacePlane::new(PlaneId::next(), vec![workspace], 0)
+            .expect("a new plane must contain one workspace");
+        let plane_id = plane.id();
+
+        self.insert_plane(index, plane)
+            .expect("a newly generated plane ID must be unique");
+        self.activate_plane(index)
+            .expect("the inserted plane index must be valid");
+
+        plane_id
+    }
+
+    /// Activates a plane by its depth-order index.
+    ///
+    /// The active Y workspace of each plane is stored independently.
+    pub fn activate_plane(&mut self, index: usize) -> Result<(), PlaneError> {
+        if index != self.active_plane_idx() {
+            self.workspaces.activate_plane(index)?;
+            self.workspace_switch = None;
+            self.previous_workspace_id = None;
+        }
+
+        Ok(())
+    }
+
+    /// Removes a plane and returns it with all of its workspaces.
+    ///
+    /// The final plane cannot be removed. If the active plane is removed, the
+    /// neighboring plane becomes active and its previously active workspace is
+    /// retained.
+    pub fn remove_plane(
+        &mut self,
+        index: usize,
+    ) -> Result<WorkspacePlane<Workspace<W>>, PlaneError> {
+        let active_plane_id = self.active_plane_id();
+        let removed = self.workspaces.remove_plane(index)?;
+
+        if self.active_plane_id() != active_plane_id {
+            self.workspace_switch = None;
+            self.previous_workspace_id = None;
+        }
+
+        Ok(removed)
     }
 
     pub fn active_workspace_idx(&self) -> usize {
