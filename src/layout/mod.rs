@@ -1167,9 +1167,7 @@ impl<W: LayoutElement> Layout<W> {
                                 mon.workspaces.remove(idx);
 
                                 if idx < mon.active_workspace_idx() {
-                                    mon.set_active_workspace_idx(
-                                        mon.active_workspace_idx() - 1,
-                                    );
+                                    mon.set_active_workspace_idx(mon.active_workspace_idx() - 1);
                                 }
                             }
 
@@ -1625,7 +1623,8 @@ impl<W: LayoutElement> Layout<W> {
         };
 
         let mon = &mut monitors[*active_monitor_idx];
-        Some(&mut mon.workspaces[mon.active_workspace_idx()])
+        let workspace_idx = mon.active_workspace_idx();
+        Some(&mut mon.workspaces[workspace_idx])
     }
 
     pub fn windows_for_output(&self, output: &Output) -> impl Iterator<Item = &W> + '_ {
@@ -3661,10 +3660,11 @@ impl<W: LayoutElement> Layout<W> {
         };
 
         for monitor in monitors {
+            let active_workspace_idx = monitor.active_workspace_idx();
             for (idx, ws) in monitor.workspaces.iter_mut().enumerate() {
                 // Cancel the gesture on other workspaces.
                 if &monitor.output != output
-                    || idx != workspace_idx.unwrap_or(monitor.active_workspace_idx())
+                    || idx != workspace_idx.unwrap_or(active_workspace_idx)
                 {
                     ws.view_offset_gesture_end(None);
                     continue;
@@ -4896,8 +4896,9 @@ impl<W: LayoutElement> Layout<W> {
                         mon.dnd_scroll_gesture_end();
                     }
 
+                    let active_workspace_idx = mon.active_workspace_idx();
                     for (ws_idx, ws) in mon.workspaces.iter_mut().enumerate() {
-                        let is_focused = is_active && ws_idx == mon.active_workspace_idx();
+                        let is_focused = is_active && ws_idx == active_workspace_idx;
                         ws.refresh(is_active, is_focused);
 
                         if let Some(is_scrolling) = ongoing_scrolling_dnd {
@@ -4909,7 +4910,7 @@ impl<W: LayoutElement> Layout<W> {
                             }
                         } else {
                             // Cancel the view offset gesture after workspace switches, moves, etc.
-                            if !self.overview_open && ws_idx != mon.active_workspace_idx() {
+                            if !self.overview_open && ws_idx != active_workspace_idx {
                                 ws.view_offset_gesture_end(None);
                             }
                         }
@@ -4969,11 +4970,9 @@ impl<W: LayoutElement> Layout<W> {
 
         match &mut self.monitor_set {
             MonitorSet::Normal { monitors, .. } => {
-                let it = monitors.iter_mut().flat_map(|mon| {
-                    mon.workspaces
-                        .iter_workspaces_mut()
-                        .map(|(_, _, ws)| ws)
-                });
+                let it = monitors
+                    .iter_mut()
+                    .flat_map(|mon| mon.workspaces.iter_workspaces_mut().map(|(_, _, ws)| ws));
 
                 iter_normal = Some(it);
                 iter_no_outputs = None;
