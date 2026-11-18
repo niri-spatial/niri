@@ -4935,9 +4935,9 @@ impl<W: LayoutElement> Layout<W> {
             MonitorSet::Normal { monitors, .. } => {
                 let it = monitors.iter().flat_map(|mon| {
                     mon.workspaces
-                        .iter()
+                        .iter_workspaces()
                         .enumerate()
-                        .map(move |(idx, ws)| (Some(mon), idx, ws))
+                        .map(move |(idx, (_, _, ws))| (Some(mon), idx, ws))
                 });
 
                 iter_normal = Some(it);
@@ -4965,9 +4965,11 @@ impl<W: LayoutElement> Layout<W> {
 
         match &mut self.monitor_set {
             MonitorSet::Normal { monitors, .. } => {
-                let it = monitors
-                    .iter_mut()
-                    .flat_map(|mon| mon.workspaces.iter_mut());
+                let it = monitors.iter_mut().flat_map(|mon| {
+                    mon.workspaces
+                        .iter_workspaces_mut()
+                        .map(|(_, _, ws)| ws)
+                });
 
                 iter_normal = Some(it);
                 iter_no_outputs = None;
