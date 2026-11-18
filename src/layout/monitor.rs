@@ -11,6 +11,7 @@ use smithay::output::Output;
 use smithay::utils::{Logical, Point, Rectangle, Size};
 
 use super::insert_hint_element::{InsertHintElement, InsertHintRenderElement};
+use super::plane::{PlaneId, WorkspacePlane, WorkspacePlanes};
 use super::scrolling::{Column, ColumnWidth};
 use super::tile::Tile;
 use super::workspace::{
@@ -63,9 +64,9 @@ pub struct Monitor<W: LayoutElement> {
     // let you do this at the moment.
     working_area: Rectangle<f64, Logical>,
     // Must always contain at least one.
-    pub(super) workspaces: Vec<Workspace<W>>,
-    /// Index of the currently active workspace.
-    pub(super) active_workspace_idx: usize,
+    /// Depth planes for this monitor. Existing workspace operations dereference
+    /// to the active plane's vertical workspace list.
+    pub(super) workspaces: WorkspacePlanes<Workspace<W>>,
     /// ID of the previously active workspace.
     pub(super) previous_workspace_id: Option<WorkspaceId>,
     /// In-progress switch between workspaces.
@@ -327,6 +328,10 @@ impl<W: LayoutElement> Monitor<W> {
         let ws = Workspace::new(output.clone(), clock.clone(), options.clone());
         workspaces.push(ws);
 
+        let plane = WorkspacePlane::new(PlaneId::next(), workspaces, active_workspace_idx)
+            .expect("a monitor must contain at least one workspace");
+        let workspaces = WorkspacePlanes::new(plane);
+
         Self {
             output_name: output.name(),
             output,
@@ -334,7 +339,6 @@ impl<W: LayoutElement> Monitor<W> {
             view_size,
             working_area,
             workspaces,
-            active_workspace_idx,
             previous_workspace_id: None,
             insert_hint: None,
             insert_hint_element: InsertHintElement::new(options.layout.insert_hint),
@@ -349,14 +353,15 @@ impl<W: LayoutElement> Monitor<W> {
         }
     }
 
-    pub fn into_workspaces(mut self) -> Vec<Workspace<W>> {
-        self.workspaces.retain(|ws| ws.has_windows_or_name());
+    pub fn into_workspaces(self) -> Vec<Workspace<W>> {
+        let mut workspaces = self.workspaces.into_workspaces();
+        workspaces.retain(|ws| ws.has_windows_or_name());
 
-        for ws in &mut self.workspaces {
+        for ws in &mut workspaces {
             ws.set_output(None);
         }
 
-        self.workspaces
+        workspaces
     }
 
     pub fn output(&self) -> &Output {
@@ -368,18 +373,25 @@ impl<W: LayoutElement> Monitor<W> {
     }
 
     pub fn active_workspace_idx(&self) -> usize {
-        self.active_workspace_idx
+        self.workspaces.active_workspace_idx()
+    }
+
+    pub(super) fn set_active_workspace_idx(&mut self, index: usize) {
+        self.workspaces
+            .activate_workspace(index)
+            .expect("active workspace index must be valid");
     }
 
     pub fn active_workspace_ref(&self) -> &Workspace<W> {
-        &self.workspaces[self.active_workspace_idx]
+        &self.workspaces[self.active_workspace_idx()]
     }
 
     pub fn find_named_workspace(&self, workspace_name: &str) -> Option<&Workspace<W>> {
-        self.workspaces.iter().find(|ws| {
+        self.workspaces.iter_workspaces().find_map(|(_, _, ws)| {
             ws.name
                 .as_ref()
                 .is_some_and(|name| name.eq_ignore_ascii_case(workspace_name))
+                .then_some(ws)
         })
     }
 
@@ -392,11 +404,13 @@ impl<W: LayoutElement> Monitor<W> {
     }
 
     pub fn active_workspace(&mut self) -> &mut Workspace<W> {
-        &mut self.workspaces[self.active_workspace_idx]
+        &mut self.workspaces[self.active_workspace_idx()]
     }
 
     pub fn windows(&self) -> impl Iterator<Item = &W> {
-        self.workspaces.iter().flat_map(|ws| ws.windows())
+        self.workspaces
+            .iter_workspaces()
+            .flat_map(|(_, _, ws)| ws.windows())
     }
 
     pub fn has_window(&self, window: &W::Id) -> bool {
@@ -411,8 +425,8 @@ impl<W: LayoutElement> Monitor<W> {
         );
 
         self.workspaces.insert(idx, ws);
-        if idx <= self.active_workspace_idx {
-            self.active_workspace_idx += 1;
+        if idx <= self.active_workspace_idx() {
+            self.set_active_workspace_idx(self.active_workspace_idx() + 1);
         }
 
         if let Some(switch) = &mut self.workspace_switch {
@@ -442,12 +456,12 @@ impl<W: LayoutElement> Monitor<W> {
         // FIXME: also compute and use current velocity.
         let current_idx = self.workspace_render_idx();
 
-        if self.active_workspace_idx != idx {
-            self.previous_workspace_id = Some(self.workspaces[self.active_workspace_idx].id());
+        if self.active_workspace_idx() != idx {
+            self.previous_workspace_id = Some(self.workspaces[self.active_workspace_idx()].id());
         }
 
-        let prev_active_idx = self.active_workspace_idx;
-        self.active_workspace_idx = idx;
+        let prev_active_idx = self.active_workspace_idx();
+        self.set_active_workspace_idx(idx);
 
         let config = config.unwrap_or(self.options.animations.workspace_switch.0);
 
@@ -488,7 +502,7 @@ impl<W: LayoutElement> Monitor<W> {
     ) -> (usize, WorkspaceAddWindowTarget<'a, W>) {
         match target {
             MonitorAddWindowTarget::Auto => {
-                (self.active_workspace_idx, WorkspaceAddWindowTarget::Auto)
+                (self.active_workspace_idx(), WorkspaceAddWindowTarget::Auto)
             }
             MonitorAddWindowTarget::Workspace { id, column_idx } => {
                 let idx = self.workspaces.iter().position(|ws| ws.id() == id).unwrap();
@@ -631,14 +645,14 @@ impl<W: LayoutElement> Monitor<W> {
             0
         };
         for idx in (range_start..self.workspaces.len() - 1).rev() {
-            if self.active_workspace_idx == idx {
+            if self.active_workspace_idx() == idx {
                 continue;
             }
 
             if !self.workspaces[idx].has_windows_or_name() {
                 self.workspaces.remove(idx);
-                if self.active_workspace_idx > idx {
-                    self.active_workspace_idx -= 1;
+                if self.active_workspace_idx() > idx {
+                    self.set_active_workspace_idx(self.active_workspace_idx() - 1);
                 }
             }
         }
@@ -649,7 +663,7 @@ impl<W: LayoutElement> Monitor<W> {
             assert!(!self.workspaces[0].has_windows_or_name());
             assert!(!self.workspaces[1].has_windows_or_name());
             self.workspaces.remove(1);
-            self.active_workspace_idx = 0;
+            self.set_active_workspace_idx(0);
         }
     }
 
@@ -682,8 +696,8 @@ impl<W: LayoutElement> Monitor<W> {
         // For monitor current workspace removal, we focus previous rather than next (<= rather
         // than <). This is different from columns and tiles, but it lets move-workspace-to-monitor
         // back and forth to preserve position.
-        if idx <= self.active_workspace_idx && self.active_workspace_idx > 0 {
-            self.active_workspace_idx -= 1;
+        if idx <= self.active_workspace_idx() && self.active_workspace_idx() > 0 {
+            self.set_active_workspace_idx(self.active_workspace_idx() - 1);
         }
 
         self.workspace_switch = None;
@@ -708,8 +722,8 @@ impl<W: LayoutElement> Monitor<W> {
 
         self.workspaces.insert(idx, ws);
 
-        if idx <= self.active_workspace_idx {
-            self.active_workspace_idx += 1;
+        if idx <= self.active_workspace_idx() {
+            self.set_active_workspace_idx(self.active_workspace_idx() + 1);
         }
 
         if activate {
@@ -731,7 +745,7 @@ impl<W: LayoutElement> Monitor<W> {
             ws.update_config(self.options.clone());
         }
 
-        let empty_was_focused = self.active_workspace_idx == self.workspaces.len() - 1;
+        let empty_was_focused = self.active_workspace_idx() == self.workspaces.len() - 1;
 
         // Push the workspaces from the removed monitor in the end, right before the
         // last, empty, workspace.
@@ -749,7 +763,7 @@ impl<W: LayoutElement> Monitor<W> {
 
         // If the empty workspace was focused on the primary monitor, keep it focused.
         if empty_was_focused {
-            self.active_workspace_idx = self.workspaces.len() - 1;
+            self.set_active_workspace_idx(self.workspaces.len() - 1);
         }
 
         // FIXME: if we're adding workspaces to currently invisible positions
@@ -783,7 +797,7 @@ impl<W: LayoutElement> Monitor<W> {
     }
 
     pub fn move_to_workspace_up(&mut self, focus: bool) {
-        let source_workspace_idx = self.active_workspace_idx;
+        let source_workspace_idx = self.active_workspace_idx();
 
         let new_idx = source_workspace_idx.saturating_sub(1);
         if new_idx == source_workspace_idx {
@@ -817,7 +831,7 @@ impl<W: LayoutElement> Monitor<W> {
     }
 
     pub fn move_to_workspace_down(&mut self, focus: bool) {
-        let source_workspace_idx = self.active_workspace_idx;
+        let source_workspace_idx = self.active_workspace_idx();
 
         let new_idx = min(source_workspace_idx + 1, self.workspaces.len() - 1);
         if new_idx == source_workspace_idx {
@@ -862,7 +876,7 @@ impl<W: LayoutElement> Monitor<W> {
                 .position(|ws| ws.has_window(window))
                 .unwrap()
         } else {
-            self.active_workspace_idx
+            self.active_workspace_idx()
         };
 
         let new_idx = min(idx, self.workspaces.len() - 1);
@@ -908,7 +922,7 @@ impl<W: LayoutElement> Monitor<W> {
     }
 
     pub fn move_column_to_workspace_up(&mut self, activate: bool) {
-        let source_workspace_idx = self.active_workspace_idx;
+        let source_workspace_idx = self.active_workspace_idx();
 
         let new_idx = source_workspace_idx.saturating_sub(1);
         if new_idx == source_workspace_idx {
@@ -929,7 +943,7 @@ impl<W: LayoutElement> Monitor<W> {
     }
 
     pub fn move_column_to_workspace_down(&mut self, activate: bool) {
-        let source_workspace_idx = self.active_workspace_idx;
+        let source_workspace_idx = self.active_workspace_idx();
 
         let new_idx = min(source_workspace_idx + 1, self.workspaces.len() - 1);
         if new_idx == source_workspace_idx {
@@ -950,7 +964,7 @@ impl<W: LayoutElement> Monitor<W> {
     }
 
     pub fn move_column_to_workspace(&mut self, idx: usize, activate: bool) {
-        let source_workspace_idx = self.active_workspace_idx;
+        let source_workspace_idx = self.active_workspace_idx();
 
         let new_idx = min(idx, self.workspaces.len() - 1);
         if new_idx == source_workspace_idx {
@@ -983,7 +997,7 @@ impl<W: LayoutElement> Monitor<W> {
                 let new = current.ceil() - 1.;
                 new.clamp(0., (self.workspaces.len() - 1) as f64) as usize
             }
-            _ => self.active_workspace_idx.saturating_sub(1),
+            _ => self.active_workspace_idx().saturating_sub(1),
         };
 
         self.activate_workspace(new_idx);
@@ -997,7 +1011,7 @@ impl<W: LayoutElement> Monitor<W> {
                 let new = current.floor() + 1.;
                 new.clamp(0., (self.workspaces.len() - 1) as f64) as usize
             }
-            _ => min(self.active_workspace_idx + 1, self.workspaces.len() - 1),
+            _ => min(self.active_workspace_idx() + 1, self.workspaces.len() - 1),
         };
 
         self.activate_workspace(new_idx);
@@ -1015,7 +1029,7 @@ impl<W: LayoutElement> Monitor<W> {
     pub fn switch_workspace_auto_back_and_forth(&mut self, idx: usize) {
         let idx = min(idx, self.workspaces.len() - 1);
 
-        if idx == self.active_workspace_idx {
+        if idx == self.active_workspace_idx() {
             if let Some(prev_idx) = self.previous_workspace_idx() {
                 self.switch_workspace(prev_idx);
             }
@@ -1069,7 +1083,7 @@ impl<W: LayoutElement> Monitor<W> {
             None => (),
         }
 
-        for ws in &mut self.workspaces {
+        for (_, _, ws) in self.workspaces.iter_workspaces_mut() {
             ws.advance_animations();
         }
     }
@@ -1078,15 +1092,18 @@ impl<W: LayoutElement> Monitor<W> {
         self.workspace_switch
             .as_ref()
             .is_some_and(|s| s.is_animation_ongoing())
-            || self.workspaces.iter().any(|ws| ws.are_animations_ongoing())
+            || self
+                .workspaces
+                .iter_workspaces()
+                .any(|(_, _, ws)| ws.are_animations_ongoing())
     }
 
     pub fn are_transitions_ongoing(&self) -> bool {
         self.workspace_switch.is_some()
             || self
                 .workspaces
-                .iter()
-                .any(|ws| ws.are_transitions_ongoing())
+                .iter_workspaces()
+                .any(|(_, _, ws)| ws.are_transitions_ongoing())
     }
 
     pub fn update_render_elements(&mut self, is_active: bool) {
@@ -1108,7 +1125,11 @@ impl<W: LayoutElement> Monitor<W> {
         if let Some(hint) = &self.insert_hint {
             match hint.workspace {
                 InsertWorkspace::Existing(ws_id) => {
-                    if let Some(ws) = self.workspaces.iter().find(|ws| ws.id() == ws_id) {
+                    if let Some((_, _, ws)) = self
+                        .workspaces
+                        .iter_workspaces()
+                        .find(|(_, _, ws)| ws.id() == ws_id)
+                    {
                         if let Some(mut area) = ws.insert_hint_area(hint.position) {
                             let scale = ws.scale().fractional_scale();
                             let view_size = ws.view_size();
@@ -1193,13 +1214,13 @@ impl<W: LayoutElement> Monitor<W> {
         {
             if options.layout.empty_workspace_above_first {
                 self.add_workspace_top();
-            } else if self.workspace_switch.is_none() && self.active_workspace_idx != 0 {
+            } else if self.workspace_switch.is_none() && self.active_workspace_idx() != 0 {
                 self.workspaces.remove(0);
-                self.active_workspace_idx = self.active_workspace_idx.saturating_sub(1);
+                self.set_active_workspace_idx(self.active_workspace_idx().saturating_sub(1));
             }
         }
 
-        for ws in &mut self.workspaces {
+        for (_, _, ws) in self.workspaces.iter_workspaces_mut() {
             ws.update_config(options.clone());
         }
 
@@ -1222,7 +1243,7 @@ impl<W: LayoutElement> Monitor<W> {
     }
 
     pub fn update_shaders(&mut self) {
-        for ws in &mut self.workspaces {
+        for (_, _, ws) in self.workspaces.iter_workspaces_mut() {
             ws.update_shaders();
         }
 
@@ -1234,25 +1255,25 @@ impl<W: LayoutElement> Monitor<W> {
         self.view_size = output_size(&self.output);
         self.working_area = compute_working_area(&self.output);
 
-        for ws in &mut self.workspaces {
+        for (_, _, ws) in self.workspaces.iter_workspaces_mut() {
             ws.update_output_size();
         }
     }
 
     pub fn move_workspace_down(&mut self) {
-        let mut new_idx = min(self.active_workspace_idx + 1, self.workspaces.len() - 1);
-        if new_idx == self.active_workspace_idx {
+        let mut new_idx = min(self.active_workspace_idx() + 1, self.workspaces.len() - 1);
+        if new_idx == self.active_workspace_idx() {
             return;
         }
 
-        self.workspaces.swap(self.active_workspace_idx, new_idx);
+        self.workspaces.swap(self.active_workspace_idx(), new_idx);
 
         if new_idx == self.workspaces.len() - 1 {
             // Insert a new empty workspace.
             self.add_workspace_bottom();
         }
 
-        if self.options.layout.empty_workspace_above_first && self.active_workspace_idx == 0 {
+        if self.options.layout.empty_workspace_above_first && self.active_workspace_idx() == 0 {
             self.add_workspace_top();
             new_idx += 1;
         }
@@ -1266,14 +1287,14 @@ impl<W: LayoutElement> Monitor<W> {
     }
 
     pub fn move_workspace_up(&mut self) {
-        let mut new_idx = self.active_workspace_idx.saturating_sub(1);
-        if new_idx == self.active_workspace_idx {
+        let mut new_idx = self.active_workspace_idx().saturating_sub(1);
+        if new_idx == self.active_workspace_idx() {
             return;
         }
 
-        self.workspaces.swap(self.active_workspace_idx, new_idx);
+        self.workspaces.swap(self.active_workspace_idx(), new_idx);
 
-        if self.active_workspace_idx == self.workspaces.len() - 1 {
+        if self.active_workspace_idx() == self.workspaces.len() - 1 {
             // Insert a new empty workspace.
             self.add_workspace_bottom();
         }
@@ -1327,14 +1348,14 @@ impl<W: LayoutElement> Monitor<W> {
         }
 
         // Only refocus the workspace if it was already focused
-        if self.active_workspace_idx == old_idx {
-            self.active_workspace_idx = new_idx;
+        if self.active_workspace_idx() == old_idx {
+            self.set_active_workspace_idx(new_idx);
         // If the workspace order was switched so that the current workspace moved down the
         // workspace stack, focus correctly
-        } else if new_idx <= self.active_workspace_idx && old_idx > self.active_workspace_idx {
-            self.active_workspace_idx += 1;
-        } else if new_idx >= self.active_workspace_idx && old_idx < self.active_workspace_idx {
-            self.active_workspace_idx = self.active_workspace_idx.saturating_sub(1);
+        } else if new_idx <= self.active_workspace_idx() && old_idx > self.active_workspace_idx() {
+            self.set_active_workspace_idx(self.active_workspace_idx() + 1);
+        } else if new_idx >= self.active_workspace_idx() && old_idx < self.active_workspace_idx() {
+            self.set_active_workspace_idx(self.active_workspace_idx().saturating_sub(1));
         }
 
         self.workspace_switch = None;
@@ -1467,7 +1488,7 @@ impl<W: LayoutElement> Monitor<W> {
         if let Some(switch) = &self.workspace_switch {
             switch.current_idx()
         } else {
-            self.active_workspace_idx as f64
+            self.active_workspace_idx() as f64
         }
     }
 
@@ -1639,7 +1660,7 @@ impl<W: LayoutElement> Monitor<W> {
             return false;
         }
 
-        let ws = &self.workspaces[self.active_workspace_idx];
+        let ws = &self.workspaces[self.active_workspace_idx()];
         ws.render_above_top_layer()
     }
 
@@ -1780,7 +1801,7 @@ impl<W: LayoutElement> Monitor<W> {
     }
 
     pub fn workspace_switch_gesture_begin(&mut self, is_touchpad: bool) {
-        let center_idx = self.active_workspace_idx;
+        let center_idx = self.active_workspace_idx();
         let current_idx = self.workspace_render_idx();
 
         let gesture = WorkspaceSwitchGesture {
@@ -1812,7 +1833,7 @@ impl<W: LayoutElement> Monitor<W> {
             return;
         }
 
-        let center_idx = self.active_workspace_idx;
+        let center_idx = self.active_workspace_idx();
         let current_idx = self.workspace_render_idx();
 
         let gesture = WorkspaceSwitchGesture {
@@ -2007,11 +2028,11 @@ impl<W: LayoutElement> Monitor<W> {
 
         velocity *= rubber_band.clamp_derivative(min, max, gesture.start_idx + current_pos);
 
-        if self.active_workspace_idx != new_idx {
-            self.previous_workspace_id = Some(self.workspaces[self.active_workspace_idx].id());
+        if self.active_workspace_idx() != new_idx {
+            self.previous_workspace_id = Some(self.workspaces[self.active_workspace_idx()].id());
         }
 
-        self.active_workspace_idx = new_idx;
+        self.set_active_workspace_idx(new_idx);
         self.workspace_switch = Some(WorkspaceSwitch::Animation(Animation::new(
             self.clock.clone(),
             gesture.current_idx,
@@ -2066,7 +2087,7 @@ impl<W: LayoutElement> Monitor<W> {
             !self.workspaces.is_empty(),
             "monitor must have at least one workspace"
         );
-        assert!(self.active_workspace_idx < self.workspaces.len());
+        assert!(self.active_workspace_idx() < self.workspaces.len());
 
         if let Some(WorkspaceSwitch::Animation(anim)) = &self.workspace_switch {
             let before_idx = anim.from() as usize;
@@ -2123,7 +2144,7 @@ impl<W: LayoutElement> Monitor<W> {
                 // skip last
                 .skip(1)
             {
-                if idx != self.active_workspace_idx {
+                if idx != self.active_workspace_idx() {
                     assert!(
                         ws.has_windows_or_name(),
                         "non-active workspace can't be empty and unnamed except the last one"
