@@ -767,6 +767,11 @@ impl<W: LayoutElement> Layout<W> {
                     transferred.extract_workspaces_where(|ws| !ws.has_windows_or_name());
                 let workspaces = transferred;
 
+                // The active plane may have been entirely routed to the newly
+                // connected output. A connected monitor must still retain a
+                // valid workspace plane after the extraction.
+                primary.ensure_workspace_plane();
+
                 if active_plane_had_matching_workspaces {
                     // FIXME: this can be coded in a way that the workspace switch won't be
                     // affected if the removed workspace is invisible. But this is good enough
