@@ -2704,6 +2704,48 @@ fn output_active_workspace_is_preserved() {
 }
 
 #[test]
+fn monitor_plane_management_preserves_active_workspace() {
+    let ops = [
+        Op::AddOutput(1),
+        Op::AddWindow {
+            params: TestWindowParams::new(1),
+        },
+        Op::FocusWorkspaceDown,
+        Op::AddWindow {
+            params: TestWindowParams::new(2),
+        },
+    ];
+
+    let mut layout = check_ops(ops);
+    let MonitorSet::Normal { monitors, .. } = &mut layout.monitor_set else {
+        unreachable!()
+    };
+    let monitor = &mut monitors[0];
+
+    let original_plane_id = monitor.active_plane_id();
+    assert_eq!(monitor.active_workspace_idx(), 1);
+
+    let new_plane_id = monitor.add_plane();
+    assert_eq!(monitor.plane_count(), 2);
+    assert_eq!(monitor.active_plane_idx(), 1);
+    assert_eq!(monitor.active_plane_id(), new_plane_id);
+    assert_eq!(monitor.active_workspace_idx(), 0);
+
+    monitor.activate_plane(0).unwrap();
+    assert_eq!(monitor.active_plane_id(), original_plane_id);
+    assert_eq!(monitor.active_workspace_idx(), 1);
+
+    let removed = monitor.remove_plane(1).unwrap();
+    assert_eq!(removed.id(), new_plane_id);
+    assert_eq!(removed.workspace_count(), 1);
+    assert_eq!(monitor.plane_count(), 1);
+    assert_eq!(monitor.active_plane_id(), original_plane_id);
+    assert_eq!(monitor.active_workspace_idx(), 1);
+
+    assert!(monitor.remove_plane(0).is_err());
+}
+
+#[test]
 fn output_active_workspace_is_preserved_with_other_outputs() {
     let ops = [
         Op::AddOutput(1),
