@@ -372,8 +372,10 @@ impl<W: LayoutElement> Monitor<W> {
                     .expect("inserting the first workspace must succeed");
             }
 
-            let ws = Workspace::new(output.clone(), clock.clone(), options.clone());
-            plane.push_workspace(ws);
+            if !needs_initial_workspace {
+                let ws = Workspace::new(output.clone(), clock.clone(), options.clone());
+                plane.push_workspace(ws);
+            }
         }
 
         if let Some(plane_idx) = plane_to_activate {
