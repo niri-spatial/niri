@@ -213,6 +213,7 @@ pub enum Action {
     #[knuffel(skip)]
     CenterWindowById(u64),
     CenterVisibleColumns,
+    CreatePlane,
     FocusPlaneBackward,
     FocusPlaneForward,
     FocusWorkspaceDown,
@@ -506,6 +507,7 @@ impl From<niri_ipc::Action> for Action {
             niri_ipc::Action::CenterWindow { id: None } => Self::CenterWindow,
             niri_ipc::Action::CenterWindow { id: Some(id) } => Self::CenterWindowById(id),
             niri_ipc::Action::CenterVisibleColumns {} => Self::CenterVisibleColumns,
+            niri_ipc::Action::CreatePlane {} => Self::CreatePlane,
             niri_ipc::Action::FocusPlaneBackward {} => Self::FocusPlaneBackward,
             niri_ipc::Action::FocusPlaneForward {} => Self::FocusPlaneForward,
             niri_ipc::Action::FocusWorkspaceDown {} => Self::FocusWorkspaceDown,
