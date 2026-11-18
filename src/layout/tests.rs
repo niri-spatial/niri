@@ -2933,6 +2933,37 @@ fn monitor_plane_management_preserves_active_workspace() {
 }
 
 #[test]
+fn remove_window_from_inactive_plane() {
+    let ops = [
+        Op::AddOutput(1),
+        Op::AddWindow {
+            params: TestWindowParams::new(1),
+        },
+    ];
+    let mut layout = check_ops(ops);
+
+    layout.create_plane();
+    layout.verify_invariants();
+
+    check_ops_on_layout(
+        &mut layout,
+        [Op::AddWindow {
+            params: TestWindowParams::new(2),
+        }],
+    );
+
+    // The window to remove is now on an inactive plane.
+    layout.focus_plane_backward();
+    assert!(layout.windows().any(|(_, window)| window.id() == &2));
+
+    let removed = layout.remove_window(&2, Transaction::new());
+
+    assert!(removed.is_some());
+    assert!(!layout.windows().any(|(_, window)| window.id() == &2));
+    layout.verify_invariants();
+}
+
+#[test]
 fn output_active_workspace_is_preserved_with_other_outputs() {
     let ops = [
         Op::AddOutput(1),
