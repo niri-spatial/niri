@@ -1165,12 +1165,16 @@ impl<W: LayoutElement> Layout<W> {
                 }
             }
             MonitorSet::NoOutputs { workspaces, .. } => {
-                for (idx, ws) in workspaces.iter_mut().enumerate() {
-                    if ws.has_window(window) {
-                        let removed = ws.remove_tile(window, transaction);
+                for idx in 0..workspaces.len() {
+                    if workspaces[idx].has_window(window) {
+                        let (removed, is_empty) = {
+                            let workspace = workspaces.get_mut(idx).unwrap();
+                            let removed = workspace.remove_tile(window, transaction);
+                            (removed, !workspace.has_windows_or_name())
+                        };
 
                         // Clean up empty workspaces.
-                        if !ws.has_windows_or_name() {
+                        if is_empty {
                             workspaces.remove(idx);
                         }
 
@@ -1325,12 +1329,16 @@ impl<W: LayoutElement> Layout<W> {
                 }
             }
             MonitorSet::NoOutputs { workspaces } => {
-                for (idx, ws) in workspaces.iter_mut().enumerate() {
-                    if ws.id() == id {
-                        ws.unname();
+                for idx in 0..workspaces.len() {
+                    if workspaces[idx].id() == id {
+                        let is_empty = {
+                            let workspace = workspaces.get_mut(idx).unwrap();
+                            workspace.unname();
+                            !workspace.has_windows()
+                        };
 
                         // Clean up empty workspaces.
-                        if !ws.has_windows() {
+                        if is_empty {
                             workspaces.remove(idx);
                         }
 
