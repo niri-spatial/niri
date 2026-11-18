@@ -2899,11 +2899,24 @@ fn monitor_plane_management_preserves_active_workspace() {
     assert_eq!(monitor.active_plane_id(), new_plane_id);
     assert_eq!(monitor.active_workspace_idx(), 0);
 
-    monitor.activate_plane(0).unwrap();
+    monitor.focus_plane_backward();
+    assert_eq!(monitor.active_plane_idx(), 0);
     assert_eq!(monitor.active_plane_id(), original_plane_id);
     assert_eq!(monitor.active_workspace_idx(), 1);
 
-    monitor.activate_plane(1).unwrap();
+    // Focusing farther back at the boundary must not wrap around.
+    monitor.focus_plane_backward();
+    assert_eq!(monitor.active_plane_idx(), 0);
+
+    monitor.focus_plane_forward();
+    assert_eq!(monitor.active_plane_idx(), 1);
+    assert_eq!(monitor.active_plane_id(), new_plane_id);
+    assert_eq!(monitor.active_workspace_idx(), 0);
+
+    // Focusing farther forward at the boundary must not wrap around.
+    monitor.focus_plane_forward();
+    assert_eq!(monitor.active_plane_idx(), 1);
+
     let removed = monitor.remove_plane(1).unwrap();
     assert_eq!(removed.id(), new_plane_id);
     assert_eq!(removed.workspace_count(), 1);
