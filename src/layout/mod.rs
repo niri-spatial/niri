@@ -749,8 +749,6 @@ impl<W: LayoutElement> Layout<W> {
             } => {
                 let primary = &mut monitors[primary_idx];
 
-                let mut stopped_primary_ws_switch = false;
-
                 // Extract every workspace that originally belonged to this output,
                 // preserving the depth-plane groups. Empty unnamed workspaces are discarded,
                 // just as they were in the former flat workspace list.
@@ -769,10 +767,7 @@ impl<W: LayoutElement> Layout<W> {
                     // FIXME: this can be coded in a way that the workspace switch won't be
                     // affected if the removed workspace is invisible. But this is good enough
                     // for now.
-                    if primary.workspace_switch.is_some() {
-                        primary.workspace_switch = None;
-                        stopped_primary_ws_switch = true;
-                    }
+                    primary.workspace_switch = None;
                     primary.clean_up_workspaces();
                 }
 
