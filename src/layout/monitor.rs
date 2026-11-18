@@ -11,7 +11,7 @@ use smithay::output::Output;
 use smithay::utils::{Logical, Point, Rectangle, Size};
 
 use super::insert_hint_element::{InsertHintElement, InsertHintRenderElement};
-use super::plane::{PlaneError, PlaneId, WorkspacePlane, WorkspacePlanes};
+use super::plane::{NoOutputWorkspacePlanes, PlaneError, PlaneId, WorkspacePlane, WorkspacePlanes};
 use super::scrolling::{Column, ColumnWidth};
 use super::tile::Tile;
 use super::workspace::{
@@ -291,7 +291,45 @@ impl From<&super::OverviewProgress> for OverviewProgress {
 impl<W: LayoutElement> Monitor<W> {
     pub fn new(
         output: Output,
-        mut workspaces: Vec<Workspace<W>>,
+        workspaces: Vec<Workspace<W>>,
+        ws_id_to_activate: Option<WorkspaceId>,
+        clock: Clock,
+        base_options: Rc<Options>,
+        layout_config: Option<LayoutPart>,
+    ) -> Self {
+        let plane = if workspaces.is_empty() {
+            WorkspacePlane::new(
+                PlaneId::next(),
+                vec![Workspace::new(
+                    output.clone(),
+                    clock.clone(),
+                    Rc::new(
+                        Options::clone(&base_options)
+                            .with_merged_layout(layout_config.as_ref()),
+                    ),
+                )],
+                0,
+            )
+            .expect("a newly created plane must contain one workspace")
+        } else {
+            WorkspacePlane::new(PlaneId::next(), workspaces, 0)
+                .expect("the supplied plane must contain workspaces")
+        };
+
+        Self::new_with_planes(
+            output,
+            WorkspacePlanes::new(plane),
+            ws_id_to_activate,
+            clock,
+            base_options,
+            layout_config,
+        )
+    }
+
+    /// Creates a monitor while preserving its existing ordered depth planes.
+    pub fn new_with_planes(
+        output: Output,
+        mut workspaces: WorkspacePlanes<Workspace<W>>,
         ws_id_to_activate: Option<WorkspaceId>,
         clock: Clock,
         base_options: Rc<Options>,
@@ -304,32 +342,51 @@ impl<W: LayoutElement> Monitor<W> {
         let view_size = output_size(&output);
         let working_area = compute_working_area(&output);
 
-        // Prepare the workspaces: set output, empty first, empty last.
-        let mut active_workspace_idx = 0;
+        if workspaces.is_empty() {
+            let workspace = Workspace::new(output.clone(), clock.clone(), options.clone());
+            let plane = WorkspacePlane::new(PlaneId::next(), vec![workspace], 0)
+                .expect("a new monitor plane must contain one workspace");
+            workspaces
+                .push_plane(plane)
+                .expect("a newly generated plane ID must be unique");
+        }
 
-        for (idx, ws) in workspaces.iter_mut().enumerate() {
-            assert!(ws.has_windows_or_name());
+        let mut plane_to_activate = None;
+        for (plane_idx, plane) in workspaces.iter_planes_mut().enumerate() {
+            let mut active_workspace_idx = plane.active_workspace_idx();
 
-            ws.set_output(Some(output.clone()));
-            ws.update_config(options.clone());
+            for (idx, ws) in plane.workspaces_mut().iter_mut().enumerate() {
+                assert!(ws.has_windows_or_name());
 
-            if ws_id_to_activate.is_some_and(|id| ws.id() == id) {
-                active_workspace_idx = idx;
+                ws.set_output(Some(output.clone()));
+                ws.update_config(options.clone());
+
+                if ws_id_to_activate.is_some_and(|id| ws.id() == id) {
+                    active_workspace_idx = idx;
+                    plane_to_activate = Some(plane_idx);
+                }
             }
-        }
 
-        if options.layout.empty_workspace_above_first && !workspaces.is_empty() {
+            plane
+                .activate_workspace(active_workspace_idx)
+                .expect("the plane's active workspace index must be valid");
+
+            if options.layout.empty_workspace_above_first {
+                let ws = Workspace::new(output.clone(), clock.clone(), options.clone());
+                plane
+                    .insert_workspace(0, ws)
+                    .expect("inserting the first workspace must succeed");
+            }
+
             let ws = Workspace::new(output.clone(), clock.clone(), options.clone());
-            workspaces.insert(0, ws);
-            active_workspace_idx += 1;
+            plane.push_workspace(ws);
         }
 
-        let ws = Workspace::new(output.clone(), clock.clone(), options.clone());
-        workspaces.push(ws);
-
-        let plane = WorkspacePlane::new(PlaneId::next(), workspaces, active_workspace_idx)
-            .expect("a monitor must contain at least one workspace");
-        let workspaces = WorkspacePlanes::new(plane);
+        if let Some(plane_idx) = plane_to_activate {
+            workspaces
+                .activate_plane(plane_idx)
+                .expect("the matching workspace plane index must be valid");
+        }
 
         Self {
             output_name: output.name(),
@@ -352,15 +409,16 @@ impl<W: LayoutElement> Monitor<W> {
         }
     }
 
-    pub fn into_workspaces(self) -> Vec<Workspace<W>> {
-        let mut workspaces = self.workspaces.into_workspaces();
-        workspaces.retain(|ws| ws.has_windows_or_name());
+    /// Transfers this monitor's non-empty planes to the no-output state.
+    pub fn into_planes(self) -> NoOutputWorkspacePlanes<Workspace<W>> {
+        let mut planes = self.workspaces;
+        let mut retained = planes.extract_workspaces_where(Workspace::has_windows_or_name);
 
-        for ws in &mut workspaces {
-            ws.set_output(None);
+        for (_, _, workspace) in retained.iter_workspaces_mut() {
+            workspace.set_output(None);
         }
 
-        workspaces
+        NoOutputWorkspacePlanes::from_planes(retained)
     }
 
     pub fn output(&self) -> &Output {
@@ -819,42 +877,43 @@ impl<W: LayoutElement> Monitor<W> {
         self.clean_up_workspaces();
     }
 
-    pub fn append_workspaces(&mut self, mut workspaces: Vec<Workspace<W>>) {
-        if workspaces.is_empty() {
-            return;
+    /// Appends planes transferred from a disconnected monitor.
+    ///
+    /// Each imported plane remains a separate depth layer, and its active
+    /// vertical workspace is retained.
+    pub fn append_planes(&mut self, planes: NoOutputWorkspacePlanes<Workspace<W>>) {
+        for mut plane in planes.into_planes().into_planes() {
+            for workspace in plane.workspaces_mut() {
+                workspace.set_output(Some(self.output.clone()));
+                workspace.update_config(self.options.clone());
+            }
+
+            if self.options.layout.empty_workspace_above_first
+                && plane.workspaces()[0].has_windows_or_name()
+            {
+                let empty = Workspace::new(
+                    self.output.clone(),
+                    self.clock.clone(),
+                    self.options.clone(),
+                );
+                plane
+                    .insert_workspace(0, empty)
+                    .expect("inserting the first workspace must succeed");
+            }
+
+            let empty = Workspace::new(
+                self.output.clone(),
+                self.clock.clone(),
+                self.options.clone(),
+            );
+            plane.push_workspace(empty);
+
+            self.workspaces
+                .push_plane(plane)
+                .expect("transferred plane IDs must be unique");
         }
 
-        for ws in &mut workspaces {
-            ws.set_output(Some(self.output.clone()));
-            ws.update_config(self.options.clone());
-        }
-
-        let empty_was_focused = self.active_workspace_idx() == self.workspaces.len() - 1;
-
-        // Push the workspaces from the removed monitor in the end, right before the
-        // last, empty, workspace.
-        let last_workspace_idx = self.workspaces.len() - 1;
-        let empty = self.workspaces.remove(last_workspace_idx);
-        self.workspaces.extend(workspaces);
-        self.workspaces.push(empty);
-
-        // If empty_workspace_above_first is set and the first workspace is now no longer empty,
-        // add a new empty workspace on top.
-        if self.options.layout.empty_workspace_above_first
-            && self.workspaces[0].has_windows_or_name()
-        {
-            self.add_workspace_top();
-        }
-
-        // If the empty workspace was focused on the primary monitor, keep it focused.
-        if empty_was_focused {
-            self.set_active_workspace_idx(self.workspaces.len() - 1);
-        }
-
-        // FIXME: if we're adding workspaces to currently invisible positions
-        // (outside the workspace switch), we don't need to cancel it.
         self.workspace_switch = None;
-        self.clean_up_workspaces();
     }
 
     pub fn move_down_or_to_workspace_down(&mut self) {
