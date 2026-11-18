@@ -934,7 +934,7 @@ impl Op {
                 match &mut layout.monitor_set {
                     MonitorSet::Normal { monitors, .. } => {
                         for mon in monitors {
-                            for ws in &mut mon.workspaces {
+                            for ws in mon.workspaces.iter_mut() {
                                 for win in ws.windows() {
                                     if win.0.id == params.id {
                                         return;
@@ -1000,7 +1000,7 @@ impl Op {
                 match &mut layout.monitor_set {
                     MonitorSet::Normal { monitors, .. } => {
                         for mon in monitors {
-                            for ws in &mut mon.workspaces {
+                            for ws in mon.workspaces.iter_mut() {
                                 for win in ws.windows() {
                                     if win.0.id == params.id {
                                         return;
@@ -1394,7 +1394,7 @@ impl Op {
                 match &mut layout.monitor_set {
                     MonitorSet::Normal { monitors, .. } => {
                         'outer: for mon in monitors {
-                            for ws in &mut mon.workspaces {
+                            for ws in mon.workspaces.iter_mut() {
                                 for win in ws.windows() {
                                     if win.0.id == id {
                                         win.0.parent_id.set(new_parent_id);
@@ -1452,7 +1452,7 @@ impl Op {
                 match &mut layout.monitor_set {
                     MonitorSet::Normal { monitors, .. } => {
                         'outer: for mon in monitors {
-                            for ws in &mut mon.workspaces {
+                            for ws in mon.workspaces.iter_mut() {
                                 for win in ws.windows() {
                                     if win.0.id == id {
                                         if win.communicate() {
