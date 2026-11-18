@@ -437,6 +437,25 @@ impl<W: LayoutElement> Monitor<W> {
         &self.output_name
     }
 
+    /// Restores the monitor invariant after extracting all of its planes.
+    ///
+    /// A connected monitor must always contain at least one plane and one
+    /// workspace, even when all workspaces were routed to another output.
+    pub(super) fn ensure_workspace_plane(&mut self) {
+        if self.workspaces.is_empty() {
+            let workspace = Workspace::new(
+                self.output.clone(),
+                self.clock.clone(),
+                self.options.clone(),
+            );
+            let plane = WorkspacePlane::new(PlaneId::next(), vec![workspace], 0)
+                .expect("a monitor fallback plane must contain one workspace");
+            self.workspaces
+                .push_plane(plane)
+                .expect("a newly generated plane ID must be unique");
+        }
+    }
+
     /// Returns the number of depth planes on this monitor.
     pub fn plane_count(&self) -> usize {
         self.workspaces.plane_count()
