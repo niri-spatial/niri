@@ -4,9 +4,10 @@
 //! vertical workspace sequence, and the active workspace index is local to
 //! that plane.
 //!
-//! Monitor now owns a WorkspacePlanes collection. The layout still exposes
-//! only the active plane through its compatibility view; depth switching and
-//! plane-aware rendering are implemented in later steps.
+//! A monitor owns a WorkspacePlanes collection. Existing Y-axis operations
+//! use the active plane's compatibility view, while monitor-wide traversal
+//! includes every plane. Plane switching and plane-aware rendering are
+//! implemented in later steps.
 
 use std::fmt;
 use std::ops::{Deref, DerefMut, Index, IndexMut};
@@ -1179,6 +1180,12 @@ mod tests {
 
         assert_eq!(flat.remove(0), 4);
         assert!(flat.is_empty());
+
+        flat.push(5);
+        assert_eq!(flat.plane_count(), 1);
+        assert_eq!(flat.active_plane_idx(), 0);
+        assert!(flat.active_plane_id().is_some());
+        assert_eq!(flat.iter().copied().collect::<Vec<_>>(), vec![5]);
     }
 
     #[test]
