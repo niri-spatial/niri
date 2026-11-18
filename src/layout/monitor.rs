@@ -297,28 +297,17 @@ impl<W: LayoutElement> Monitor<W> {
         base_options: Rc<Options>,
         layout_config: Option<LayoutPart>,
     ) -> Self {
-        let plane = if workspaces.is_empty() {
-            WorkspacePlane::new(
-                PlaneId::next(),
-                vec![Workspace::new(
-                    output.clone(),
-                    clock.clone(),
-                    Rc::new(
-                        Options::clone(&base_options)
-                            .with_merged_layout(layout_config.as_ref()),
-                    ),
-                )],
-                0,
-            )
-            .expect("a newly created plane must contain one workspace")
+        let workspaces = if workspaces.is_empty() {
+            WorkspacePlanes::empty()
         } else {
-            WorkspacePlane::new(PlaneId::next(), workspaces, 0)
-                .expect("the supplied plane must contain workspaces")
+            let plane = WorkspacePlane::new(PlaneId::next(), workspaces, 0)
+                .expect("the supplied plane must contain workspaces");
+            WorkspacePlanes::new(plane)
         };
 
         Self::new_with_planes(
             output,
-            WorkspacePlanes::new(plane),
+            workspaces,
             ws_id_to_activate,
             clock,
             base_options,
