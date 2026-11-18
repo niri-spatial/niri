@@ -761,7 +761,11 @@ impl<W: LayoutElement> Layout<W> {
                 let mut transferred = primary
                     .workspaces
                     .extract_workspaces_where(|ws| ws.original_output.matches(&output));
-                let workspaces = transferred.extract_workspaces_where(Workspace::has_windows_or_name);
+                // Drop empty unnamed workspaces without changing the IDs of
+                // planes that are being restored to their original output.
+                let _empty_workspaces = transferred
+                    .extract_workspaces_where(|ws| !ws.has_windows_or_name());
+                let workspaces = transferred;
 
                 if active_plane_had_matching_workspaces {
                     // FIXME: this can be coded in a way that the workspace switch won't be
