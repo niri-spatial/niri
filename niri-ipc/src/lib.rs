@@ -470,6 +470,8 @@ pub enum Action {
     },
     /// Center all fully visible columns on the screen.
     CenterVisibleColumns {},
+    /// Create a new plane in front of the current plane and focus it.
+    CreatePlane {},
     /// Focus the plane behind the current plane.
     FocusPlaneBackward {},
     /// Focus the plane in front of the current plane.
