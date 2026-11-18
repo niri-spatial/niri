@@ -2163,6 +2163,13 @@ impl<W: LayoutElement> Layout<W> {
         monitor.move_column_to_workspace(idx, activate);
     }
 
+    pub fn create_plane(&mut self) {
+        let Some(monitor) = self.active_monitor() else {
+            return;
+        };
+        monitor.add_plane();
+    }
+
     pub fn focus_plane_backward(&mut self) {
         let Some(monitor) = self.active_monitor() else {
             return;
