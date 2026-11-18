@@ -879,6 +879,7 @@ impl<W: LayoutElement> Monitor<W> {
     /// vertical workspace is retained.
     pub fn append_planes(&mut self, planes: NoOutputWorkspacePlanes<Workspace<W>>) {
         for mut plane in planes.into_planes().into_planes() {
+            let original_output = plane.workspaces()[0].original_output.clone();
             for workspace in plane.workspaces_mut() {
                 workspace.set_output(Some(self.output.clone()));
                 workspace.update_config(self.options.clone());
@@ -887,21 +888,25 @@ impl<W: LayoutElement> Monitor<W> {
             if self.options.layout.empty_workspace_above_first
                 && plane.workspaces()[0].has_windows_or_name()
             {
-                let empty = Workspace::new(
+                let mut empty = Workspace::new(
                     self.output.clone(),
                     self.clock.clone(),
                     self.options.clone(),
                 );
+                empty.original_output = original_output.clone();
                 plane
                     .insert_workspace(0, empty)
                     .expect("inserting the first workspace must succeed");
             }
 
-            let empty = Workspace::new(
+            let mut empty = Workspace::new(
                 self.output.clone(),
                 self.clock.clone(),
                 self.options.clone(),
             );
+            // Keep generated boundary workspaces with the transferred plane so
+            // reconnecting its original output restores the complete plane.
+            empty.original_output = original_output;
             plane.push_workspace(empty);
 
             self.workspaces
