@@ -413,8 +413,8 @@ impl<T> WorkspacePlanes<T> {
 
     /// Consumes the collection and flattens all planes into workspace order.
     ///
-    /// This is used by existing monitor migration paths while they are being
-    /// upgraded to preserve plane groups.
+    /// Prefer `Self::into_planes` when transferring workspaces between monitors
+    /// so their depth grouping and active selection remain intact.
     pub fn into_workspaces(self) -> Vec<T> {
         self.planes
             .into_iter()
