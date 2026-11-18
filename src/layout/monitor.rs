@@ -2447,7 +2447,7 @@ impl<W: LayoutElement> Monitor<W> {
             }
         }
 
-        for workspace in self.workspaces.iter() {
+        for (_, _, workspace) in self.workspaces.iter_workspaces() {
             assert_eq!(self.clock, workspace.clock);
 
             assert_eq!(
