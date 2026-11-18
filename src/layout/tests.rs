@@ -2885,15 +2885,17 @@ fn monitor_plane_management_preserves_active_workspace() {
     ];
 
     let mut layout = check_ops(ops);
+    let original_plane_id = layout.active_monitor().unwrap().active_plane_id();
+    assert_eq!(layout.active_monitor().unwrap().active_workspace_idx(), 1);
+
+    layout.create_plane();
+
     let MonitorSet::Normal { monitors, .. } = &mut layout.monitor_set else {
         unreachable!()
     };
     let monitor = &mut monitors[0];
+    let new_plane_id = monitor.active_plane_id();
 
-    let original_plane_id = monitor.active_plane_id();
-    assert_eq!(monitor.active_workspace_idx(), 1);
-
-    let new_plane_id = monitor.add_plane();
     assert_eq!(monitor.plane_count(), 2);
     assert_eq!(monitor.active_plane_idx(), 1);
     assert_eq!(monitor.active_plane_id(), new_plane_id);
