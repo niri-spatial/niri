@@ -37,6 +37,7 @@ use std::rc::Rc;
 use std::time::Duration;
 
 use monitor::{InsertHint, InsertPosition, InsertWorkspace, MonitorAddWindowTarget};
+use plane::{NoOutputWorkspacePlanes, WorkspacePlanes};
 use niri_config::utils::MergeWith as _;
 use niri_config::{
     Config, CornerRadius, LayoutPart, PresetSize, Workspace as WorkspaceConfig, WorkspaceReference,
@@ -382,8 +383,9 @@ enum MonitorSet<W: LayoutElement> {
     },
     /// No outputs are connected, and these are the workspaces.
     NoOutputs {
-        /// The workspaces.
-        workspaces: Vec<Workspace<W>>,
+        /// Workspaces retained in their original depth planes, with a flat
+        /// compatibility view for the no-output state.
+        workspaces: NoOutputWorkspacePlanes<Workspace<W>>,
     },
 }
 
@@ -695,7 +697,9 @@ impl<W: LayoutElement> Layout<W> {
 
     pub fn with_options(clock: Clock, options: Options) -> Self {
         Self {
-            monitor_set: MonitorSet::NoOutputs { workspaces: vec![] },
+            monitor_set: MonitorSet::NoOutputs {
+                workspaces: NoOutputWorkspacePlanes::empty(),
+            },
             is_active: true,
             last_active_workspace_id: HashMap::new(),
             interactive_move: None,
@@ -718,6 +722,9 @@ impl<W: LayoutElement> Layout<W> {
                 Workspace::new_with_config_no_outputs(Some(ws.clone()), clock.clone(), opts.clone())
             })
             .collect();
+
+        let workspaces = NoOutputWorkspacePlanes::from_workspaces(workspaces)
+            .expect("configured workspaces must form a valid initial plane");
 
         Self {
             monitor_set: MonitorSet::NoOutputs { workspaces },
@@ -744,64 +751,34 @@ impl<W: LayoutElement> Layout<W> {
 
                 let mut stopped_primary_ws_switch = false;
 
-                let mut workspaces = vec![];
-                for i in (0..primary.workspaces.len()).rev() {
-                    if primary.workspaces[i].original_output.matches(&output) {
-                        let ws = primary.workspaces.remove(i);
+                // Extract every workspace that originally belonged to this output,
+                // preserving the depth-plane groups. Empty unnamed workspaces are discarded,
+                // just as they were in the former flat workspace list.
+                let active_plane_had_matching_workspaces = primary
+                    .workspaces
+                    .active_plane()
+                    .workspaces()
+                    .iter()
+                    .any(|ws| ws.original_output.matches(&output));
+                let mut transferred = primary
+                    .workspaces
+                    .extract_workspaces_where(|ws| ws.original_output.matches(&output));
+                let workspaces = transferred.extract_workspaces_where(Workspace::has_windows_or_name);
 
-                        // FIXME: this can be coded in a way that the workspace switch won't be
-                        // affected if the removed workspace is invisible. But this is good enough
-                        // for now.
-                        if primary.workspace_switch.is_some() {
-                            primary.workspace_switch = None;
-                            stopped_primary_ws_switch = true;
-                        }
-
-                        // The user could've closed a window while remaining on this workspace, on
-                        // another monitor. However, we will add an empty workspace in the end
-                        // instead.
-                        if ws.has_windows_or_name() {
-                            workspaces.push(ws);
-                        }
-
-                        if i <= primary.active_workspace_idx()
-                            // Generally when moving the currently active workspace, we want to
-                            // fall back to the workspace above, so as not to end up on the last
-                            // empty workspace. However, with empty workspace above first, when
-                            // moving the workspace at index 1 (first non-empty), we want to stay
-                            // at index 1, so as once again not to end up on an empty workspace.
-                            //
-                            // This comes into play at compositor startup when having named
-                            // workspaces set up across multiple monitors. Without this check, the
-                            // first monitor to connect can end up with the first empty workspace
-                            // focused instead of the first named workspace.
-                            && !(primary.options.layout.empty_workspace_above_first
-                                && primary.active_workspace_idx() == 1)
-                        {
-                            primary.set_active_workspace_idx(
-                                primary.active_workspace_idx().saturating_sub(1),
-                            );
-                        }
+                if active_plane_had_matching_workspaces {
+                    // FIXME: this can be coded in a way that the workspace switch won't be
+                    // affected if the removed workspace is invisible. But this is good enough
+                    // for now.
+                    if primary.workspace_switch.is_some() {
+                        primary.workspace_switch = None;
+                        stopped_primary_ws_switch = true;
                     }
-                }
-
-                // If we stopped a workspace switch, then we might need to clean up workspaces.
-                // Also if empty_workspace_above_first is set and there are only 2 workspaces left,
-                // both will be empty and one of them needs to be removed. clean_up_workspaces
-                // takes care of this.
-
-                if stopped_primary_ws_switch
-                    || (primary.options.layout.empty_workspace_above_first
-                        && primary.workspaces.len() == 2)
-                {
                     primary.clean_up_workspaces();
                 }
 
-                workspaces.reverse();
-
                 let ws_id_to_activate = self.last_active_workspace_id.remove(&output.name());
 
-                let mut monitor = Monitor::new(
+                let mut monitor = Monitor::new_with_planes(
                     output,
                     workspaces,
                     ws_id_to_activate,
@@ -822,9 +799,9 @@ impl<W: LayoutElement> Layout<W> {
             MonitorSet::NoOutputs { workspaces } => {
                 let ws_id_to_activate = self.last_active_workspace_id.remove(&output.name());
 
-                let mut monitor = Monitor::new(
+                let mut monitor = Monitor::new_with_planes(
                     output,
-                    workspaces,
+                    workspaces.into_planes(),
                     ws_id_to_activate,
                     self.clock.clone(),
                     self.options.clone(),
@@ -860,14 +837,15 @@ impl<W: LayoutElement> Layout<W> {
                     monitor.workspaces[monitor.active_workspace_idx()].id(),
                 );
 
-                let mut workspaces = monitor.into_workspaces();
+                let workspaces = monitor.into_planes();
 
                 if monitors.is_empty() {
                     // Removed the last monitor.
 
-                    for ws in &mut workspaces {
+                    let mut workspaces = workspaces;
+                    for workspace in workspaces.iter_mut() {
                         // Reset base options to layout ones.
-                        ws.update_config(self.options.clone());
+                        workspace.update_config(self.options.clone());
                     }
 
                     MonitorSet::NoOutputs { workspaces }
@@ -885,7 +863,7 @@ impl<W: LayoutElement> Layout<W> {
                     }
 
                     let primary = &mut monitors[primary_idx];
-                    primary.append_workspaces(workspaces);
+                    primary.append_planes(workspaces);
 
                     MonitorSet::Normal {
                         monitors,
@@ -5015,7 +4993,9 @@ impl<W: LayoutElement> Layout<W> {
 
 impl<W: LayoutElement> Default for MonitorSet<W> {
     fn default() -> Self {
-        Self::NoOutputs { workspaces: vec![] }
+        Self::NoOutputs {
+            workspaces: NoOutputWorkspacePlanes::empty(),
+        }
     }
 }
 
