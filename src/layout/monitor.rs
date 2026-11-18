@@ -476,8 +476,7 @@ impl<W: LayoutElement> Monitor<W> {
                     .first()
                     .is_some_and(|workspace| workspace.has_windows_or_name())
             {
-                let mut workspace =
-                    Workspace::new(output.clone(), clock.clone(), options.clone());
+                let mut workspace = Workspace::new(output.clone(), clock.clone(), options.clone());
                 workspace.original_output = output_id.clone();
                 plane
                     .insert_workspace(0, workspace)
@@ -489,8 +488,7 @@ impl<W: LayoutElement> Monitor<W> {
                 .last()
                 .is_some_and(|workspace| workspace.has_windows_or_name())
             {
-                let mut workspace =
-                    Workspace::new(output.clone(), clock.clone(), options.clone());
+                let mut workspace = Workspace::new(output.clone(), clock.clone(), options.clone());
                 workspace.original_output = output_id.clone();
                 plane.push_workspace(workspace);
             }
