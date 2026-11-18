@@ -1170,8 +1170,8 @@ mod tests {
 
     #[test]
     fn extracting_active_workspace_falls_back_to_the_previous_retained_workspace() {
-        let plane = WorkspacePlane::new(PlaneId::new(u64::MAX - 2), vec![0, 1, 2, 3], 2)
-            .unwrap();
+        let plane_id = PlaneId::new(u64::MAX - 2);
+        let plane = WorkspacePlane::new(plane_id, vec![0, 1, 2, 3], 2).unwrap();
         let mut planes = WorkspacePlanes::new(plane);
 
         let extracted = planes.extract_workspaces_where(|workspace| *workspace == 2);
@@ -1184,8 +1184,8 @@ mod tests {
 
     #[test]
     fn extracting_inactive_fragment_selects_nearest_preceding_workspace() {
-        let plane = WorkspacePlane::new(PlaneId::new(u64::MAX - 3), vec![0, 1, 2, 3], 1)
-            .unwrap();
+        let plane_id = PlaneId::new(u64::MAX - 3);
+        let plane = WorkspacePlane::new(plane_id, vec![0, 1, 2, 3], 1).unwrap();
         let mut planes = WorkspacePlanes::new(plane);
 
         let extracted = planes
