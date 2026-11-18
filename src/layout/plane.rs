@@ -546,17 +546,25 @@ impl<T> WorkspacePlanes<T> {
             let mut matching = Vec::new();
             let mut remaining = Vec::new();
             let mut matching_active_idx = None;
+            let mut matching_fallback_active_idx = None;
             let mut remaining_active_idx = None;
 
             for (workspace_idx, workspace) in workspaces.into_iter().enumerate() {
                 if predicate(&workspace) {
                     if workspace_idx == active_workspace_idx {
                         matching_active_idx = Some(matching.len());
+                        // If the active workspace is extracted, the remaining
+                        // plane falls back to the previous workspace, or the
+                        // first one when nothing remains above it.
+                        remaining_active_idx = Some(remaining.len().saturating_sub(1));
                     }
                     matching.push(workspace);
                 } else {
                     if workspace_idx == active_workspace_idx {
                         remaining_active_idx = Some(remaining.len());
+                        // If the active workspace stays behind, the extracted
+                        // fragment selects its nearest preceding workspace.
+                        matching_fallback_active_idx = Some(matching.len().saturating_sub(1));
                     }
                     remaining.push(workspace);
                 }
@@ -569,6 +577,7 @@ impl<T> WorkspacePlanes<T> {
                     PlaneId::next()
                 };
                 let active_idx = matching_active_idx
+                    .or(matching_fallback_active_idx)
                     .unwrap_or_else(|| active_workspace_idx.min(matching.len() - 1));
 
                 if plane_idx == original_active_plane_idx {
@@ -1157,6 +1166,42 @@ mod tests {
         assert_eq!(extracted.active_plane().id(), second_id);
         assert_eq!(extracted.active_workspace_idx(), 1);
         assert_eq!(extracted.active_plane().workspaces(), &[20, 21]);
+    }
+
+    #[test]
+    fn extracting_active_workspace_falls_back_to_the_previous_retained_workspace() {
+        let plane = WorkspacePlane::new(
+            PlaneId::new(u64::MAX - 2),
+            vec![0, 1, 2, 3],
+            2,
+        )
+        .unwrap();
+        let mut planes = WorkspacePlanes::new(plane);
+
+        let extracted = planes.extract_workspaces_where(|workspace| *workspace == 2);
+
+        assert_eq!(planes.active_plane().workspaces(), &[0, 1, 3]);
+        assert_eq!(planes.active_workspace_idx(), 1);
+        assert_eq!(planes.active_plane().active_workspace(), &1);
+        assert_eq!(extracted.active_plane().workspaces(), &[2]);
+    }
+
+    #[test]
+    fn extracting_inactive_fragment_selects_nearest_preceding_workspace() {
+        let plane = WorkspacePlane::new(
+            PlaneId::new(u64::MAX - 3),
+            vec![0, 1, 2, 3],
+            1,
+        )
+        .unwrap();
+        let mut planes = WorkspacePlanes::new(plane);
+
+        let extracted = planes.extract_workspaces_where(|workspace| *workspace == 0 || *workspace == 2);
+
+        assert_eq!(planes.active_plane().active_workspace(), &1);
+        assert_eq!(extracted.active_plane().workspaces(), &[0, 2]);
+        assert_eq!(extracted.active_workspace_idx(), 0);
+        assert_eq!(extracted.active_plane().active_workspace(), &0);
     }
 
     #[test]
