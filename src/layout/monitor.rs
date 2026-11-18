@@ -913,6 +913,10 @@ impl<W: LayoutElement> Monitor<W> {
         planes: NoOutputWorkspacePlanes<Workspace<W>>,
         original_output: OutputId,
     ) {
+        if planes.is_empty() {
+            return;
+        }
+
         let empty_was_focused = self.active_workspace_idx() == self.workspaces.len() - 1;
         let mut last_added_plane_idx = None;
 
