@@ -2889,6 +2889,7 @@ fn monitor_plane_management_preserves_active_workspace() {
     assert_eq!(layout.active_monitor().unwrap().active_workspace_idx(), 1);
 
     layout.create_plane();
+    layout.verify_invariants();
 
     let MonitorSet::Normal { monitors, .. } = &mut layout.monitor_set else {
         unreachable!()
