@@ -478,6 +478,13 @@ impl<T> WorkspacePlanes<T> {
     /// Removing the active plane selects the plane that takes its place, or
     /// the new last plane when the former active plane was last.
     pub fn remove_plane(&mut self, index: usize) -> Result<WorkspacePlane<T>, PlaneError> {
+        if index >= self.planes.len() {
+            return Err(PlaneError::PlaneIndexOutOfBounds {
+                index,
+                len: self.planes.len(),
+            });
+        }
+
         if self.planes.len() == 1 {
             return Err(PlaneError::CannotRemoveLastPlane);
         }
