@@ -403,7 +403,8 @@ impl<W: LayoutElement> Monitor<W> {
     }
 
     pub fn active_workspace(&mut self) -> &mut Workspace<W> {
-        &mut self.workspaces[self.active_workspace_idx()]
+        let index = self.active_workspace_idx();
+        &mut self.workspaces[index]
     }
 
     pub fn windows(&self) -> impl Iterator<Item = &W> {
@@ -748,7 +749,8 @@ impl<W: LayoutElement> Monitor<W> {
 
         // Push the workspaces from the removed monitor in the end, right before the
         // last, empty, workspace.
-        let empty = self.workspaces.remove(self.workspaces.len() - 1);
+        let last_workspace_idx = self.workspaces.len() - 1;
+        let empty = self.workspaces.remove(last_workspace_idx);
         self.workspaces.extend(workspaces);
         self.workspaces.push(empty);
 
@@ -1265,7 +1267,8 @@ impl<W: LayoutElement> Monitor<W> {
             return;
         }
 
-        self.workspaces.swap(self.active_workspace_idx(), new_idx);
+        let active_workspace_idx = self.active_workspace_idx();
+        self.workspaces.swap(active_workspace_idx, new_idx);
 
         if new_idx == self.workspaces.len() - 1 {
             // Insert a new empty workspace.
@@ -2004,37 +2007,44 @@ impl<W: LayoutElement> Monitor<W> {
             self.workspace_size_with_gap(1.).h
         };
 
-        let Some(WorkspaceSwitch::Gesture(gesture)) = &mut self.workspace_switch else {
-            return false;
+        let (gesture_current_idx, velocity, new_idx) = {
+            let Some(WorkspaceSwitch::Gesture(gesture)) = &mut self.workspace_switch else {
+                return false;
+            };
+
+            // Take into account any idle time between the last event and now.
+            let now = self.clock.now_unadjusted();
+            gesture.tracker.push(0., now);
+
+            let mut rubber_band = WORKSPACE_GESTURE_RUBBER_BAND;
+            rubber_band.limit /= zoom;
+
+            let mut velocity = gesture.tracker.velocity() / total_height;
+            let current_pos = gesture.tracker.pos() / total_height;
+            let pos = gesture.tracker.projected_end_pos() / total_height;
+
+            let (min, max) = gesture.min_max(self.workspaces.len());
+            let new_idx = gesture.start_idx + pos;
+
+            let new_idx = new_idx.clamp(min, max);
+            let new_idx = new_idx.round() as usize;
+
+            velocity *= rubber_band.clamp_derivative(min, max, gesture.start_idx + current_pos);
+
+            (gesture.current_idx, velocity, new_idx)
         };
 
-        // Take into account any idle time between the last event and now.
-        let now = self.clock.now_unadjusted();
-        gesture.tracker.push(0., now);
-
-        let mut rubber_band = WORKSPACE_GESTURE_RUBBER_BAND;
-        rubber_band.limit /= zoom;
-
-        let mut velocity = gesture.tracker.velocity() / total_height;
-        let current_pos = gesture.tracker.pos() / total_height;
-        let pos = gesture.tracker.projected_end_pos() / total_height;
-
-        let (min, max) = gesture.min_max(self.workspaces.len());
-        let new_idx = gesture.start_idx + pos;
-
-        let new_idx = new_idx.clamp(min, max);
-        let new_idx = new_idx.round() as usize;
-
-        velocity *= rubber_band.clamp_derivative(min, max, gesture.start_idx + current_pos);
-
-        if self.active_workspace_idx() != new_idx {
-            self.previous_workspace_id = Some(self.workspaces[self.active_workspace_idx()].id());
+        let active_workspace_idx = self.active_workspace_idx();
+        if active_workspace_idx != new_idx {
+            self.previous_workspace_id = Some(self.workspaces[active_workspace_idx].id());
         }
 
-        self.set_active_workspace_idx(new_idx);
+        self.workspaces
+            .activate_workspace(new_idx)
+            .expect("gesture target workspace index must be valid");
         self.workspace_switch = Some(WorkspaceSwitch::Animation(Animation::new(
             self.clock.clone(),
-            gesture.current_idx,
+            gesture_current_idx,
             new_idx as f64,
             velocity,
             self.options.animations.workspace_switch.0,
