@@ -342,7 +342,8 @@ impl<W: LayoutElement> Monitor<W> {
         let view_size = output_size(&output);
         let working_area = compute_working_area(&output);
 
-        if workspaces.is_empty() {
+        let needs_initial_workspace = workspaces.is_empty();
+        if needs_initial_workspace {
             let workspace = Workspace::new(output.clone(), clock.clone(), options.clone());
             let plane = WorkspacePlane::new(PlaneId::next(), vec![workspace], 0)
                 .expect("a new monitor plane must contain one workspace");
@@ -356,7 +357,9 @@ impl<W: LayoutElement> Monitor<W> {
             let mut active_workspace_idx = plane.active_workspace_idx();
 
             for (idx, ws) in plane.workspaces_mut().iter_mut().enumerate() {
-                assert!(ws.has_windows_or_name());
+                if !(needs_initial_workspace && plane_idx == 0 && idx == 0) {
+                    assert!(ws.has_windows_or_name());
+                }
 
                 ws.set_output(Some(output.clone()));
                 ws.update_config(options.clone());
@@ -371,7 +374,9 @@ impl<W: LayoutElement> Monitor<W> {
                 .activate_workspace(active_workspace_idx)
                 .expect("the plane's active workspace index must be valid");
 
-            if options.layout.empty_workspace_above_first {
+            if options.layout.empty_workspace_above_first
+                && !(needs_initial_workspace && plane_idx == 0)
+            {
                 let ws = Workspace::new(output.clone(), clock.clone(), options.clone());
                 plane
                     .insert_workspace(0, ws)
