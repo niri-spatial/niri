@@ -2735,6 +2735,7 @@ fn monitor_plane_management_preserves_active_workspace() {
     assert_eq!(monitor.active_plane_id(), original_plane_id);
     assert_eq!(monitor.active_workspace_idx(), 1);
 
+    monitor.activate_plane(1).unwrap();
     let removed = monitor.remove_plane(1).unwrap();
     assert_eq!(removed.id(), new_plane_id);
     assert_eq!(removed.workspace_count(), 1);
@@ -2743,6 +2744,8 @@ fn monitor_plane_management_preserves_active_workspace() {
     assert_eq!(monitor.active_workspace_idx(), 1);
 
     assert!(monitor.remove_plane(0).is_err());
+
+    layout.verify_invariants();
 }
 
 #[test]
