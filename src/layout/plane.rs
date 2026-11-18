@@ -122,7 +122,7 @@ impl<T> WorkspacePlane<T> {
     }
 
     /// Returns the number of workspaces in this plane.
-    pub fn len(&self) -> usize {
+    pub fn workspace_count(&self) -> usize {
         self.workspaces.len()
     }
 
@@ -223,7 +223,7 @@ mod tests {
         let plane = WorkspacePlane::new(PlaneId::new(7), vec!["top", "active"], 1).unwrap();
 
         assert_eq!(plane.id().get(), 7);
-        assert_eq!(plane.len(), 2);
+        assert_eq!(plane.workspace_count(), 2);
         assert_eq!(plane.active_workspace_idx(), 1);
         assert_eq!(*plane.active_workspace(), "active");
     }
@@ -309,6 +309,6 @@ mod tests {
             plane.remove_workspace(0),
             Err(PlaneError::CannotRemoveLastWorkspace)
         ));
-        assert_eq!(plane.len(), 1);
+        assert_eq!(plane.workspace_count(), 1);
     }
 }
