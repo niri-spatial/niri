@@ -2304,7 +2304,8 @@ fn open_right_of_on_different_workspace() {
 
     let mon = monitors.into_iter().next().unwrap();
     assert_eq!(
-        mon.active_workspace_idx(), 1,
+        mon.active_workspace_idx(),
+        1,
         "the second workspace must remain active"
     );
     assert_eq!(
@@ -2347,7 +2348,8 @@ fn open_right_of_on_different_workspace_ewaf() {
 
     let mon = monitors.into_iter().next().unwrap();
     assert_eq!(
-        mon.active_workspace_idx(), 2,
+        mon.active_workspace_idx(),
+        2,
         "the second workspace must remain active"
     );
     assert_eq!(
