@@ -1365,7 +1365,8 @@ impl<W: LayoutElement> Layout<W> {
         match &self.monitor_set {
             MonitorSet::Normal { monitors, .. } => {
                 for mon in monitors {
-                    for ws in &mon.workspaces {
+                    // Mapped windows on inactive planes still commit and must remain discoverable.
+                    for ws in mon.workspaces.iter() {
                         if let Some(window) = ws.find_wl_surface(wl_surface) {
                             return Some((window, Some(&mon.output)));
                         }
@@ -1397,7 +1398,8 @@ impl<W: LayoutElement> Layout<W> {
         match &mut self.monitor_set {
             MonitorSet::Normal { monitors, .. } => {
                 for mon in monitors {
-                    for ws in &mut mon.workspaces {
+                    // Mapped windows on inactive planes still commit and must remain discoverable.
+                    for ws in mon.workspaces.iter_mut() {
                         if let Some(window) = ws.find_wl_surface_mut(wl_surface) {
                             return Some((window, Some(&mon.output)));
                         }
