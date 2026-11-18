@@ -48,10 +48,7 @@ pub enum PlaneError {
     DuplicatePlaneId,
 
     /// The requested plane index is outside the collection.
-    PlaneIndexOutOfBounds {
-        index: usize,
-        len: usize,
-    },
+    PlaneIndexOutOfBounds { index: usize, len: usize },
 
     /// The last plane cannot be removed.
     CannotRemoveLastPlane,
@@ -233,7 +230,6 @@ impl<T> WorkspacePlane<T> {
     }
 }
 
-
 /// An ordered collection of depth planes for one monitor.
 ///
 /// The planes are stored in depth order. `active_plane_idx` identifies the
@@ -329,9 +325,7 @@ impl<T> WorkspacePlanes<T> {
     ///
     /// The workspace index is local to its plane. This is the mutable
     /// counterpart to Self::iter_workspaces.
-    pub fn iter_workspaces_mut(
-        &mut self,
-    ) -> impl Iterator<Item = (PlaneId, usize, &mut T)> {
+    pub fn iter_workspaces_mut(&mut self) -> impl Iterator<Item = (PlaneId, usize, &mut T)> {
         self.planes.iter_mut().flat_map(|plane| {
             let plane_id = plane.id();
             plane
@@ -372,7 +366,11 @@ impl<T> WorkspacePlanes<T> {
         index: usize,
         plane: WorkspacePlane<T>,
     ) -> Result<(), PlaneError> {
-        if self.planes.iter().any(|existing| existing.id() == plane.id()) {
+        if self
+            .planes
+            .iter()
+            .any(|existing| existing.id() == plane.id())
+        {
             return Err(PlaneError::DuplicatePlaneId);
         }
 
@@ -570,9 +568,7 @@ mod tests {
 
         let workspaces: Vec<_> = planes
             .iter_workspaces()
-            .map(|(plane_id, workspace_idx, workspace)| {
-                (plane_id, workspace_idx, *workspace)
-            })
+            .map(|(plane_id, workspace_idx, workspace)| (plane_id, workspace_idx, *workspace))
             .collect();
 
         assert_eq!(
