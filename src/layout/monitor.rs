@@ -559,11 +559,6 @@ impl<W: LayoutElement> Monitor<W> {
         Ok(())
     }
 
-    /// Removes a plane and returns it with all of its workspaces.
-    ///
-    /// The final plane cannot be removed. If the active plane is removed, the
-    /// neighboring plane becomes active and its previously active workspace is
-    /// retained.
     /// Focuses the adjacent plane farther back in depth order.
     ///
     /// Plane indices increase toward the front, so the first plane is the
@@ -585,6 +580,11 @@ impl<W: LayoutElement> Monitor<W> {
         }
     }
 
+    /// Removes a plane and returns it with all of its workspaces.
+    ///
+    /// The final plane cannot be removed. If the active plane is removed, the
+    /// neighboring plane becomes active and its previously active workspace is
+    /// retained.
     pub fn remove_plane(
         &mut self,
         index: usize,
