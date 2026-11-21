@@ -698,6 +698,11 @@ impl<T> NoOutputWorkspacePlanes<T> {
         self.planes.is_empty()
     }
 
+    /// Iterates over all workspaces with their plane IDs and plane-local indices.
+    pub fn iter_workspaces(&self) -> impl Iterator<Item = (PlaneId, usize, &T)> {
+        self.planes.iter_workspaces()
+    }
+
     /// Iterates over all workspaces in depth and vertical order.
     pub fn iter(&self) -> impl Iterator<Item = &T> {
         self.planes
