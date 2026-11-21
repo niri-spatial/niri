@@ -1304,7 +1304,9 @@ impl State {
                     }
 
                     let activate = if focus {
-                        ActivateWindow::Smart
+                        // The source window was focused when captured above. The target plane
+                        // may now be active, so Smart would inspect the wrong active workspace.
+                        ActivateWindow::Yes
                     } else {
                         ActivateWindow::No
                     };
@@ -1349,6 +1351,11 @@ impl State {
                 let window = self.niri.layout.windows().find(|(_, m)| m.id().get() == id);
                 let window = window.map(|(_, m)| m.window.clone());
                 if let Some(window) = window {
+                    let window_was_focused = self
+                        .niri
+                        .layout
+                        .focus()
+                        .is_some_and(|focused| focused.window == window);
                     if let Some((mut output, plane_id, index)) =
                         self.niri.find_output_and_workspace_index(reference)
                     {
@@ -1371,8 +1378,8 @@ impl State {
                             output = None;
                         }
 
-                        let activate = if focus {
-                            ActivateWindow::Smart
+                        let activate = if focus && window_was_focused {
+                            ActivateWindow::Yes
                         } else {
                             ActivateWindow::No
                         };
