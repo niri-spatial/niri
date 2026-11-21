@@ -119,7 +119,7 @@ impl CompositorHandler for State {
                         let workspace_id = workspace_name
                             .as_deref()
                             .and_then(|n| self.niri.layout.find_workspace_by_name(n))
-                            .map(|(_, ws)| ws.id());
+                            .map(|(_, _, ws)| ws.id());
 
                         (
                             rules,
