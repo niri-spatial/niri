@@ -1413,7 +1413,7 @@ impl State {
                             }
                         }
 
-                        if !focus {
+                        if !focus || !window_was_focused {
                             if let (Some(output), Some(plane_id)) = (target_output, previous_plane)
                             {
                                 self.niri.layout.activate_plane_by_id(&output, plane_id);
