@@ -789,7 +789,8 @@ impl<W: LayoutElement> Monitor<W> {
                     .workspaces
                     .iter_workspaces()
                     .find_map(|(plane_id, workspace_idx, ws)| {
-                        ws.has_window(win_id).then_some((plane_id, workspace_idx, ws))
+                        ws.has_window(win_id)
+                            .then_some((plane_id, workspace_idx, ws))
                     })
                     .expect("the target window must exist");
                 let plane_idx = self
