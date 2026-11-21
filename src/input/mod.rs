@@ -1281,9 +1281,18 @@ impl State {
                 self.niri.queue_redraw_all();
             }
             Action::MoveWindowToWorkspace(reference, focus) => {
-                if let Some((mut output, index)) =
+                if let Some((mut output, plane_id, index)) =
                     self.niri.find_output_and_workspace_index(reference)
                 {
+                    let target_output = output
+                        .clone()
+                        .or_else(|| self.niri.layout.active_output().cloned());
+                    let previous_plane = plane_id.and_then(|plane_id| {
+                        target_output.as_ref().and_then(|output| {
+                            self.niri.layout.activate_plane_by_id(output, plane_id)
+                        })
+                    });
+
                     // The source output is always the active output, so if the target output is
                     // also the active output, we don't need to use move_to_output().
                     if let Some(active) = self.niri.layout.active_output() {
@@ -1315,6 +1324,12 @@ impl State {
                         self.maybe_warp_cursor_to_focus();
                     }
 
+                    if !focus {
+                        if let (Some(output), Some(plane_id)) = (target_output, previous_plane) {
+                            self.niri.layout.activate_plane_by_id(&output, plane_id);
+                        }
+                    }
+
                     // FIXME: granular
                     self.niri.queue_redraw_all();
                 }
@@ -1327,9 +1342,17 @@ impl State {
                 let window = self.niri.layout.windows().find(|(_, m)| m.id().get() == id);
                 let window = window.map(|(_, m)| m.window.clone());
                 if let Some(window) = window {
-                    if let Some((output, index)) =
+                    if let Some((output, plane_id, index)) =
                         self.niri.find_output_and_workspace_index(reference)
                     {
+                        let target_output = output
+                            .clone()
+                            .or_else(|| self.niri.layout.active_output().cloned());
+                        let previous_plane = plane_id.and_then(|plane_id| {
+                            target_output.as_ref().and_then(|output| {
+                                self.niri.layout.activate_plane_by_id(output, plane_id)
+                            })
+                        });
                         let target_was_active = self
                             .niri
                             .layout
@@ -1371,6 +1394,14 @@ impl State {
                             }
                         }
 
+                        if !focus {
+                            if let (Some(output), Some(plane_id)) =
+                                (target_output, previous_plane)
+                            {
+                                self.niri.layout.activate_plane_by_id(&output, plane_id);
+                            }
+                        }
+
                         // FIXME: granular
                         self.niri.queue_redraw_all();
                     }
@@ -1389,9 +1420,18 @@ impl State {
                 self.niri.queue_redraw_all();
             }
             Action::MoveColumnToWorkspace(reference, focus) => {
-                if let Some((mut output, index)) =
+                if let Some((mut output, plane_id, index)) =
                     self.niri.find_output_and_workspace_index(reference)
                 {
+                    let target_output = output
+                        .clone()
+                        .or_else(|| self.niri.layout.active_output().cloned());
+                    let previous_plane = plane_id.and_then(|plane_id| {
+                        target_output.as_ref().and_then(|output| {
+                            self.niri.layout.activate_plane_by_id(output, plane_id)
+                        })
+                    });
+
                     if let Some(active) = self.niri.layout.active_output() {
                         if output.as_ref() == Some(active) {
                             output = None;
@@ -1409,6 +1449,12 @@ impl State {
                         self.niri.layout.move_column_to_workspace(index, focus);
                         if focus {
                             self.maybe_warp_cursor_to_focus();
+                        }
+                    }
+
+                    if !focus {
+                        if let (Some(output), Some(plane_id)) = (target_output, previous_plane) {
+                            self.niri.layout.activate_plane_by_id(&output, plane_id);
                         }
                     }
 
@@ -1478,9 +1524,13 @@ impl State {
                 }
             }
             Action::FocusWorkspace(reference) => {
-                if let Some((mut output, index)) =
+                if let Some((mut output, plane_id, index)) =
                     self.niri.find_output_and_workspace_index(reference)
                 {
+                    let target_output = output
+                        .clone()
+                        .or_else(|| self.niri.layout.active_output().cloned());
+
                     if let Some(active) = self.niri.layout.active_output() {
                         if output.as_ref() == Some(active) {
                             output = None;
@@ -1489,6 +1539,13 @@ impl State {
 
                     if let Some(output) = output {
                         self.niri.layout.focus_output(&output);
+                    }
+
+                    if let (Some(output), Some(plane_id)) = (target_output.as_ref(), plane_id) {
+                        self.niri.layout.activate_plane_by_id(output, plane_id);
+                    }
+
+                    if let Some(output) = output {
                         self.niri.layout.switch_workspace(index);
                         if !self.maybe_warp_cursor_to_focus_centered() {
                             self.move_cursor_to_output(&output);
@@ -1532,9 +1589,27 @@ impl State {
                 self.niri.queue_redraw_all();
             }
             Action::MoveWorkspaceToIndexByRef { new_idx, reference } => {
-                if let Some(res) = self.niri.find_output_and_workspace_index(reference) {
+                if let Some((output, plane_id, index)) =
+                    self.niri.find_output_and_workspace_index(reference)
+                {
+                    let target_output = output
+                        .clone()
+                        .or_else(|| self.niri.layout.active_output().cloned());
+                    let previous_plane = plane_id.and_then(|plane_id| {
+                        target_output.as_ref().and_then(|output| {
+                            self.niri.layout.activate_plane_by_id(output, plane_id)
+                        })
+                    });
+
                     let new_idx = new_idx.saturating_sub(1);
-                    self.niri.layout.move_workspace_to_idx(Some(res), new_idx);
+                    self.niri
+                        .layout
+                        .move_workspace_to_idx(Some((output, index)), new_idx);
+
+                    if let (Some(output), Some(plane_id)) = (target_output, previous_plane) {
+                        self.niri.layout.activate_plane_by_id(&output, plane_id);
+                    }
+
                     // FIXME: granular
                     self.niri.queue_redraw_all();
                 }
@@ -2110,9 +2185,18 @@ impl State {
                 output_name,
                 reference,
             } => {
-                if let Some((output, old_idx)) =
+                if let Some((output, plane_id, old_idx)) =
                     self.niri.find_output_and_workspace_index(reference)
                 {
+                    let target_output = output
+                        .clone()
+                        .or_else(|| self.niri.layout.active_output().cloned());
+                    let previous_plane = plane_id.and_then(|plane_id| {
+                        target_output.as_ref().and_then(|output| {
+                            self.niri.layout.activate_plane_by_id(output, plane_id)
+                        })
+                    });
+
                     if let Some(new_output) = self.niri.output_by_name_match(&output_name).cloned()
                     {
                         if self.niri.layout.move_workspace_to_output_by_id(
@@ -2125,6 +2209,10 @@ impl State {
                                 self.move_cursor_to_output(&new_output);
                             }
                         }
+                    }
+
+                    if let (Some(output), Some(plane_id)) = (target_output, previous_plane) {
+                        self.niri.layout.activate_plane_by_id(&output, plane_id);
                     }
                 }
             }
@@ -2828,7 +2916,7 @@ impl State {
             if is_overview_open && !pointer.is_grabbed() && button == Some(MouseButton::Right) {
                 if let Some((output, ws)) = self.niri.workspace_under_cursor(true) {
                     let ws_id = ws.id();
-                    let ws_idx = self.niri.layout.find_workspace_by_id(ws_id).unwrap().0;
+                    let ws_idx = self.niri.layout.find_workspace_by_id(ws_id).unwrap().1;
 
                     self.niri.layout.focus_output(&output);
 
@@ -3337,7 +3425,7 @@ impl State {
                             if let Some((output, ws)) = self.niri.workspace_under_cursor(true) {
                                 let ws_id = ws.id();
                                 let ws_idx =
-                                    self.niri.layout.find_workspace_by_id(ws_id).unwrap().0;
+                                    self.niri.layout.find_workspace_by_id(ws_id).unwrap().1;
 
                                 self.niri.layout.view_offset_gesture_begin(
                                     &output,
@@ -3666,7 +3754,7 @@ impl State {
                         .then(|| self.niri.workspace_under(false, pos))
                         .flatten()
                     {
-                        let ws_idx = self.niri.layout.find_workspace_by_id(ws.id()).unwrap().0;
+                        let ws_idx = self.niri.layout.find_workspace_by_id(ws.id()).unwrap().1;
 
                         self.niri.layout.focus_output(&output);
                         self.niri.layout.toggle_overview_to_workspace(ws_idx);
