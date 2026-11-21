@@ -604,7 +604,13 @@ impl ExtWorkspaceHandler for State {
 
     fn activate_workspace(&mut self, id: WorkspaceId) {
         let reference = niri_config::WorkspaceReference::Id(id.get());
-        if let Some((mut output, index)) = self.niri.find_output_and_workspace_index(reference) {
+        if let Some((mut output, plane_id, index)) =
+            self.niri.find_output_and_workspace_index(reference)
+        {
+            let target_output = output
+                .clone()
+                .or_else(|| self.niri.layout.active_output().cloned());
+
             if let Some(active) = self.niri.layout.active_output() {
                 if output.as_ref() == Some(active) {
                     output = None;
@@ -613,6 +619,9 @@ impl ExtWorkspaceHandler for State {
 
             if let Some(output) = output {
                 self.niri.layout.focus_output(&output);
+            }
+            if let (Some(output), Some(plane_id)) = (target_output.as_ref(), plane_id) {
+                self.niri.layout.activate_plane_by_id(output, plane_id);
             }
             self.niri.layout.switch_workspace(index);
             // No mouse warp: assuming the layer-shell bar workspaces use-case.
@@ -624,10 +633,25 @@ impl ExtWorkspaceHandler for State {
 
     fn assign_workspace(&mut self, ws_id: WorkspaceId, output: Output) {
         let reference = niri_config::WorkspaceReference::Id(ws_id.get());
-        if let Some((old_output, old_idx)) = self.niri.find_output_and_workspace_index(reference) {
+        if let Some((old_output, plane_id, old_idx)) =
+            self.niri.find_output_and_workspace_index(reference)
+        {
+            let source_output = old_output
+                .clone()
+                .or_else(|| self.niri.layout.active_output().cloned());
+            let previous_plane = plane_id.and_then(|plane_id| {
+                source_output.as_ref().and_then(|output| {
+                    self.niri.layout.activate_plane_by_id(output, plane_id)
+                })
+            });
+
             self.niri
                 .layout
                 .move_workspace_to_output_by_id(old_idx, old_output, &output);
+
+            if let (Some(output), Some(plane_id)) = (source_output, previous_plane) {
+                self.niri.layout.activate_plane_by_id(&output, plane_id);
+            }
         }
     }
 }
