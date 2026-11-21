@@ -2980,6 +2980,50 @@ fn add_window_to_named_workspace_on_inactive_plane() {
 }
 
 #[test]
+fn move_window_to_named_workspace_on_inactive_plane() {
+    let ops = [
+        Op::AddOutput(1),
+        Op::AddWindow {
+            params: TestWindowParams::new(2),
+        },
+    ];
+    let mut layout = check_ops(ops);
+    let output = layout.active_output().unwrap().clone();
+    let source_plane_id = layout.active_monitor().unwrap().active_plane_id();
+
+    layout.create_plane();
+    layout.set_workspace_name("named-target".into(), None);
+    let (target_plane_id, target_workspace_id) = {
+        let monitor = layout.active_monitor().unwrap();
+        (
+            monitor.active_plane_id(),
+            monitor.active_workspace_ref().id(),
+        )
+    };
+
+    layout.activate_plane_by_id(&output, source_plane_id).unwrap();
+    layout.activate_plane_by_id(&output, target_plane_id).unwrap();
+    layout.move_to_workspace(Some(&2), 0, ActivateWindow::No);
+
+    let monitor = layout.active_monitor().unwrap();
+    let (_, _, target_workspace) = monitor
+        .workspaces
+        .iter_workspaces()
+        .find(|(plane_id, _, workspace)| {
+            *plane_id == target_plane_id && workspace.id() == target_workspace_id
+        })
+        .unwrap();
+    assert!(target_workspace.has_window(&2));
+
+    layout.activate_plane_by_id(&output, source_plane_id);
+    assert_eq!(
+        layout.active_monitor().unwrap().active_plane_id(),
+        source_plane_id
+    );
+    layout.verify_invariants();
+}
+
+#[test]
 fn adding_activated_window_to_named_workspace_activates_its_plane() {
     let mut layout = check_ops([Op::AddOutput(1)]);
     layout.create_plane();
