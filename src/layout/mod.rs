@@ -1628,12 +1628,12 @@ impl<W: LayoutElement> Layout<W> {
         };
 
         for (monitor_idx, mon) in monitors.iter_mut().enumerate() {
-            let Some((plane_id, workspace_idx)) = mon
-                .workspaces
-                .iter_workspaces()
-                .find_map(|(plane_id, workspace_idx, ws)| {
-                    ws.has_window(window).then_some((plane_id, workspace_idx))
-                })
+            let Some((plane_id, workspace_idx)) =
+                mon.workspaces
+                    .iter_workspaces()
+                    .find_map(|(plane_id, workspace_idx, ws)| {
+                        ws.has_window(window).then_some((plane_id, workspace_idx))
+                    })
             else {
                 continue;
             };
