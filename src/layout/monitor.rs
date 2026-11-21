@@ -769,7 +769,9 @@ impl<W: LayoutElement> Monitor<W> {
                 let (plane_id, workspace_idx, _) = self
                     .workspaces
                     .iter_workspaces()
-                    .find(|(_, _, ws)| ws.id() == id)
+                    .find_map(|(plane_id, workspace_idx, ws)| {
+                        (ws.id() == id).then_some((plane_id, workspace_idx, ws))
+                    })
                     .expect("the target workspace must exist");
                 let plane_idx = self
                     .workspaces
@@ -786,7 +788,9 @@ impl<W: LayoutElement> Monitor<W> {
                 let (plane_id, workspace_idx, _) = self
                     .workspaces
                     .iter_workspaces()
-                    .find(|(_, _, ws)| ws.has_window(win_id))
+                    .find_map(|(plane_id, workspace_idx, ws)| {
+                        ws.has_window(win_id).then_some((plane_id, workspace_idx, ws))
+                    })
                     .expect("the target window must exist");
                 let plane_idx = self
                     .workspaces
