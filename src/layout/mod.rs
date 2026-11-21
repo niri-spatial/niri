@@ -993,8 +993,12 @@ impl<W: LayoutElement> Layout<W> {
                 };
                 let mon = &mut monitors[mon_idx];
 
-                let (ws_idx, _) = mon.resolve_add_window_target(target);
-                let ws = &mon.workspaces[ws_idx];
+                let (plane_idx, ws_idx, _) = mon.resolve_add_window_target(target);
+                let ws = &mon
+                    .workspaces
+                    .plane(plane_idx)
+                    .expect("the target plane must exist")
+                    .workspaces()[ws_idx];
                 let scrolling_width = ws.resolve_scrolling_width(&window, width);
 
                 mon.add_window(
@@ -1015,8 +1019,8 @@ impl<W: LayoutElement> Layout<W> {
                     if let Some(change) = scrolling_height {
                         let ws = mon
                             .workspaces
-                            .iter_mut()
-                            .find(|ws| ws.has_window(&id))
+                            .iter_workspaces_mut()
+                            .find_map(|(_, _, ws)| ws.has_window(&id).then_some(ws))
                             .unwrap();
                         ws.set_window_height(Some(&id), change);
                     }
@@ -1276,59 +1280,54 @@ impl<W: LayoutElement> Layout<W> {
         }
     }
 
-    pub fn find_workspace_by_id(&self, id: WorkspaceId) -> Option<(usize, &Workspace<W>)> {
+    pub fn find_workspace_by_id(
+        &self,
+        id: WorkspaceId,
+    ) -> Option<(PlaneId, usize, &Workspace<W>)> {
         match &self.monitor_set {
-            MonitorSet::Normal { ref monitors, .. } => {
-                for mon in monitors {
-                    if let Some((index, workspace)) = mon
-                        .workspaces
-                        .iter()
-                        .enumerate()
-                        .find(|(_, w)| w.id() == id)
-                    {
-                        return Some((index, workspace));
-                    }
-                }
-            }
-            MonitorSet::NoOutputs { workspaces } => {
-                if let Some((index, workspace)) =
-                    workspaces.iter().enumerate().find(|(_, w)| w.id() == id)
-                {
-                    return Some((index, workspace));
-                }
-            }
+            MonitorSet::Normal { monitors, .. } => monitors.iter().find_map(|mon| {
+                mon.workspaces
+                    .iter_workspaces()
+                    .find_map(|(plane_id, workspace_idx, workspace)| {
+                        (workspace.id() == id)
+                            .then_some((plane_id, workspace_idx, workspace))
+                    })
+            }),
+            MonitorSet::NoOutputs { workspaces } => workspaces
+                .iter_workspaces()
+                .find_map(|(plane_id, workspace_idx, workspace)| {
+                    (workspace.id() == id).then_some((plane_id, workspace_idx, workspace))
+                }),
         }
-
-        None
     }
 
-    pub fn find_workspace_by_name(&self, workspace_name: &str) -> Option<(usize, &Workspace<W>)> {
-        match &self.monitor_set {
-            MonitorSet::Normal { ref monitors, .. } => {
-                for mon in monitors {
-                    if let Some((index, workspace)) =
-                        mon.workspaces.iter().enumerate().find(|(_, w)| {
-                            w.name
-                                .as_ref()
-                                .is_some_and(|name| name.eq_ignore_ascii_case(workspace_name))
-                        })
-                    {
-                        return Some((index, workspace));
-                    }
-                }
-            }
-            MonitorSet::NoOutputs { workspaces } => {
-                if let Some((index, workspace)) = workspaces.iter().enumerate().find(|(_, w)| {
-                    w.name
-                        .as_ref()
-                        .is_some_and(|name| name.eq_ignore_ascii_case(workspace_name))
-                }) {
-                    return Some((index, workspace));
-                }
-            }
-        }
+    pub fn find_workspace_by_name(
+        &self,
+        workspace_name: &str,
+    ) -> Option<(PlaneId, usize, &Workspace<W>)> {
+        let matches_name = |workspace: &&Workspace<W>| {
+            workspace
+                .name
+                .as_ref()
+                .is_some_and(|name| name.eq_ignore_ascii_case(workspace_name))
+        };
 
-        None
+        match &self.monitor_set {
+            MonitorSet::Normal { monitors, .. } => monitors.iter().find_map(|mon| {
+                mon.workspaces
+                    .iter_workspaces()
+                    .find_map(|(plane_id, workspace_idx, workspace)| {
+                        matches_name(&workspace)
+                            .then_some((plane_id, workspace_idx, workspace))
+                    })
+            }),
+            MonitorSet::NoOutputs { workspaces } => workspaces
+                .iter_workspaces()
+                .find_map(|(plane_id, workspace_idx, workspace)| {
+                    matches_name(&workspace)
+                        .then_some((plane_id, workspace_idx, workspace))
+                }),
+        }
     }
 
     pub fn find_workspace_by_ref(
@@ -1872,7 +1871,7 @@ impl<W: LayoutElement> Layout<W> {
 
     pub fn monitor_for_workspace(&self, workspace_name: &str) -> Option<&Monitor<W>> {
         self.monitors().find(|monitor| {
-            monitor.workspaces.iter().any(|ws| {
+            monitor.workspaces.iter_workspaces().any(|(_, _, ws)| {
                 ws.name
                     .as_ref()
                     .is_some_and(|name| name.eq_ignore_ascii_case(workspace_name))
