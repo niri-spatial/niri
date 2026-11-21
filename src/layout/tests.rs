@@ -3015,7 +3015,7 @@ fn move_window_to_named_workspace_on_inactive_plane() {
         .unwrap();
     assert!(target_workspace.has_window(&2));
 
-    layout.activate_plane_by_id(&output, source_plane_id);
+    layout.activate_plane_by_id(&output, source_plane_id).unwrap();
     assert_eq!(
         layout.active_monitor().unwrap().active_plane_id(),
         source_plane_id
