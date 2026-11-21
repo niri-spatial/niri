@@ -3580,10 +3580,10 @@ impl Niri {
     pub fn find_output_and_workspace_index(
         &self,
         workspace_reference: WorkspaceReference,
-    ) -> Option<(Option<Output>, usize)> {
-        let (target_workspace_index, target_workspace) = match workspace_reference {
+    ) -> Option<(Option<Output>, Option<PlaneId>, usize)> {
+        let (target_plane_id, target_workspace_index, target_workspace) = match workspace_reference {
             WorkspaceReference::Index(index) => {
-                return Some((None, index.saturating_sub(1) as usize));
+                return Some((None, None, index.saturating_sub(1) as usize));
             }
             WorkspaceReference::Name(name) => self.layout.find_workspace_by_name(&name)?,
             WorkspaceReference::Id(id) => {
@@ -3593,7 +3593,11 @@ impl Niri {
         };
 
         let target_output = target_workspace.current_output();
-        Some((target_output.cloned(), target_workspace_index))
+        Some((
+            target_output.cloned(),
+            Some(target_plane_id),
+            target_workspace_index,
+        ))
     }
 
     pub fn find_window_by_id(&self, id: MappedId) -> Option<Window> {
