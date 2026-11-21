@@ -2933,6 +2933,72 @@ fn monitor_plane_management_preserves_active_workspace() {
 }
 
 #[test]
+fn activate_window_on_inactive_plane_activates_that_plane() {
+    let ops = [
+        Op::AddOutput(1),
+        Op::AddWindow {
+            params: TestWindowParams::new(1),
+        },
+    ];
+    let mut layout = check_ops(ops);
+
+    layout.create_plane();
+    check_ops_on_layout(
+        &mut layout,
+        [Op::AddWindow {
+            params: TestWindowParams::new(2),
+        }],
+    );
+
+    let target_plane_id = layout.active_monitor().unwrap().active_plane_id();
+    layout.focus_plane_backward();
+    assert_ne!(
+        layout.active_monitor().unwrap().active_plane_id(),
+        target_plane_id
+    );
+
+    layout.activate_window(&2);
+
+    let monitor = layout.active_monitor().unwrap();
+    assert_eq!(monitor.active_plane_id(), target_plane_id);
+    assert!(monitor.active_workspace_ref().has_window(&2));
+
+    layout.focus_plane_backward();
+    layout.activate_window_without_raising(&2);
+
+    let monitor = layout.active_monitor().unwrap();
+    assert_eq!(monitor.active_plane_id(), target_plane_id);
+    assert!(monitor.active_workspace_ref().has_window(&2));
+    layout.verify_invariants();
+}
+
+#[test]
+fn focus_follows_mouse_ignores_windows_on_inactive_planes() {
+    let ops = [
+        Op::AddOutput(1),
+        Op::AddWindow {
+            params: TestWindowParams::new(1),
+        },
+    ];
+    let mut layout = check_ops(ops);
+
+    layout.create_plane();
+    check_ops_on_layout(
+        &mut layout,
+        [Op::AddWindow {
+            params: TestWindowParams::new(2),
+        }],
+    );
+
+    assert!(layout.should_trigger_focus_follows_mouse_on(&2));
+    layout.focus_plane_backward();
+    assert!(!layout.should_trigger_focus_follows_mouse_on(&2));
+    layout.focus_plane_forward();
+    assert!(layout.should_trigger_focus_follows_mouse_on(&2));
+    layout.verify_invariants();
+}
+
+#[test]
 fn remove_window_from_inactive_plane() {
     let ops = [
         Op::AddOutput(1),
