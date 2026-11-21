@@ -2273,11 +2273,7 @@ impl<W: LayoutElement> Layout<W> {
     ///
     /// Returns the plane that was active before the switch, allowing callers
     /// to restore it after operations that only need temporary access.
-    pub fn activate_plane_by_id(
-        &mut self,
-        output: &Output,
-        plane_id: PlaneId,
-    ) -> Option<PlaneId> {
+    pub fn activate_plane_by_id(&mut self, output: &Output, plane_id: PlaneId) -> Option<PlaneId> {
         let monitor = self.monitor_for_output_mut(output)?;
         let previous_plane_id = monitor.active_plane_id();
         let plane_idx = monitor.workspaces.index_of(plane_id)?;
