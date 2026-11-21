@@ -676,7 +676,7 @@ impl<W: LayoutElement> Monitor<W> {
         self.add_workspace_at(self.workspaces.len());
     }
 
-    fn add_workspace_at_in_plane(&mut self, plane_idx: usize, idx: usize) {
+    pub(super) fn add_workspace_at_in_plane(&mut self, plane_idx: usize, idx: usize) {
         if plane_idx == self.workspaces.active_plane_idx() {
             self.add_workspace_at(idx);
             return;
@@ -969,14 +969,26 @@ impl<W: LayoutElement> Monitor<W> {
     }
 
     pub fn unname_workspace(&mut self, id: WorkspaceId) -> bool {
-        let Some(ws) = self.workspaces.iter_mut().find(|ws| ws.id() == id) else {
+        let Some(plane_idx) = self
+            .workspaces
+            .iter_planes()
+            .position(|plane| plane.workspaces().iter().any(|ws| ws.id() == id))
+        else {
             return false;
         };
 
-        ws.unname();
+        let workspace = self
+            .workspaces
+            .plane_mut(plane_idx)
+            .expect("the workspace's plane must exist")
+            .workspaces_mut()
+            .iter_mut()
+            .find(|ws| ws.id() == id)
+            .expect("the workspace must exist");
+        workspace.unname();
 
         if self.workspace_switch.is_none() {
-            self.clean_up_workspaces();
+            self.clean_up_plane_workspaces(plane_idx);
         }
 
         true
