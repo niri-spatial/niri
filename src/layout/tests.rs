@@ -2945,6 +2945,12 @@ fn add_window_to_named_workspace_on_inactive_plane() {
             monitor.active_workspace_ref().id(),
         )
     };
+    let (found_plane_id, found_workspace_idx, found_workspace) =
+        layout.find_workspace_by_name("named-target").unwrap();
+    assert_eq!(found_plane_id, target_plane_id);
+    assert_eq!(found_workspace_idx, 0);
+    assert_eq!(found_workspace.id(), target_workspace_id);
+    assert!(layout.monitor_for_workspace("named-target").is_some());
 
     layout.focus_plane_backward();
     let original_active_plane_id = layout.active_monitor().unwrap().active_plane_id();
