@@ -1280,24 +1280,22 @@ impl<W: LayoutElement> Layout<W> {
         }
     }
 
-    pub fn find_workspace_by_id(
-        &self,
-        id: WorkspaceId,
-    ) -> Option<(PlaneId, usize, &Workspace<W>)> {
+    pub fn find_workspace_by_id(&self, id: WorkspaceId) -> Option<(PlaneId, usize, &Workspace<W>)> {
         match &self.monitor_set {
             MonitorSet::Normal { monitors, .. } => monitors.iter().find_map(|mon| {
                 mon.workspaces
                     .iter_workspaces()
                     .find_map(|(plane_id, workspace_idx, workspace)| {
-                        (workspace.id() == id)
-                            .then_some((plane_id, workspace_idx, workspace))
+                        (workspace.id() == id).then_some((plane_id, workspace_idx, workspace))
                     })
             }),
-            MonitorSet::NoOutputs { workspaces } => workspaces
-                .iter_workspaces()
-                .find_map(|(plane_id, workspace_idx, workspace)| {
-                    (workspace.id() == id).then_some((plane_id, workspace_idx, workspace))
-                }),
+            MonitorSet::NoOutputs { workspaces } => {
+                workspaces
+                    .iter_workspaces()
+                    .find_map(|(plane_id, workspace_idx, workspace)| {
+                        (workspace.id() == id).then_some((plane_id, workspace_idx, workspace))
+                    })
+            }
         }
     }
 
@@ -1317,16 +1315,16 @@ impl<W: LayoutElement> Layout<W> {
                 mon.workspaces
                     .iter_workspaces()
                     .find_map(|(plane_id, workspace_idx, workspace)| {
-                        matches_name(workspace)
-                            .then_some((plane_id, workspace_idx, workspace))
+                        matches_name(workspace).then_some((plane_id, workspace_idx, workspace))
                     })
             }),
-            MonitorSet::NoOutputs { workspaces } => workspaces
-                .iter_workspaces()
-                .find_map(|(plane_id, workspace_idx, workspace)| {
-                    matches_name(workspace)
-                        .then_some((plane_id, workspace_idx, workspace))
-                }),
+            MonitorSet::NoOutputs { workspaces } => {
+                workspaces
+                    .iter_workspaces()
+                    .find_map(|(plane_id, workspace_idx, workspace)| {
+                        matches_name(workspace).then_some((plane_id, workspace_idx, workspace))
+                    })
+            }
         }
     }
 
