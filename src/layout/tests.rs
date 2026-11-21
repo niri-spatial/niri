@@ -3001,11 +3001,9 @@ fn move_window_to_named_workspace_on_inactive_plane() {
         )
     };
 
+    // Keep the source plane active so the named target plane is inactive.
     layout
         .activate_plane_by_id(&output, source_plane_id)
-        .unwrap();
-    layout
-        .activate_plane_by_id(&output, target_plane_id)
         .unwrap();
     layout.move_to_workspace(Some(&2), 0, ActivateWindow::No);
 
@@ -3018,14 +3016,46 @@ fn move_window_to_named_workspace_on_inactive_plane() {
         })
         .unwrap();
     assert!(target_workspace.has_window(&2));
+    assert_eq!(
+        monitor.active_plane_id(),
+        source_plane_id,
+        "moving without activation must leave the source plane active"
+    );
+    layout.verify_invariants();
+}
+
+#[test]
+fn move_window_to_named_workspace_on_inactive_plane_activates_its_plane() {
+    let ops = [
+        Op::AddOutput(1),
+        Op::AddWindow {
+            params: TestWindowParams::new(2),
+        },
+    ];
+    let mut layout = check_ops(ops);
+    let output = layout.active_output().unwrap().clone();
+    let source_plane_id = layout.active_monitor().unwrap().active_plane_id();
+
+    layout.create_plane();
+    layout.set_workspace_name("named-target".into(), None);
+    let (target_plane_id, target_workspace_id) = {
+        let monitor = layout.active_monitor().unwrap();
+        (
+            monitor.active_plane_id(),
+            monitor.active_workspace_ref().id(),
+        )
+    };
 
     layout
         .activate_plane_by_id(&output, source_plane_id)
         .unwrap();
-    assert_eq!(
-        layout.active_monitor().unwrap().active_plane_id(),
-        source_plane_id
-    );
+    layout.move_to_workspace(Some(&2), 0, ActivateWindow::Yes);
+
+    let monitor = layout.active_monitor().unwrap();
+    assert_eq!(monitor.active_plane_id(), target_plane_id);
+    assert_eq!(monitor.active_workspace_ref().id(), target_workspace_id);
+    assert!(monitor.active_workspace_ref().has_window(&2));
+    assert!(layout.focus().is_some_and(|window| window.id() == &2));
     layout.verify_invariants();
 }
 
