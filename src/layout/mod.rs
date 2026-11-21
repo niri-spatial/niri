@@ -1305,7 +1305,7 @@ impl<W: LayoutElement> Layout<W> {
         &self,
         workspace_name: &str,
     ) -> Option<(PlaneId, usize, &Workspace<W>)> {
-        let matches_name = |workspace: &&Workspace<W>| {
+        let matches_name = |workspace: &Workspace<W>| {
             workspace
                 .name
                 .as_ref()
@@ -1317,14 +1317,14 @@ impl<W: LayoutElement> Layout<W> {
                 mon.workspaces
                     .iter_workspaces()
                     .find_map(|(plane_id, workspace_idx, workspace)| {
-                        matches_name(&workspace)
+                        matches_name(workspace)
                             .then_some((plane_id, workspace_idx, workspace))
                     })
             }),
             MonitorSet::NoOutputs { workspaces } => workspaces
                 .iter_workspaces()
                 .find_map(|(plane_id, workspace_idx, workspace)| {
-                    matches_name(&workspace)
+                    matches_name(workspace)
                         .then_some((plane_id, workspace_idx, workspace))
                 }),
         }
