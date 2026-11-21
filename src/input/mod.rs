@@ -1395,8 +1395,7 @@ impl State {
                         }
 
                         if !focus {
-                            if let (Some(output), Some(plane_id)) =
-                                (target_output, previous_plane)
+                            if let (Some(output), Some(plane_id)) = (target_output, previous_plane)
                             {
                                 self.niri.layout.activate_plane_by_id(&output, plane_id);
                             }
