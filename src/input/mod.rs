@@ -1350,7 +1350,7 @@ impl State {
                 let window = self.niri.layout.windows().find(|(_, m)| m.id().get() == id);
                 let window = window.map(|(_, m)| m.window.clone());
                 if let Some(window) = window {
-                    if let Some((output, plane_id, index)) =
+                    if let Some((mut output, plane_id, index)) =
                         self.niri.find_output_and_workspace_index(reference)
                     {
                         let target_output = output
@@ -1366,6 +1366,11 @@ impl State {
                             .layout
                             .active_output()
                             .is_some_and(|active| output.as_ref() == Some(active));
+                        if target_was_active {
+                            // Use the same-monitor path so the source can be found on an
+                            // inactive plane and the target is resolved by its stable ID.
+                            output = None;
+                        }
 
                         let activate = if focus {
                             ActivateWindow::Smart
