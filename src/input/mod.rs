@@ -1281,9 +1281,12 @@ impl State {
                 self.niri.queue_redraw_all();
             }
             Action::MoveWindowToWorkspace(reference, focus) => {
-                if let Some((mut output, plane_id, index)) =
-                    self.niri.find_output_and_workspace_index(reference)
-                {
+                // Capture the source window before temporarily activating the target plane.
+                let window = self.niri.layout.focus().map(|mapped| mapped.window.clone());
+                if let (Some(window), Some((mut output, plane_id, index))) = (
+                    window,
+                    self.niri.find_output_and_workspace_index(reference),
+                ) {
                     let target_output = output
                         .clone()
                         .or_else(|| self.niri.layout.active_output().cloned());
@@ -1308,9 +1311,12 @@ impl State {
                     };
 
                     if let Some(output) = output {
-                        self.niri
-                            .layout
-                            .move_to_output(None, &output, Some(index), activate);
+                        self.niri.layout.move_to_output(
+                            Some(&window),
+                            &output,
+                            Some(index),
+                            activate,
+                        );
 
                         if focus {
                             if !self.maybe_warp_cursor_to_focus_centered() {
@@ -1320,7 +1326,9 @@ impl State {
                             self.maybe_warp_cursor_to_focus();
                         }
                     } else {
-                        self.niri.layout.move_to_workspace(None, index, activate);
+                        self.niri
+                            .layout
+                            .move_to_workspace(Some(&window), index, activate);
                         self.maybe_warp_cursor_to_focus();
                     }
 
