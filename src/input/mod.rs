@@ -1283,10 +1283,9 @@ impl State {
             Action::MoveWindowToWorkspace(reference, focus) => {
                 // Capture the source window before temporarily activating the target plane.
                 let window = self.niri.layout.focus().map(|mapped| mapped.window.clone());
-                if let (Some(window), Some((mut output, plane_id, index))) = (
-                    window,
-                    self.niri.find_output_and_workspace_index(reference),
-                ) {
+                if let (Some(window), Some((mut output, plane_id, index))) =
+                    (window, self.niri.find_output_and_workspace_index(reference))
+                {
                     let target_output = output
                         .clone()
                         .or_else(|| self.niri.layout.active_output().cloned());
