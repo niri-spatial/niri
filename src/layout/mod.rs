@@ -2269,6 +2269,22 @@ impl<W: LayoutElement> Layout<W> {
         monitor.add_plane();
     }
 
+    /// Activates a plane on the specified output by its stable identity.
+    ///
+    /// Returns the plane that was active before the switch, allowing callers
+    /// to restore it after operations that only need temporary access.
+    pub fn activate_plane_by_id(
+        &mut self,
+        output: &Output,
+        plane_id: PlaneId,
+    ) -> Option<PlaneId> {
+        let monitor = self.monitor_for_output_mut(output)?;
+        let previous_plane_id = monitor.active_plane_id();
+        let plane_idx = monitor.workspaces.index_of(plane_id)?;
+        monitor.activate_plane(plane_idx).ok()?;
+        Some(previous_plane_id)
+    }
+
     pub fn focus_plane_backward(&mut self) {
         let Some(monitor) = self.active_monitor() else {
             return;
