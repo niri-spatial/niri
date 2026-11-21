@@ -2980,6 +2980,41 @@ fn add_window_to_named_workspace_on_inactive_plane() {
 }
 
 #[test]
+fn adding_activated_window_to_named_workspace_activates_its_plane() {
+    let mut layout = check_ops([Op::AddOutput(1)]);
+    layout.create_plane();
+    layout.set_workspace_name("named-target".into(), None);
+
+    let (target_plane_id, target_workspace_id) = {
+        let monitor = layout.active_monitor().unwrap();
+        (
+            monitor.active_plane_id(),
+            monitor.active_workspace_ref().id(),
+        )
+    };
+
+    layout.focus_plane_backward();
+    let original_plane_id = layout.active_monitor().unwrap().active_plane_id();
+
+    let window = TestWindow::new(TestWindowParams::new(2));
+    layout.add_window(
+        window,
+        AddWindowTarget::Workspace(target_workspace_id),
+        None,
+        None,
+        false,
+        false,
+        ActivateWindow::Yes,
+    );
+
+    let monitor = layout.active_monitor().unwrap();
+    assert_ne!(monitor.active_plane_id(), original_plane_id);
+    assert_eq!(monitor.active_plane_id(), target_plane_id);
+    assert!(monitor.active_workspace_ref().has_window(&2));
+    layout.verify_invariants();
+}
+
+#[test]
 fn unname_workspace_on_inactive_plane() {
     let mut layout = check_ops([Op::AddOutput(1)]);
     layout.create_plane();
