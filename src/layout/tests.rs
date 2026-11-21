@@ -3001,7 +3001,10 @@ fn move_window_to_named_workspace_on_inactive_plane() {
         )
     };
 
-    // Temporarily activate the target plane, as the input action does.
+    // Start with the source plane active, then temporarily activate the target plane.
+    layout
+        .activate_plane_by_id(&output, source_plane_id)
+        .unwrap();
     layout
         .activate_plane_by_id(&output, target_plane_id)
         .unwrap();
@@ -3049,7 +3052,10 @@ fn move_window_to_named_workspace_on_inactive_plane_activates_its_plane() {
         )
     };
 
-    // The input action activates the target plane before moving into its local index.
+    // Mirror the input action: the source plane is active before switching to the target.
+    layout
+        .activate_plane_by_id(&output, source_plane_id)
+        .unwrap();
     layout
         .activate_plane_by_id(&output, target_plane_id)
         .unwrap();
