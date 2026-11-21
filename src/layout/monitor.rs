@@ -623,12 +623,15 @@ impl<W: LayoutElement> Monitor<W> {
         })
     }
 
-    pub fn find_named_workspace_index(&self, workspace_name: &str) -> Option<usize> {
-        self.workspaces.iter().position(|ws| {
-            ws.name
-                .as_ref()
-                .is_some_and(|name| name.eq_ignore_ascii_case(workspace_name))
-        })
+    pub fn find_named_workspace_index(&self, workspace_name: &str) -> Option<(PlaneId, usize)> {
+        self.workspaces
+            .iter_workspaces()
+            .find_map(|(plane_id, workspace_idx, ws)| {
+                ws.name
+                    .as_ref()
+                    .is_some_and(|name| name.eq_ignore_ascii_case(workspace_name))
+                    .then_some((plane_id, workspace_idx))
+            })
     }
 
     pub fn active_workspace(&mut self) -> &mut Workspace<W> {
@@ -671,6 +674,33 @@ impl<W: LayoutElement> Monitor<W> {
 
     pub fn add_workspace_bottom(&mut self) {
         self.add_workspace_at(self.workspaces.len());
+    }
+
+    fn add_workspace_at_in_plane(&mut self, plane_idx: usize, idx: usize) {
+        if plane_idx == self.workspaces.active_plane_idx() {
+            self.add_workspace_at(idx);
+            return;
+        }
+
+        let workspace = Workspace::new(
+            self.output.clone(),
+            self.clock.clone(),
+            self.options.clone(),
+        );
+        self.workspaces
+            .plane_mut(plane_idx)
+            .expect("the plane index must be valid")
+            .insert_workspace(idx, workspace)
+            .expect("the workspace index must be valid");
+    }
+
+    fn add_workspace_bottom_in_plane(&mut self, plane_idx: usize) {
+        let idx = self
+            .workspaces
+            .plane(plane_idx)
+            .expect("the plane index must be valid")
+            .workspace_count();
+        self.add_workspace_at_in_plane(plane_idx, idx);
     }
 
     pub fn activate_workspace(&mut self, idx: usize) {
@@ -726,29 +756,47 @@ impl<W: LayoutElement> Monitor<W> {
     }
 
     pub(super) fn resolve_add_window_target<'a>(
-        &mut self,
+        &self,
         target: MonitorAddWindowTarget<'a, W>,
-    ) -> (usize, WorkspaceAddWindowTarget<'a, W>) {
+    ) -> (usize, usize, WorkspaceAddWindowTarget<'a, W>) {
         match target {
-            MonitorAddWindowTarget::Auto => {
-                (self.active_workspace_idx(), WorkspaceAddWindowTarget::Auto)
-            }
+            MonitorAddWindowTarget::Auto => (
+                self.workspaces.active_plane_idx(),
+                self.active_workspace_idx(),
+                WorkspaceAddWindowTarget::Auto,
+            ),
             MonitorAddWindowTarget::Workspace { id, column_idx } => {
-                let idx = self.workspaces.iter().position(|ws| ws.id() == id).unwrap();
+                let (plane_id, workspace_idx, _) = self
+                    .workspaces
+                    .iter_workspaces()
+                    .find(|(_, _, ws)| ws.id() == id)
+                    .expect("the target workspace must exist");
+                let plane_idx = self
+                    .workspaces
+                    .index_of(plane_id)
+                    .expect("the target workspace's plane must exist");
                 let target = if let Some(column_idx) = column_idx {
                     WorkspaceAddWindowTarget::NewColumnAt(column_idx)
                 } else {
                     WorkspaceAddWindowTarget::Auto
                 };
-                (idx, target)
+                (plane_idx, workspace_idx, target)
             }
             MonitorAddWindowTarget::NextTo(win_id) => {
-                let idx = self
+                let (plane_id, workspace_idx, _) = self
                     .workspaces
-                    .iter_mut()
-                    .position(|ws| ws.has_window(win_id))
-                    .unwrap();
-                (idx, WorkspaceAddWindowTarget::NextTo(win_id))
+                    .iter_workspaces()
+                    .find(|(_, _, ws)| ws.has_window(win_id))
+                    .expect("the target window must exist");
+                let plane_idx = self
+                    .workspaces
+                    .index_of(plane_id)
+                    .expect("the target window's plane must exist");
+                (
+                    plane_idx,
+                    workspace_idx,
+                    WorkspaceAddWindowTarget::NextTo(win_id),
+                )
             }
         }
     }
@@ -812,28 +860,43 @@ impl<W: LayoutElement> Monitor<W> {
         is_full_width: bool,
         is_floating: bool,
     ) {
-        let (mut workspace_idx, target) = self.resolve_add_window_target(target);
+        let (plane_idx, mut workspace_idx, target) = self.resolve_add_window_target(target);
+        let plane_workspace_count = self
+            .workspaces
+            .plane(plane_idx)
+            .expect("the target plane must exist")
+            .workspace_count();
 
-        let workspace = &mut self.workspaces[workspace_idx];
+        {
+            let workspace = self
+                .workspaces
+                .plane_mut(plane_idx)
+                .expect("the target plane must exist")
+                .workspaces_mut()
+                .get_mut(workspace_idx)
+                .expect("the target workspace must exist");
 
-        workspace.add_tile(tile, target, activate, width, is_full_width, is_floating);
+            workspace.add_tile(tile, target, activate, width, is_full_width, is_floating);
 
-        // After adding a new window, workspace becomes this output's own.
-        if workspace.name().is_none() {
-            workspace.original_output = OutputId::new(&self.output);
+            // After adding a new window, workspace becomes this output's own.
+            if workspace.name().is_none() {
+                workspace.original_output = OutputId::new(&self.output);
+            }
         }
 
-        if workspace_idx == self.workspaces.len() - 1 {
-            // Insert a new empty workspace.
-            self.add_workspace_bottom();
+        if workspace_idx == plane_workspace_count - 1 {
+            // Insert a new empty workspace at the end of the target plane.
+            self.add_workspace_bottom_in_plane(plane_idx);
         }
 
         if self.options.layout.empty_workspace_above_first && workspace_idx == 0 {
-            self.add_workspace_top();
+            self.add_workspace_at_in_plane(plane_idx, 0);
             workspace_idx += 1;
         }
 
         if allow_to_activate_workspace && activate.map_smart(|| false) {
+            self.activate_plane(plane_idx)
+                .expect("the target plane index must be valid");
             self.activate_workspace(workspace_idx);
         }
     }
