@@ -3001,11 +3001,14 @@ fn move_window_to_named_workspace_on_inactive_plane() {
         )
     };
 
-    // Keep the source plane active so the named target plane is inactive.
+    // Temporarily activate the target plane, as the input action does.
+    layout
+        .activate_plane_by_id(&output, target_plane_id)
+        .unwrap();
+    layout.move_to_workspace(Some(&2), 0, ActivateWindow::No);
     layout
         .activate_plane_by_id(&output, source_plane_id)
         .unwrap();
-    layout.move_to_workspace(Some(&2), 0, ActivateWindow::No);
 
     let monitor = layout.active_monitor().unwrap();
     let (_, _, target_workspace) = monitor
@@ -3046,8 +3049,9 @@ fn move_window_to_named_workspace_on_inactive_plane_activates_its_plane() {
         )
     };
 
+    // The input action activates the target plane before moving into its local index.
     layout
-        .activate_plane_by_id(&output, source_plane_id)
+        .activate_plane_by_id(&output, target_plane_id)
         .unwrap();
     layout.move_to_workspace(Some(&2), 0, ActivateWindow::Yes);
 
