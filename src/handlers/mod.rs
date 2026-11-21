@@ -640,9 +640,9 @@ impl ExtWorkspaceHandler for State {
                 .clone()
                 .or_else(|| self.niri.layout.active_output().cloned());
             let previous_plane = plane_id.and_then(|plane_id| {
-                source_output.as_ref().and_then(|output| {
-                    self.niri.layout.activate_plane_by_id(output, plane_id)
-                })
+                source_output
+                    .as_ref()
+                    .and_then(|output| self.niri.layout.activate_plane_by_id(output, plane_id))
             });
 
             self.niri
