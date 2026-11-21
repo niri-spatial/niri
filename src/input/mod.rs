@@ -3101,7 +3101,7 @@ impl State {
                 .then(|| self.niri.workspace_under_cursor(false))
                 .flatten()
             {
-                let ws_idx = self.niri.layout.find_workspace_by_id(ws.id()).unwrap().0;
+                let ws_idx = self.niri.layout.find_workspace_by_id(ws.id()).unwrap().1;
 
                 self.niri.layout.focus_output(&output);
                 self.niri.layout.toggle_overview_to_workspace(ws_idx);
@@ -3934,7 +3934,7 @@ impl State {
                         };
 
                         if let Some((output, ws)) = output_ws {
-                            let ws_idx = self.niri.layout.find_workspace_by_id(ws.id()).unwrap().0;
+                            let ws_idx = self.niri.layout.find_workspace_by_id(ws.id()).unwrap().1;
                             self.niri
                                 .layout
                                 .view_offset_gesture_begin(&output, Some(ws_idx), true);
