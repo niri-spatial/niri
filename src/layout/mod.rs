@@ -4659,27 +4659,42 @@ impl<W: LayoutElement> Layout<W> {
         // Conversely, if `ws` was the last workspace on a monitor, an
         // empty workspace needs to be added after.
 
-        if let MonitorSet::Normal {
-            monitors,
-            active_monitor_idx,
-            ..
-        } = &mut self.monitor_set
-        {
-            let monitor = &mut monitors[*active_monitor_idx];
-            if monitor.options.layout.empty_workspace_above_first
-                && monitor
+        if let MonitorSet::Normal { monitors, .. } = &mut self.monitor_set {
+            for monitor in monitors {
+                let Some((plane_id, workspace_idx, _)) = monitor
                     .workspaces
-                    .first()
-                    .is_some_and(|first| first.id() == wsid)
-            {
-                monitor.add_workspace_top();
-            }
-            if monitor
-                .workspaces
-                .last()
-                .is_some_and(|last| last.id() == wsid)
-            {
-                monitor.add_workspace_bottom();
+                    .iter_workspaces()
+                    .find(|(_, _, workspace)| workspace.id() == wsid)
+                else {
+                    continue;
+                };
+
+                let plane_idx = monitor
+                    .workspaces
+                    .index_of(plane_id)
+                    .expect("the named workspace's plane must exist");
+                let plane_workspace_count = monitor
+                    .workspaces
+                    .plane(plane_idx)
+                    .expect("the named workspace's plane must exist")
+                    .workspace_count();
+                let add_workspace_top =
+                    monitor.options.layout.empty_workspace_above_first && workspace_idx == 0;
+                let add_workspace_bottom = workspace_idx == plane_workspace_count - 1;
+
+                if add_workspace_top {
+                    monitor.add_workspace_at_in_plane(plane_idx, 0);
+                }
+                if add_workspace_bottom {
+                    let idx = monitor
+                        .workspaces
+                        .plane(plane_idx)
+                        .expect("the named workspace's plane must exist")
+                        .workspace_count();
+                    monitor.add_workspace_at_in_plane(plane_idx, idx);
+                }
+
+                break;
             }
         }
     }
