@@ -1536,18 +1536,18 @@ impl State {
                         }
                     }
 
-                    if let Some(output) = output {
-                        self.niri.layout.focus_output(&output);
+                    if let Some(output) = output.as_ref() {
+                        self.niri.layout.focus_output(output);
                     }
 
                     if let (Some(output), Some(plane_id)) = (target_output.as_ref(), plane_id) {
                         self.niri.layout.activate_plane_by_id(output, plane_id);
                     }
 
-                    if let Some(output) = output {
+                    if let Some(output) = output.as_ref() {
                         self.niri.layout.switch_workspace(index);
                         if !self.maybe_warp_cursor_to_focus_centered() {
-                            self.move_cursor_to_output(&output);
+                            self.move_cursor_to_output(output);
                         }
                     } else {
                         let config = &self.niri.config;
