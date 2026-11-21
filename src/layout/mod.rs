@@ -1526,15 +1526,22 @@ impl<W: LayoutElement> Layout<W> {
             return true;
         };
 
-        let (mon, ws_idx) = monitors
+        let (mon, plane_id, ws_idx) = monitors
             .iter()
             .find_map(|mon| {
                 mon.workspaces
-                    .iter()
-                    .position(|ws| ws.has_window(window))
-                    .map(|ws_idx| (mon, ws_idx))
+                    .iter_workspaces()
+                    .find_map(|(plane_id, ws_idx, ws)| {
+                        ws.has_window(window)
+                            .then_some((mon, plane_id, ws_idx))
+                    })
             })
             .unwrap();
+
+        // A window on another plane is not visible and must not trigger focus-follows-mouse.
+        if plane_id != mon.active_plane_id() {
+            return false;
+        }
 
         // During a gesture, focus-follows-mouse does not cause any unintended workspace switches.
         if let Some(WorkspaceSwitch::Gesture(_)) = mon.workspace_switch {
@@ -1561,22 +1568,47 @@ impl<W: LayoutElement> Layout<W> {
         };
 
         for (monitor_idx, mon) in monitors.iter_mut().enumerate() {
-            for (workspace_idx, ws) in mon.workspaces.iter_mut().enumerate() {
-                if ws.activate_window(window) {
-                    *active_monitor_idx = monitor_idx;
+            let Some((plane_id, workspace_idx)) = mon
+                .workspaces
+                .iter_workspaces()
+                .find_map(|(plane_id, workspace_idx, ws)| {
+                    ws.has_window(window).then_some((plane_id, workspace_idx))
+                })
+            else {
+                continue;
+            };
 
-                    // If currently in the middle of a vertical swipe between the target workspace
-                    // and some other, don't switch the workspace.
-                    match &mon.workspace_switch {
-                        Some(WorkspaceSwitch::Gesture(gesture))
-                            if gesture.current_idx.floor() == workspace_idx as f64
-                                || gesture.current_idx.ceil() == workspace_idx as f64 => {}
-                        _ => mon.switch_workspace(workspace_idx),
-                    }
+            // Activating a window on another plane must first make that plane visible.
+            let plane_idx = mon
+                .workspaces
+                .index_of(plane_id)
+                .expect("the window's plane must still exist");
+            mon.activate_plane(plane_idx)
+                .expect("the window's plane index must be valid");
 
-                    return;
-                }
+            let workspace = mon
+                .workspaces
+                .plane_mut(plane_idx)
+                .expect("the window's plane must still exist")
+                .workspaces_mut()
+                .get_mut(workspace_idx)
+                .expect("the window's workspace must still exist");
+            if !workspace.activate_window(window) {
+                continue;
             }
+
+            *active_monitor_idx = monitor_idx;
+
+            // If currently in the middle of a vertical swipe between the target workspace
+            // and some other, don't switch the workspace.
+            match &mon.workspace_switch {
+                Some(WorkspaceSwitch::Gesture(gesture))
+                    if gesture.current_idx.floor() == workspace_idx as f64
+                        || gesture.current_idx.ceil() == workspace_idx as f64 => {}
+                _ => mon.switch_workspace(workspace_idx),
+            }
+
+            return;
         }
     }
 
@@ -1597,22 +1629,47 @@ impl<W: LayoutElement> Layout<W> {
         };
 
         for (monitor_idx, mon) in monitors.iter_mut().enumerate() {
-            for (workspace_idx, ws) in mon.workspaces.iter_mut().enumerate() {
-                if ws.activate_window_without_raising(window) {
-                    *active_monitor_idx = monitor_idx;
+            let Some((plane_id, workspace_idx)) = mon
+                .workspaces
+                .iter_workspaces()
+                .find_map(|(plane_id, workspace_idx, ws)| {
+                    ws.has_window(window).then_some((plane_id, workspace_idx))
+                })
+            else {
+                continue;
+            };
 
-                    // If currently in the middle of a vertical swipe between the target workspace
-                    // and some other, don't switch the workspace.
-                    match &mon.workspace_switch {
-                        Some(WorkspaceSwitch::Gesture(gesture))
-                            if gesture.current_idx.floor() == workspace_idx as f64
-                                || gesture.current_idx.ceil() == workspace_idx as f64 => {}
-                        _ => mon.switch_workspace(workspace_idx),
-                    }
+            // Activating a window on another plane must first make that plane visible.
+            let plane_idx = mon
+                .workspaces
+                .index_of(plane_id)
+                .expect("the window's plane must still exist");
+            mon.activate_plane(plane_idx)
+                .expect("the window's plane index must be valid");
 
-                    return;
-                }
+            let workspace = mon
+                .workspaces
+                .plane_mut(plane_idx)
+                .expect("the window's plane must still exist")
+                .workspaces_mut()
+                .get_mut(workspace_idx)
+                .expect("the window's workspace must still exist");
+            if !workspace.activate_window_without_raising(window) {
+                continue;
             }
+
+            *active_monitor_idx = monitor_idx;
+
+            // If currently in the middle of a vertical swipe between the target workspace
+            // and some other, don't switch the workspace.
+            match &mon.workspace_switch {
+                Some(WorkspaceSwitch::Gesture(gesture))
+                    if gesture.current_idx.floor() == workspace_idx as f64
+                        || gesture.current_idx.ceil() == workspace_idx as f64 => {}
+                _ => mon.switch_workspace(workspace_idx),
+            }
+
+            return;
         }
     }
 
