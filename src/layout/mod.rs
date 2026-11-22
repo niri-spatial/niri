@@ -3442,39 +3442,59 @@ impl<W: LayoutElement> Layout<W> {
                 .position(|mon| &mon.output == output)
                 .unwrap();
 
-            let (mon_idx, ws_idx) = if let Some(window) = window {
+            let (mon_idx, source_plane_idx, ws_idx) = if let Some(window) = window {
                 monitors
                     .iter()
                     .enumerate()
                     .find_map(|(mon_idx, mon)| {
                         mon.workspaces
-                            .iter()
-                            .position(|ws| ws.has_window(window))
-                            .map(|ws_idx| (mon_idx, ws_idx))
+                            .iter_workspaces()
+                            .find_map(|(plane_id, ws_idx, ws)| {
+                                ws.has_window(window).then(|| {
+                                    let plane_idx = mon
+                                        .workspaces
+                                        .index_of(plane_id)
+                                        .expect("the source plane must exist");
+                                    (mon_idx, plane_idx, ws_idx)
+                                })
+                            })
                     })
                     .unwrap()
             } else {
                 let mon_idx = *active_monitor_idx;
                 let mon = &monitors[mon_idx];
-                (mon_idx, mon.active_workspace_idx())
+                (
+                    mon_idx,
+                    mon.workspaces.active_plane_idx(),
+                    mon.active_workspace_idx(),
+                )
             };
 
-            let workspace_idx = target_ws_idx.unwrap_or(monitors[new_idx].active_workspace_idx());
-            if mon_idx == new_idx && ws_idx == workspace_idx {
+            let target_plane_idx = monitors[new_idx].workspaces.active_plane_idx();
+            let workspace_idx =
+                target_ws_idx.unwrap_or(monitors[new_idx].active_workspace_idx());
+            if mon_idx == new_idx
+                && source_plane_idx == target_plane_idx
+                && ws_idx == workspace_idx
+            {
                 return;
             }
 
-            let mon = &monitors[new_idx];
-            if mon.workspaces.len() <= workspace_idx {
+            let target_plane = monitors[new_idx]
+                .workspaces
+                .plane(target_plane_idx)
+                .expect("the target plane must exist");
+            if target_plane.workspace_count() <= workspace_idx {
                 return;
             }
 
-            let ws_id = mon.workspaces[workspace_idx].id();
+            let ws_id = target_plane.workspaces()[workspace_idx].id();
 
             let mon = &mut monitors[mon_idx];
             let activate = activate.map_smart(|| {
                 window.is_none_or(|win| {
                     mon_idx == *active_monitor_idx
+                        && source_plane_idx == mon.workspaces.active_plane_idx()
                         && mon.active_window().map(|win| win.id()) == Some(win)
                 })
             });
@@ -3484,7 +3504,13 @@ impl<W: LayoutElement> Layout<W> {
                 ActivateWindow::No
             };
 
-            let ws = &mut mon.workspaces[ws_idx];
+            let ws = mon
+                .workspaces
+                .plane_mut(source_plane_idx)
+                .expect("the source plane must exist")
+                .workspaces_mut()
+                .get_mut(ws_idx)
+                .expect("the source workspace must exist");
             let transaction = Transaction::new();
             let mut removed = if let Some(window) = window {
                 ws.remove_tile(window, transaction)
@@ -3515,7 +3541,7 @@ impl<W: LayoutElement> Layout<W> {
 
             let mon = &mut monitors[mon_idx];
             if mon.workspace_switch.is_none() {
-                monitors[mon_idx].clean_up_workspaces();
+                mon.clean_up_plane_workspaces(source_plane_idx);
             }
         }
     }
