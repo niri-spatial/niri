@@ -1349,7 +1349,8 @@ impl State {
                 focus,
             } => {
                 let window = self.niri.layout.windows().find(|(_, m)| m.id().get() == id);
-                let source_output = window.and_then(|(output, _)| output.cloned());
+                let source_output = window
+                    .and_then(|(monitor, _)| monitor.map(|monitor| monitor.output().clone()));
                 let window = window.map(|(_, m)| m.window.clone());
                 if let Some(window) = window {
                     let window_was_focused = self
