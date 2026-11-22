@@ -3274,7 +3274,10 @@ fn move_focused_window_to_inactive_plane_on_another_output() {
         .find(|monitor| monitor.output == target_output)
         .unwrap();
     assert_eq!(target_monitor.active_plane_id(), target_plane_id);
-    assert_eq!(target_monitor.active_workspace_ref().id(), target_workspace_id);
+    assert_eq!(
+        target_monitor.active_workspace_ref().id(),
+        target_workspace_id
+    );
     assert!(target_monitor.active_workspace_ref().has_window(&2));
     assert!(layout.focus().is_some_and(|window| window.id() == &2));
     assert_eq!(monitors[*active_monitor_idx].output, target_output);
