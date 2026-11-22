@@ -494,6 +494,18 @@ pub enum Action {
     },
     /// Focus the previous workspace.
     FocusWorkspacePrevious {},
+    /// Move the focused window to the adjacent plane farther back.
+    MoveWindowToPlaneBackward {
+        /// Whether the focus should follow the window to the target plane.
+        #[cfg_attr(feature = "clap", arg(long, action = clap::ArgAction::Set, default_value_t = true))]
+        focus: bool,
+    },
+    /// Move the focused window to the adjacent plane closer to the front.
+    MoveWindowToPlaneForward {
+        /// Whether the focus should follow the window to the target plane.
+        #[cfg_attr(feature = "clap", arg(long, action = clap::ArgAction::Set, default_value_t = true))]
+        focus: bool,
+    },
     /// Move the focused window to the workspace below.
     MoveWindowToWorkspaceDown {
         /// Whether the focus should follow the target workspace.
