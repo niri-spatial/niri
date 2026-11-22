@@ -2345,6 +2345,20 @@ impl<W: LayoutElement> Layout<W> {
         monitor.move_active_plane_forward()
     }
 
+    pub fn move_active_window_to_plane_backward(&mut self, focus: bool) {
+        let Some(monitor) = self.active_monitor() else {
+            return;
+        };
+        monitor.move_active_window_to_plane_backward(focus);
+    }
+
+    pub fn move_active_window_to_plane_forward(&mut self, focus: bool) {
+        let Some(monitor) = self.active_monitor() else {
+            return;
+        };
+        monitor.move_active_window_to_plane_forward(focus);
+    }
+
     pub fn switch_workspace_up(&mut self) {
         let Some(monitor) = self.active_monitor() else {
             return;
