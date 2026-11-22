@@ -3127,15 +3127,20 @@ fn move_floating_column_to_another_output_without_focus() {
 
     layout.focus_output(&target_output);
     layout.create_plane();
+    layout.set_workspace_name("other-workspace".into(), None);
+    layout.switch_workspace_down();
     layout.set_workspace_name("floating-target".into(), None);
     let target_plane_id = layout.active_monitor().unwrap().active_plane_id();
     let target_workspace_id = layout.active_monitor().unwrap().active_workspace_ref().id();
+    layout.switch_workspace_up();
+    layout.focus_plane_backward();
+
     let previous_target_plane_id = layout
         .activate_plane_by_id(&target_output, target_plane_id)
         .unwrap();
 
     layout.focus_output(&source_output);
-    layout.move_column_to_output(&target_output, Some(0), false);
+    layout.move_column_to_output(&target_output, Some(1), false);
     layout
         .activate_plane_by_id(&target_output, previous_target_plane_id)
         .unwrap();
