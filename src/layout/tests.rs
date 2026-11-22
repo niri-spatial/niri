@@ -4038,22 +4038,16 @@ fn reconnecting_output_restores_planes_and_workspace_selection() {
     layout.set_workspace_name("first-plane-first".into(), None);
     layout.switch_workspace_down();
     layout.set_workspace_name("first-plane-active".into(), None);
-    let first_plane_active_workspace_id = layout
-        .active_monitor()
-        .unwrap()
-        .active_workspace_ref()
-        .id();
+    let first_plane_active_workspace_id =
+        layout.active_monitor().unwrap().active_workspace_ref().id();
 
     layout.create_plane();
     let second_plane_id = layout.active_monitor().unwrap().active_plane_id();
     layout.set_workspace_name("second-plane-first".into(), None);
     layout.switch_workspace_down();
     layout.set_workspace_name("second-plane-active".into(), None);
-    let second_plane_active_workspace_id = layout
-        .active_monitor()
-        .unwrap()
-        .active_workspace_ref()
-        .id();
+    let second_plane_active_workspace_id =
+        layout.active_monitor().unwrap().active_workspace_ref().id();
 
     assert_ne!(first_plane_id, second_plane_id);
     assert_eq!(
@@ -4086,7 +4080,10 @@ fn reconnecting_output_restores_planes_and_workspace_selection() {
         .find(|monitor| monitor.output == primary_output)
         .unwrap();
     assert_eq!(primary_monitor.active_plane_id(), primary_plane_id);
-    assert_eq!(primary_monitor.active_workspace_ref().id(), primary_workspace_id);
+    assert_eq!(
+        primary_monitor.active_workspace_ref().id(),
+        primary_workspace_id
+    );
 
     let restored_monitor = monitors
         .iter()
@@ -4123,22 +4120,16 @@ fn reconnecting_last_output_restores_planes_and_workspace_selection() {
     layout.set_workspace_name("first-plane-first".into(), None);
     layout.switch_workspace_down();
     layout.set_workspace_name("first-plane-active".into(), None);
-    let first_plane_active_workspace_id = layout
-        .active_monitor()
-        .unwrap()
-        .active_workspace_ref()
-        .id();
+    let first_plane_active_workspace_id =
+        layout.active_monitor().unwrap().active_workspace_ref().id();
 
     layout.create_plane();
     let second_plane_id = layout.active_monitor().unwrap().active_plane_id();
     layout.set_workspace_name("second-plane-first".into(), None);
     layout.switch_workspace_down();
     layout.set_workspace_name("second-plane-active".into(), None);
-    let second_plane_active_workspace_id = layout
-        .active_monitor()
-        .unwrap()
-        .active_workspace_ref()
-        .id();
+    let second_plane_active_workspace_id =
+        layout.active_monitor().unwrap().active_workspace_ref().id();
 
     layout.remove_output(&output);
     let MonitorSet::NoOutputs { workspaces } = &layout.monitor_set else {
