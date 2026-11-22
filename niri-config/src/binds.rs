@@ -217,6 +217,8 @@ pub enum Action {
     RemovePlane,
     FocusPlaneBackward,
     FocusPlaneForward,
+    MovePlaneBackward,
+    MovePlaneForward,
     FocusWorkspaceDown,
     #[knuffel(skip)]
     FocusWorkspaceDownUnderMouse,
@@ -512,6 +514,8 @@ impl From<niri_ipc::Action> for Action {
             niri_ipc::Action::RemovePlane {} => Self::RemovePlane,
             niri_ipc::Action::FocusPlaneBackward {} => Self::FocusPlaneBackward,
             niri_ipc::Action::FocusPlaneForward {} => Self::FocusPlaneForward,
+            niri_ipc::Action::MovePlaneBackward {} => Self::MovePlaneBackward,
+            niri_ipc::Action::MovePlaneForward {} => Self::MovePlaneForward,
             niri_ipc::Action::FocusWorkspaceDown {} => Self::FocusWorkspaceDown,
             niri_ipc::Action::FocusWorkspaceUp {} => Self::FocusWorkspaceUp,
             niri_ipc::Action::FocusWorkspace { reference } => {
