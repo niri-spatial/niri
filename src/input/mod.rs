@@ -4819,6 +4819,8 @@ fn hardcoded_overview_bind(raw: Keysym, mods: ModifiersState) -> Option<Bind> {
         Keysym::Right => Action::FocusColumnRight,
         Keysym::Up => Action::FocusWindowOrWorkspaceUp,
         Keysym::Down => Action::FocusWindowOrWorkspaceDown,
+        Keysym::Page_Up => Action::FocusPlaneBackward,
+        Keysym::Page_Down => Action::FocusPlaneForward,
         _ => {
             return None;
         }
@@ -5426,6 +5428,40 @@ mod tests {
         let filter = close_key_event(&mut suppressed_keys, mods, false);
         assert!(matches!(filter, FilterResult::Intercept(None)));
         assert!(suppressed_keys.is_empty());
+    }
+
+    #[test]
+    fn overview_page_keys_switch_planes() {
+        let page_up = hardcoded_overview_bind(Keysym::Page_Up, ModifiersState::default())
+            .expect("Page Up must switch to the previous plane");
+        assert!(matches!(
+            page_up,
+            Bind {
+                action: Action::FocusPlaneBackward,
+                repeat: true,
+                ..
+            }
+        ));
+
+        let page_down = hardcoded_overview_bind(Keysym::Page_Down, ModifiersState::default())
+            .expect("Page Down must switch to the next plane");
+        assert!(matches!(
+            page_down,
+            Bind {
+                action: Action::FocusPlaneForward,
+                repeat: true,
+                ..
+            }
+        ));
+
+        let modified_page_up = hardcoded_overview_bind(
+            Keysym::Page_Up,
+            ModifiersState {
+                shift: true,
+                ..Default::default()
+            },
+        );
+        assert!(modified_page_up.is_none());
     }
 
     #[test]
