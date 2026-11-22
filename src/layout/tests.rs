@@ -3288,6 +3288,71 @@ fn move_window_to_active_output_from_inactive_output_and_plane() {
 }
 
 #[test]
+fn move_workspace_to_another_output_from_inactive_plane() {
+    let ops = [
+        Op::AddOutput(1),
+        Op::AddOutput(2),
+    ];
+    let mut layout = check_ops(ops);
+
+    let source_output = layout
+        .outputs()
+        .find(|output| output.name() == "output1")
+        .unwrap()
+        .clone();
+    let target_output = layout
+        .outputs()
+        .find(|output| output.name() == "output2")
+        .unwrap()
+        .clone();
+
+    layout.focus_output(&source_output);
+    layout.create_plane();
+    layout.set_workspace_name("workspace-to-move".into(), None);
+    let source_plane_id = layout.active_monitor().unwrap().active_plane_id();
+    let workspace_id = layout.active_monitor().unwrap().active_workspace_ref().id();
+
+    layout.focus_output(&target_output);
+    let previous_source_plane_id = layout
+        .activate_plane_by_id(&source_output, source_plane_id)
+        .unwrap();
+
+    assert!(!layout.move_workspace_to_output_by_id(
+        0,
+        Some(source_output.clone()),
+        &target_output,
+    ));
+
+    layout
+        .activate_plane_by_id(&source_output, previous_source_plane_id)
+        .unwrap();
+
+    let MonitorSet::Normal { monitors, .. } = &layout.monitor_set else {
+        unreachable!()
+    };
+    let source_monitor = monitors
+        .iter()
+        .find(|monitor| monitor.output == source_output)
+        .unwrap();
+    assert_ne!(source_monitor.active_plane_id(), source_plane_id);
+    assert!(source_monitor.workspaces.plane_by_id(source_plane_id).is_some());
+
+    let target_monitor = monitors
+        .iter()
+        .find(|monitor| monitor.output == target_output)
+        .unwrap();
+    let (target_plane_id, _, moved_workspace) = target_monitor
+        .workspaces
+        .iter_workspaces()
+        .find(|(_, _, workspace)| workspace.id() == workspace_id)
+        .unwrap();
+    assert_eq!(moved_workspace.name().map(String::as_str), Some("workspace-to-move"));
+    assert_ne!(target_plane_id, source_plane_id);
+    assert_eq!(layout.active_output(), Some(&target_output));
+    layout.verify_invariants();
+}
+
+#[test]
 fn move_window_to_named_workspace_on_inactive_plane() {
     let ops = [
         Op::AddOutput(1),
