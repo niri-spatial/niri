@@ -4113,6 +4113,69 @@ fn reconnecting_output_restores_planes_and_workspace_selection() {
 }
 
 #[test]
+fn reconnecting_last_output_restores_planes_and_workspace_selection() {
+    let ops = [Op::AddOutput(1)];
+    let mut layout = check_ops(ops);
+
+    let output = layout.outputs().next().unwrap().clone();
+
+    let first_plane_id = layout.active_monitor().unwrap().active_plane_id();
+    layout.set_workspace_name("first-plane-first".into(), None);
+    layout.switch_workspace_down();
+    layout.set_workspace_name("first-plane-active".into(), None);
+    let first_plane_active_workspace_id = layout
+        .active_monitor()
+        .unwrap()
+        .active_workspace_ref()
+        .id();
+
+    layout.create_plane();
+    let second_plane_id = layout.active_monitor().unwrap().active_plane_id();
+    layout.set_workspace_name("second-plane-first".into(), None);
+    layout.switch_workspace_down();
+    layout.set_workspace_name("second-plane-active".into(), None);
+    let second_plane_active_workspace_id = layout
+        .active_monitor()
+        .unwrap()
+        .active_workspace_ref()
+        .id();
+
+    layout.remove_output(&output);
+    let MonitorSet::NoOutputs { workspaces } = &layout.monitor_set else {
+        unreachable!()
+    };
+    assert_eq!(workspaces.plane_count(), 2);
+
+    layout.add_output(output.clone(), None);
+
+    let MonitorSet::Normal { monitors, .. } = &layout.monitor_set else {
+        unreachable!()
+    };
+    let restored_monitor = monitors
+        .iter()
+        .find(|monitor| monitor.output == output)
+        .unwrap();
+    assert_eq!(restored_monitor.plane_count(), 2);
+    assert_eq!(restored_monitor.active_plane_id(), second_plane_id);
+    assert_eq!(
+        restored_monitor.active_workspace_ref().id(),
+        second_plane_active_workspace_id
+    );
+
+    let first_plane = restored_monitor
+        .workspaces
+        .plane_by_id(first_plane_id)
+        .unwrap();
+    assert_eq!(first_plane.active_workspace_idx(), 1);
+    assert_eq!(
+        first_plane.workspaces()[1].id(),
+        first_plane_active_workspace_id
+    );
+
+    layout.verify_invariants();
+}
+
+#[test]
 fn switch_ewaf_on() {
     let ops = [
         Op::AddOutput(1),
