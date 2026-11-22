@@ -983,7 +983,7 @@ impl<W: LayoutElement> Monitor<W> {
         self.clean_up_plane_workspaces(self.workspaces.active_plane_idx());
     }
 
-    fn clean_up_plane_workspaces(&mut self, plane_idx: usize) {
+    pub(super) fn clean_up_plane_workspaces(&mut self, plane_idx: usize) {
         let empty_workspace_above_first = self.options.layout.empty_workspace_above_first;
         let range_start = if empty_workspace_above_first { 1 } else { 0 };
         let plane = self
