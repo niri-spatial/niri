@@ -4188,6 +4188,165 @@ fn move_window_to_named_workspace_on_inactive_plane() {
 }
 
 #[test]
+fn move_active_window_to_adjacent_plane_activates_target_and_preserves_other_windows() {
+    let ops = [
+        Op::AddOutput(1),
+        Op::AddWindow {
+            params: TestWindowParams::new(1),
+        },
+        Op::AddWindow {
+            params: TestWindowParams::new(2),
+        },
+    ];
+    let mut layout = check_ops(ops);
+    let (source_plane_id, source_workspace_id) = {
+        let monitor = layout.active_monitor().unwrap();
+        (
+            monitor.active_plane_id(),
+            monitor.active_workspace_ref().id(),
+        )
+    };
+
+    layout.create_plane();
+    let (target_plane_id, target_workspace_id) = {
+        let monitor = layout.active_monitor().unwrap();
+        (
+            monitor.active_plane_id(),
+            monitor.active_workspace_ref().id(),
+        )
+    };
+
+    layout.focus_plane_backward();
+    layout.move_active_window_to_plane_forward(true);
+
+    {
+        let monitor = layout.active_monitor().unwrap();
+        assert_eq!(monitor.active_plane_id(), target_plane_id);
+        assert_eq!(monitor.active_workspace_ref().id(), target_workspace_id);
+
+        let source_workspace = monitor
+            .workspaces
+            .iter_workspaces()
+            .find(|(plane_id, _, workspace)| {
+                *plane_id == source_plane_id && workspace.id() == source_workspace_id
+            })
+            .map(|(_, _, workspace)| workspace)
+            .unwrap();
+        assert!(source_workspace.has_window(&1));
+        assert!(!source_workspace.has_window(&2));
+        assert!(monitor.active_workspace_ref().has_window(&2));
+    }
+
+    assert!(layout.focus().is_some_and(|window| window.id() == &2));
+    layout.verify_invariants();
+}
+
+#[test]
+fn move_active_window_to_adjacent_plane_without_focus_keeps_source_active() {
+    let ops = [
+        Op::AddOutput(1),
+        Op::AddWindow {
+            params: TestWindowParams::new(1),
+        },
+        Op::AddWindow {
+            params: TestWindowParams::new(2),
+        },
+    ];
+    let mut layout = check_ops(ops);
+    let source_plane_id = layout.active_monitor().unwrap().active_plane_id();
+
+    layout.create_plane();
+    let (target_plane_id, target_workspace_id) = {
+        let monitor = layout.active_monitor().unwrap();
+        (
+            monitor.active_plane_id(),
+            monitor.active_workspace_ref().id(),
+        )
+    };
+
+    layout.focus_plane_backward();
+    layout.move_active_window_to_plane_forward(false);
+
+    {
+        let monitor = layout.active_monitor().unwrap();
+        assert_eq!(monitor.active_plane_id(), source_plane_id);
+
+        let target_workspace = monitor
+            .workspaces
+            .iter_workspaces()
+            .find(|(plane_id, _, workspace)| {
+                *plane_id == target_plane_id && workspace.id() == target_workspace_id
+            })
+            .map(|(_, _, workspace)| workspace)
+            .unwrap();
+        assert!(target_workspace.has_window(&2));
+        assert!(monitor.active_workspace_ref().has_window(&1));
+        assert!(!monitor.active_workspace_ref().has_window(&2));
+    }
+
+    assert!(layout.focus().is_some_and(|window| window.id() == &1));
+    layout.verify_invariants();
+}
+
+#[test]
+fn move_floating_window_to_adjacent_plane() {
+    let ops = [
+        Op::AddOutput(1),
+        Op::AddWindow {
+            params: TestWindowParams::new(2),
+        },
+        Op::ToggleWindowFloating { id: None },
+    ];
+    let mut layout = check_ops(ops);
+    let source_plane_id = layout.active_monitor().unwrap().active_plane_id();
+
+    layout.create_plane();
+    let (target_plane_id, target_workspace_id) = {
+        let monitor = layout.active_monitor().unwrap();
+        (
+            monitor.active_plane_id(),
+            monitor.active_workspace_ref().id(),
+        )
+    };
+
+    layout.focus_plane_backward();
+    layout.move_active_window_to_plane_forward(true);
+
+    let monitor = layout.active_monitor().unwrap();
+    assert_eq!(monitor.active_plane_id(), target_plane_id);
+    assert_eq!(monitor.active_workspace_ref().id(), target_workspace_id);
+    assert!(monitor.active_workspace_ref().has_window(&2));
+    assert!(!monitor
+        .workspaces
+        .plane_by_id(source_plane_id)
+        .unwrap()
+        .workspaces()
+        .iter()
+        .any(|workspace| workspace.has_window(&2)));
+    assert!(layout.focus().is_some_and(|window| window.id() == &2));
+    layout.verify_invariants();
+}
+
+#[test]
+fn moving_window_to_plane_at_depth_boundary_is_noop() {
+    let ops = [
+        Op::AddOutput(1),
+        Op::AddWindow {
+            params: TestWindowParams::new(2),
+        },
+    ];
+    let mut layout = check_ops(ops);
+    let plane_id = layout.active_monitor().unwrap().active_plane_id();
+
+    layout.move_active_window_to_plane_backward(true);
+
+    let monitor = layout.active_monitor().unwrap();
+    assert_eq!(monitor.active_plane_id(), plane_id);
+    assert!(monitor.active_workspace_ref().has_window(&2));
+    layout.verify_invariants();
+}
+
+#[test]
 fn move_window_to_named_workspace_on_inactive_plane_activates_its_plane() {
     let ops = [
         Op::AddOutput(1),
