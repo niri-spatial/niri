@@ -483,6 +483,36 @@ impl<T> WorkspacePlanes<T> {
         self.insert_plane(self.planes.len(), plane)
     }
 
+    /// Moves a plane to another depth-order index.
+    ///
+    /// The active plane is preserved by identity, even when another plane is
+    /// moved across it.
+    pub fn move_plane(&mut self, from: usize, to: usize) -> Result<(), PlaneError> {
+        let len = self.planes.len();
+        if from >= len {
+            return Err(PlaneError::PlaneIndexOutOfBounds { index: from, len });
+        }
+        if to >= len {
+            return Err(PlaneError::PlaneIndexOutOfBounds { index: to, len });
+        }
+        if from == to {
+            return Ok(());
+        }
+
+        let plane = self.planes.remove(from);
+        self.planes.insert(to, plane);
+
+        if self.active_plane_idx == from {
+            self.active_plane_idx = to;
+        } else if from < self.active_plane_idx && to >= self.active_plane_idx {
+            self.active_plane_idx -= 1;
+        } else if from > self.active_plane_idx && to <= self.active_plane_idx {
+            self.active_plane_idx += 1;
+        }
+
+        Ok(())
+    }
+
     /// Removes a plane while preserving the active plane where possible.
     ///
     /// Removing the active plane selects the plane that takes its place, or
@@ -1004,6 +1034,86 @@ mod tests {
 
         assert_eq!(planes.plane_count(), 2);
         assert_eq!(planes.active_plane_idx(), 1);
+        assert_eq!(planes.active_plane().id(), PlaneId::new(1));
+    }
+
+    #[test]
+    fn moving_active_plane_preserves_its_identity_and_workspace_selection() {
+        let first = WorkspacePlane::new(PlaneId::new(1), vec!["first"], 0).unwrap();
+        let mut planes = WorkspacePlanes::new(first);
+        let active =
+            WorkspacePlane::new(PlaneId::new(2), vec!["top", "active"], 1).unwrap();
+        let last = WorkspacePlane::new(PlaneId::new(3), vec!["last"], 0).unwrap();
+        planes.push_plane(active).unwrap();
+        planes.push_plane(last).unwrap();
+        planes.activate_plane(1).unwrap();
+
+        planes.move_plane(1, 2).unwrap();
+
+        assert_eq!(
+            planes.iter_planes().map(WorkspacePlane::id).collect::<Vec<_>>(),
+            vec![PlaneId::new(1), PlaneId::new(3), PlaneId::new(2)]
+        );
+        assert_eq!(planes.active_plane_idx(), 2);
+        assert_eq!(planes.active_plane().id(), PlaneId::new(2));
+        assert_eq!(planes.active_workspace_idx(), 1);
+        assert_eq!(*planes.active_plane().active_workspace(), "active");
+    }
+
+    #[test]
+    fn moving_inactive_plane_across_active_plane_preserves_active_identity() {
+        let first = WorkspacePlane::new(PlaneId::new(1), vec!["first"], 0).unwrap();
+        let mut planes = WorkspacePlanes::new(first);
+        let active = WorkspacePlane::new(PlaneId::new(2), vec!["active"], 0).unwrap();
+        let last = WorkspacePlane::new(PlaneId::new(3), vec!["last"], 0).unwrap();
+        planes.push_plane(active).unwrap();
+        planes.push_plane(last).unwrap();
+        planes.activate_plane(1).unwrap();
+
+        planes.move_plane(0, 2).unwrap();
+
+        assert_eq!(
+            planes.iter_planes().map(WorkspacePlane::id).collect::<Vec<_>>(),
+            vec![PlaneId::new(2), PlaneId::new(3), PlaneId::new(1)]
+        );
+        assert_eq!(planes.active_plane_idx(), 0);
+        assert_eq!(planes.active_plane().id(), PlaneId::new(2));
+        assert_eq!(*planes.active_plane().active_workspace(), "active");
+    }
+
+    #[test]
+    fn moving_inactive_plane_from_front_to_back_preserves_active_identity() {
+        let first = WorkspacePlane::new(PlaneId::new(1), vec!["first"], 0).unwrap();
+        let mut planes = WorkspacePlanes::new(first);
+        let active = WorkspacePlane::new(PlaneId::new(2), vec!["active"], 0).unwrap();
+        let last = WorkspacePlane::new(PlaneId::new(3), vec!["last"], 0).unwrap();
+        planes.push_plane(active).unwrap();
+        planes.push_plane(last).unwrap();
+        planes.activate_plane(1).unwrap();
+
+        planes.move_plane(2, 0).unwrap();
+
+        assert_eq!(
+            planes.iter_planes().map(WorkspacePlane::id).collect::<Vec<_>>(),
+            vec![PlaneId::new(3), PlaneId::new(1), PlaneId::new(2)]
+        );
+        assert_eq!(planes.active_plane_idx(), 2);
+        assert_eq!(planes.active_plane().id(), PlaneId::new(2));
+    }
+
+    #[test]
+    fn moving_plane_rejects_out_of_bounds_indices() {
+        let first = WorkspacePlane::new(PlaneId::new(1), vec!["first"], 0).unwrap();
+        let mut planes = WorkspacePlanes::new(first);
+
+        assert!(matches!(
+            planes.move_plane(1, 0),
+            Err(PlaneError::PlaneIndexOutOfBounds { index: 1, len: 1 })
+        ));
+        assert!(matches!(
+            planes.move_plane(0, 1),
+            Err(PlaneError::PlaneIndexOutOfBounds { index: 1, len: 1 })
+        ));
         assert_eq!(planes.active_plane().id(), PlaneId::new(1));
     }
 
