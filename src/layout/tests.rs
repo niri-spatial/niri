@@ -4014,6 +4014,74 @@ fn add_and_remove_output() {
 }
 
 #[test]
+fn reconnecting_output_restores_split_plane_fragment() {
+    let ops = [Op::AddOutput(1), Op::AddOutput(2)];
+    let mut layout = check_ops(ops);
+
+    let original_output = layout
+        .outputs()
+        .find(|output| output.name() == "output1")
+        .unwrap()
+        .clone();
+    let remaining_output = layout
+        .outputs()
+        .find(|output| output.name() == "output2")
+        .unwrap()
+        .clone();
+
+    layout.focus_output(&original_output);
+    let original_plane_id = layout.active_monitor().unwrap().active_plane_id();
+    layout.set_workspace_name("stays-on-remaining-output".into(), None);
+    let remaining_workspace_id = layout.active_monitor().unwrap().active_workspace_ref().id();
+    layout.switch_workspace_down();
+    layout.set_workspace_name("returns-to-original-output".into(), None);
+    let returning_workspace_id = layout.active_monitor().unwrap().active_workspace_ref().id();
+
+    // Disconnect the original output so its plane is appended to the remaining one.
+    layout.focus_output(&remaining_output);
+    layout.remove_output(&original_output);
+
+    // Explicitly keep one workspace on the remaining output. The other workspace
+    // in the same plane should return to the original output when it reconnects.
+    layout
+        .activate_plane_by_id(&remaining_output, original_plane_id)
+        .unwrap();
+    assert!(!layout.move_workspace_to_output_by_id(
+        0,
+        Some(remaining_output.clone()),
+        &remaining_output,
+    ));
+
+    layout.add_output(original_output.clone(), None);
+
+    let MonitorSet::Normal { monitors, .. } = &layout.monitor_set else {
+        unreachable!()
+    };
+    let remaining_monitor = monitors
+        .iter()
+        .find(|monitor| monitor.output == remaining_output)
+        .unwrap();
+    let retained_plane = remaining_monitor
+        .workspaces
+        .plane_by_id(original_plane_id)
+        .unwrap();
+    assert_eq!(retained_plane.workspace_count(), 1);
+    assert_eq!(retained_plane.workspaces()[0].id(), remaining_workspace_id);
+
+    let restored_monitor = monitors
+        .iter()
+        .find(|monitor| monitor.output == original_output)
+        .unwrap();
+    assert_eq!(restored_monitor.plane_count(), 1);
+    let restored_plane = restored_monitor.workspaces.active_plane();
+    assert_ne!(restored_plane.id(), original_plane_id);
+    assert_eq!(restored_plane.workspace_count(), 1);
+    assert_eq!(restored_plane.workspaces()[0].id(), returning_workspace_id);
+
+    layout.verify_invariants();
+}
+
+#[test]
 fn reconnecting_output_restores_planes_and_workspace_selection() {
     let ops = [Op::AddOutput(1), Op::AddOutput(2)];
     let mut layout = check_ops(ops);
