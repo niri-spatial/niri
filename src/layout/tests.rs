@@ -2980,7 +2980,10 @@ fn disconnecting_inactive_middle_output_preserves_primary_and_active_monitor() {
         .workspaces
         .plane_by_id(first_plane_id)
         .unwrap();
-    assert_eq!(first_plane.active_workspace().id(), first_plane_active_workspace_id);
+    assert_eq!(
+        first_plane.active_workspace().id(),
+        first_plane_active_workspace_id
+    );
 
     layout.verify_invariants();
 }
