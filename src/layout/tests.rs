@@ -3497,6 +3497,82 @@ fn remove_active_plane_rejects_last_plane() {
 }
 
 #[test]
+fn moving_active_plane_preserves_workspace_and_stops_at_depth_boundaries() {
+    let mut layout = check_ops([Op::AddOutput(1)]);
+
+    layout.set_workspace_name("back-plane".into(), None);
+    let first_plane_id = layout.active_monitor().unwrap().active_plane_id();
+
+    layout.create_plane();
+    layout.set_workspace_name("middle-plane".into(), None);
+    let middle_plane_id = layout.active_monitor().unwrap().active_plane_id();
+    let middle_workspace_id = layout.active_monitor().unwrap().active_workspace_ref().id();
+
+    layout.create_plane();
+    layout.set_workspace_name("front-plane".into(), None);
+    let front_plane_id = layout.active_monitor().unwrap().active_plane_id();
+    let front_workspace_id = layout.active_monitor().unwrap().active_workspace_ref().id();
+
+    assert_eq!(layout.active_monitor().unwrap().active_plane_id(), front_plane_id);
+    assert!(!layout.move_active_plane_forward());
+
+    assert!(layout.move_active_plane_backward());
+    {
+        let monitor = layout.active_monitor().unwrap();
+        assert_eq!(
+            monitor
+                .workspaces
+                .iter_planes()
+                .map(WorkspacePlane::id)
+                .collect::<Vec<_>>(),
+            vec![first_plane_id, front_plane_id, middle_plane_id]
+        );
+        assert_eq!(monitor.active_plane_id(), front_plane_id);
+        assert_eq!(monitor.active_workspace_ref().id(), front_workspace_id);
+    }
+
+    assert!(layout.move_active_plane_forward());
+    {
+        let monitor = layout.active_monitor().unwrap();
+        assert_eq!(
+            monitor
+                .workspaces
+                .iter_planes()
+                .map(WorkspacePlane::id)
+                .collect::<Vec<_>>(),
+            vec![first_plane_id, middle_plane_id, front_plane_id]
+        );
+        assert_eq!(monitor.active_plane_id(), front_plane_id);
+        assert_eq!(monitor.active_workspace_ref().id(), front_workspace_id);
+    }
+
+    assert!(layout
+        .activate_plane_by_id(layout.active_output().unwrap(), first_plane_id)
+        .is_some());
+    assert!(!layout.move_active_plane_backward());
+    assert_eq!(
+        layout.active_monitor().unwrap().active_plane_id(),
+        first_plane_id
+    );
+
+    assert!(layout
+        .activate_plane_by_id(layout.active_output().unwrap(), middle_plane_id)
+        .is_some());
+    assert!(layout.move_active_plane_backward());
+    assert_eq!(
+        layout.active_monitor().unwrap().active_plane_id(),
+        middle_plane_id
+    );
+    assert_eq!(
+        layout.active_monitor().unwrap().active_workspace_ref().name().map(String::as_str),
+        Some("middle-plane")
+    );
+
+    assert!(!layout.move_active_plane_backward());
+    layout.verify_invariants();
+}
+
+#[test]
 fn add_window_to_named_workspace_on_inactive_plane() {
     let mut layout = check_ops([Op::AddOutput(1)]);
     layout.create_plane();
