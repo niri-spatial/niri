@@ -3569,11 +3569,7 @@ fn moving_active_plane_preserves_workspace_and_stops_at_depth_boundaries() {
         middle_plane_id
     );
     assert_eq!(
-        layout
-            .active_monitor()
-            .unwrap()
-            .active_workspace_ref()
-            .id(),
+        layout.active_monitor().unwrap().active_workspace_ref().id(),
         middle_workspace_id
     );
     assert_eq!(
