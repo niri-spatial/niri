@@ -3082,7 +3082,12 @@ fn move_column_to_inactive_plane_on_another_output_with_focus() {
         .unwrap();
     layout.move_column_to_output(&target_output, Some(0), true);
 
-    let MonitorSet::Normal { monitors, active_monitor_idx, .. } = &layout.monitor_set else {
+    let MonitorSet::Normal {
+        monitors,
+        active_monitor_idx,
+        ..
+    } = &layout.monitor_set
+    else {
         unreachable!()
     };
     let target_monitor = monitors
@@ -3248,7 +3253,12 @@ fn move_focused_window_to_inactive_plane_on_another_output() {
         .unwrap();
     layout.move_to_output(Some(&2), &target_output, Some(0), ActivateWindow::Yes);
 
-    let MonitorSet::Normal { monitors, active_monitor_idx, .. } = &layout.monitor_set else {
+    let MonitorSet::Normal {
+        monitors,
+        active_monitor_idx,
+        ..
+    } = &layout.monitor_set
+    else {
         unreachable!()
     };
     let target_monitor = monitors
