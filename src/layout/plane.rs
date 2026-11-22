@@ -6,8 +6,8 @@
 //!
 //! A monitor owns a WorkspacePlanes collection. Existing Y-axis operations
 //! use the active plane's compatibility view, while monitor-wide traversal
-//! includes every plane. Plane switching and plane-aware rendering are
-//! implemented in later steps.
+//! includes every plane. Active selection and depth ordering are managed by
+//! the owning monitor.
 
 use std::fmt;
 use std::ops::{Deref, DerefMut, Index, IndexMut};
@@ -1041,8 +1041,7 @@ mod tests {
     fn moving_active_plane_preserves_its_identity_and_workspace_selection() {
         let first = WorkspacePlane::new(PlaneId::new(1), vec!["first"], 0).unwrap();
         let mut planes = WorkspacePlanes::new(first);
-        let active =
-            WorkspacePlane::new(PlaneId::new(2), vec!["top", "active"], 1).unwrap();
+        let active = WorkspacePlane::new(PlaneId::new(2), vec!["top", "active"], 1).unwrap();
         let last = WorkspacePlane::new(PlaneId::new(3), vec!["last"], 0).unwrap();
         planes.push_plane(active).unwrap();
         planes.push_plane(last).unwrap();
