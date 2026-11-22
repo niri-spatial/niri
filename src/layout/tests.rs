@@ -3112,6 +3112,44 @@ fn move_column_to_named_workspace_on_inactive_plane() {
 }
 
 #[test]
+fn move_floating_window_to_named_workspace_on_inactive_plane() {
+    let ops = [
+        Op::AddOutput(1),
+        Op::AddWindow {
+            params: TestWindowParams::new(2),
+        },
+        Op::ToggleWindowFloating { id: None },
+    ];
+    let mut layout = check_ops(ops);
+    let source_plane_id = layout.active_monitor().unwrap().active_plane_id();
+
+    layout.create_plane();
+    layout.set_workspace_name("named-target".into(), None);
+    let (target_plane_id, target_workspace_id) = {
+        let monitor = layout.active_monitor().unwrap();
+        (
+            monitor.active_plane_id(),
+            monitor.active_workspace_ref().id(),
+        )
+    };
+
+    layout.focus_plane_backward();
+    layout.move_column_to_workspace_on_plane(Some(target_plane_id), 0, false);
+
+    let monitor = layout.active_monitor().unwrap();
+    assert_eq!(monitor.active_plane_id(), source_plane_id);
+    let (_, _, target_workspace) = monitor
+        .workspaces
+        .iter_workspaces()
+        .find(|(plane_id, _, workspace)| {
+            *plane_id == target_plane_id && workspace.id() == target_workspace_id
+        })
+        .unwrap();
+    assert!(target_workspace.has_window(&2));
+    layout.verify_invariants();
+}
+
+#[test]
 fn move_column_to_named_workspace_on_inactive_plane_activates_its_plane() {
     let ops = [
         Op::AddOutput(1),
