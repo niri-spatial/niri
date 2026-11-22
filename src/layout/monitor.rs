@@ -1556,7 +1556,10 @@ impl<W: LayoutElement> Monitor<W> {
         let Some(target_plane_idx) = self.active_plane_idx().checked_sub(1) else {
             return;
         };
-        let Some(target_plane_id) = self.workspaces.plane(target_plane_idx).map(|plane| plane.id())
+        let Some(target_plane_id) = self
+            .workspaces
+            .plane(target_plane_idx)
+            .map(|plane| plane.id())
         else {
             return;
         };
@@ -1567,7 +1570,10 @@ impl<W: LayoutElement> Monitor<W> {
     /// Moves the active window to the adjacent plane closer to the front.
     pub fn move_active_window_to_plane_forward(&mut self, focus: bool) {
         let target_plane_idx = self.active_plane_idx() + 1;
-        let Some(target_plane_id) = self.workspaces.plane(target_plane_idx).map(|plane| plane.id())
+        let Some(target_plane_id) = self
+            .workspaces
+            .plane(target_plane_idx)
+            .map(|plane| plane.id())
         else {
             return;
         };
