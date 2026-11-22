@@ -2286,7 +2286,7 @@ impl<W: LayoutElement> Layout<W> {
     /// The final plane cannot be removed. A plane containing windows or named
     /// workspaces is left untouched so this operation never discards user data.
     pub fn remove_active_plane(&mut self) -> bool {
-        let Some(monitor) = self.active_monitor_mut() else {
+        let Some(monitor) = self.active_monitor() else {
             return false;
         };
 
