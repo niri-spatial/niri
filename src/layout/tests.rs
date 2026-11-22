@@ -2822,7 +2822,8 @@ fn disconnecting_primary_output_preserves_later_active_monitor() {
     layout.focus_output(&disconnected_output);
     layout.set_workspace_name("restored-primary-workspace".into(), None);
     let disconnected_plane_id = layout.active_monitor().unwrap().active_plane_id();
-    let disconnected_workspace_id = layout.active_monitor().unwrap().active_workspace_ref().id();
+    let disconnected_workspace_id =
+        layout.active_monitor().unwrap().active_workspace_ref().id();
 
     layout.focus_output(&active_output);
     layout.create_plane();
@@ -2830,7 +2831,8 @@ fn disconnecting_primary_output_preserves_later_active_monitor() {
     layout.set_workspace_name("later-active-first".into(), None);
     layout.switch_workspace_down();
     layout.set_workspace_name("later-active-selected".into(), None);
-    let active_workspace_id = layout.active_monitor().unwrap().active_workspace_ref().id();
+    let active_workspace_id =
+        layout.active_monitor().unwrap().active_workspace_ref().id();
 
     // Removing output1 shifts output3's monitor index but must not change the
     // active monitor. Output2 becomes primary.
@@ -2850,7 +2852,10 @@ fn disconnecting_primary_output_preserves_later_active_monitor() {
 
     let active_monitor = &monitors[*active_monitor_idx];
     assert_eq!(active_monitor.active_plane_id(), active_plane_id);
-    assert_eq!(active_monitor.active_workspace_ref().id(), active_workspace_id);
+    assert_eq!(
+        active_monitor.active_workspace_ref().id(),
+        active_workspace_id
+    );
 
     // Reconnecting the removed primary output must leave both indices intact.
     layout.add_output(disconnected_output.clone(), None);
@@ -2879,7 +2884,10 @@ fn disconnecting_primary_output_preserves_later_active_monitor() {
 
     let active_monitor = &monitors[*active_monitor_idx];
     assert_eq!(active_monitor.active_plane_id(), active_plane_id);
-    assert_eq!(active_monitor.active_workspace_ref().id(), active_workspace_id);
+    assert_eq!(
+        active_monitor.active_workspace_ref().id(),
+        active_workspace_id
+    );
 
     layout.verify_invariants();
 }
