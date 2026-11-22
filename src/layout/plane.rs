@@ -1050,7 +1050,10 @@ mod tests {
         planes.move_plane(1, 2).unwrap();
 
         assert_eq!(
-            planes.iter_planes().map(WorkspacePlane::id).collect::<Vec<_>>(),
+            planes
+                .iter_planes()
+                .map(WorkspacePlane::id)
+                .collect::<Vec<_>>(),
             vec![PlaneId::new(1), PlaneId::new(3), PlaneId::new(2)]
         );
         assert_eq!(planes.active_plane_idx(), 2);
@@ -1072,7 +1075,10 @@ mod tests {
         planes.move_plane(0, 2).unwrap();
 
         assert_eq!(
-            planes.iter_planes().map(WorkspacePlane::id).collect::<Vec<_>>(),
+            planes
+                .iter_planes()
+                .map(WorkspacePlane::id)
+                .collect::<Vec<_>>(),
             vec![PlaneId::new(2), PlaneId::new(3), PlaneId::new(1)]
         );
         assert_eq!(planes.active_plane_idx(), 0);
@@ -1093,7 +1099,10 @@ mod tests {
         planes.move_plane(2, 0).unwrap();
 
         assert_eq!(
-            planes.iter_planes().map(WorkspacePlane::id).collect::<Vec<_>>(),
+            planes
+                .iter_planes()
+                .map(WorkspacePlane::id)
+                .collect::<Vec<_>>(),
             vec![PlaneId::new(3), PlaneId::new(1), PlaneId::new(2)]
         );
         assert_eq!(planes.active_plane_idx(), 2);
