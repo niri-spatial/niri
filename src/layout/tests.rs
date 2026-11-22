@@ -4065,10 +4065,7 @@ fn reconnecting_output_restores_split_plane_fragment() {
         .workspaces
         .plane_by_id(original_plane_id)
         .unwrap();
-    assert_eq!(
-        retained_plane.workspaces()[0].id(),
-        remaining_workspace_id
-    );
+    assert_eq!(retained_plane.workspaces()[0].id(), remaining_workspace_id);
 
     let restored_monitor = monitors
         .iter()
@@ -4077,10 +4074,7 @@ fn reconnecting_output_restores_split_plane_fragment() {
     assert_eq!(restored_monitor.plane_count(), 1);
     let restored_plane = restored_monitor.workspaces.active_plane();
     assert_ne!(restored_plane.id(), original_plane_id);
-    assert_eq!(
-        restored_plane.workspaces()[0].id(),
-        returning_workspace_id
-    );
+    assert_eq!(restored_plane.workspaces()[0].id(), returning_workspace_id);
 
     layout.verify_invariants();
 }
