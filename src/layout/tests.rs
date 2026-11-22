@@ -2853,8 +2853,13 @@ fn primary_output_disconnect_and_reconnect_preserves_planes() {
     };
     assert_eq!(monitors.len(), 2);
     assert_eq!(monitors[*primary_idx].output, remaining_primary_output);
-    assert_eq!(monitors[*active_monitor_idx].output, remaining_primary_output);
-    assert!(monitors.iter().any(|monitor| monitor.output == other_output));
+    assert_eq!(
+        monitors[*active_monitor_idx].output,
+        remaining_primary_output
+    );
+    assert!(monitors
+        .iter()
+        .any(|monitor| monitor.output == other_output));
     assert!(monitors[*primary_idx]
         .workspaces
         .plane_by_id(first_plane_id)
@@ -2885,7 +2890,10 @@ fn primary_output_disconnect_and_reconnect_preserves_planes() {
     };
     assert_eq!(monitors.len(), 3);
     assert_eq!(monitors[*primary_idx].output, remaining_primary_output);
-    assert_eq!(monitors[*active_monitor_idx].output, remaining_primary_output);
+    assert_eq!(
+        monitors[*active_monitor_idx].output,
+        remaining_primary_output
+    );
 
     let remaining_monitor = monitors
         .iter()
