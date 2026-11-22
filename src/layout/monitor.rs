@@ -1510,6 +1510,56 @@ impl<W: LayoutElement> Monitor<W> {
         self.add_column_to_plane(target_plane_idx, new_idx, column, activate);
     }
 
+    /// Moves the active column to the active workspace on an adjacent plane.
+    ///
+    /// If the active window is floating, the existing workspace-move behavior
+    /// moves that window instead of a tiled column.
+    pub fn move_active_column_to_plane(&mut self, target_plane_id: PlaneId, focus: bool) {
+        let source_plane_idx = self.active_plane_idx();
+        let Some(target_plane_idx) = self.workspaces.index_of(target_plane_id) else {
+            return;
+        };
+        if source_plane_idx == target_plane_idx {
+            return;
+        }
+
+        let target_workspace_idx = self
+            .workspaces
+            .plane(target_plane_idx)
+            .expect("the target plane must exist")
+            .active_workspace_idx();
+
+        self.move_column_to_workspace_on_plane(
+            Some(target_plane_id),
+            target_workspace_idx,
+            focus,
+        );
+    }
+
+    /// Moves the active column to the adjacent plane farther back.
+    pub fn move_active_column_to_plane_backward(&mut self, focus: bool) {
+        let Some(target_plane_idx) = self.active_plane_idx().checked_sub(1) else {
+            return;
+        };
+        let Some(target_plane_id) = self.workspaces.plane(target_plane_idx).map(|plane| plane.id())
+        else {
+            return;
+        };
+
+        self.move_active_column_to_plane(target_plane_id, focus);
+    }
+
+    /// Moves the active column to the adjacent plane closer to the front.
+    pub fn move_active_column_to_plane_forward(&mut self, focus: bool) {
+        let target_plane_idx = self.active_plane_idx() + 1;
+        let Some(target_plane_id) = self.workspaces.plane(target_plane_idx).map(|plane| plane.id())
+        else {
+            return;
+        };
+
+        self.move_active_column_to_plane(target_plane_id, focus);
+    }
+
     /// Moves the active window to the active workspace on another plane.
     ///
     /// When focus is false, the window is moved without changing the active
