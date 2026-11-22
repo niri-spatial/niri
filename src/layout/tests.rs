@@ -3375,6 +3375,128 @@ fn monitor_plane_management_preserves_active_workspace() {
 }
 
 #[test]
+fn remove_active_empty_plane_keeps_previous_plane_selection() {
+    let mut layout = check_ops([Op::AddOutput(1)]);
+    layout.set_workspace_name("preserved-workspace".into(), None);
+
+    let (original_plane_id, original_workspace_id) = {
+        let monitor = layout.active_monitor().unwrap();
+        (
+            monitor.active_plane_id(),
+            monitor.active_workspace_ref().id(),
+        )
+    };
+
+    layout.create_plane();
+    let empty_plane_id = layout.active_monitor().unwrap().active_plane_id();
+    assert_ne!(empty_plane_id, original_plane_id);
+
+    assert!(layout.remove_active_plane());
+
+    let monitor = layout.active_monitor().unwrap();
+    assert_eq!(monitor.plane_count(), 1);
+    assert_eq!(monitor.active_plane_id(), original_plane_id);
+    assert_eq!(monitor.active_workspace_ref().id(), original_workspace_id);
+    assert_eq!(
+        monitor.active_workspace_ref().name().map(String::as_str),
+        Some("preserved-workspace")
+    );
+
+    layout.verify_invariants();
+}
+
+#[test]
+fn remove_active_empty_first_plane_keeps_next_plane_selection() {
+    let mut layout = check_ops([Op::AddOutput(1)]);
+    layout.create_plane();
+    layout.set_workspace_name("preserved-next-plane".into(), None);
+
+    let (empty_plane_id, next_plane_id, next_workspace_id) = {
+        let monitor = layout.active_monitor().unwrap();
+        (
+            monitor.workspaces.plane(0).unwrap().id(),
+            monitor.active_plane_id(),
+            monitor.active_workspace_ref().id(),
+        )
+    };
+
+    layout.focus_plane_backward();
+    assert_eq!(
+        layout.active_monitor().unwrap().active_plane_id(),
+        empty_plane_id
+    );
+
+    assert!(layout.remove_active_plane());
+
+    let monitor = layout.active_monitor().unwrap();
+    assert_eq!(monitor.plane_count(), 1);
+    assert_eq!(monitor.active_plane_idx(), 0);
+    assert_eq!(monitor.active_plane_id(), next_plane_id);
+    assert_eq!(monitor.active_workspace_ref().id(), next_workspace_id);
+
+    layout.verify_invariants();
+}
+
+#[test]
+fn remove_active_plane_rejects_named_workspaces() {
+    let mut layout = check_ops([Op::AddOutput(1)]);
+    layout.create_plane();
+    layout.set_workspace_name("keep-this-plane".into(), None);
+
+    let plane_id = layout.active_monitor().unwrap().active_plane_id();
+    let workspace_id = layout.active_monitor().unwrap().active_workspace_ref().id();
+
+    assert!(!layout.remove_active_plane());
+
+    let monitor = layout.active_monitor().unwrap();
+    assert_eq!(monitor.plane_count(), 2);
+    assert_eq!(monitor.active_plane_id(), plane_id);
+    assert_eq!(monitor.active_workspace_ref().id(), workspace_id);
+
+    layout.verify_invariants();
+}
+
+#[test]
+fn remove_active_plane_rejects_windows() {
+    let mut layout = check_ops([
+        Op::AddOutput(1),
+        Op::AddWindow {
+            params: TestWindowParams::new(1),
+        },
+    ]);
+    layout.create_plane();
+    Op::AddWindow {
+        params: TestWindowParams::new(2),
+    }
+    .apply(&mut layout);
+
+    let plane_id = layout.active_monitor().unwrap().active_plane_id();
+
+    assert!(!layout.remove_active_plane());
+
+    let monitor = layout.active_monitor().unwrap();
+    assert_eq!(monitor.plane_count(), 2);
+    assert_eq!(monitor.active_plane_id(), plane_id);
+    assert!(monitor.active_workspace_ref().has_window(&2));
+
+    layout.verify_invariants();
+}
+
+#[test]
+fn remove_active_plane_rejects_last_plane() {
+    let mut layout = check_ops([Op::AddOutput(1)]);
+    let plane_id = layout.active_monitor().unwrap().active_plane_id();
+
+    assert!(!layout.remove_active_plane());
+
+    let monitor = layout.active_monitor().unwrap();
+    assert_eq!(monitor.plane_count(), 1);
+    assert_eq!(monitor.active_plane_id(), plane_id);
+
+    layout.verify_invariants();
+}
+
+#[test]
 fn add_window_to_named_workspace_on_inactive_plane() {
     let mut layout = check_ops([Op::AddOutput(1)]);
     layout.create_plane();
