@@ -472,6 +472,8 @@ pub enum Action {
     CenterVisibleColumns {},
     /// Create a new plane in front of the current plane and focus it.
     CreatePlane {},
+    /// Remove the active plane if all of its workspaces are empty and unnamed.
+    RemovePlane {},
     /// Focus the plane behind the current plane.
     FocusPlaneBackward {},
     /// Focus the plane in front of the current plane.
