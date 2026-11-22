@@ -853,6 +853,51 @@ impl<W: LayoutElement> Monitor<W> {
         }
     }
 
+    fn add_column_to_plane(
+        &mut self,
+        plane_idx: usize,
+        mut workspace_idx: usize,
+        column: Column<W>,
+        activate: bool,
+    ) {
+        let plane_workspace_count = self
+            .workspaces
+            .plane(plane_idx)
+            .expect("the target plane must exist")
+            .workspace_count();
+
+        {
+            let workspace = self
+                .workspaces
+                .plane_mut(plane_idx)
+                .expect("the target plane must exist")
+                .workspaces_mut()
+                .get_mut(workspace_idx)
+                .expect("the target workspace must exist");
+
+            workspace.add_column(column, activate);
+
+            // After adding a new column, workspace becomes this output's own.
+            if workspace.name().is_none() {
+                workspace.original_output = OutputId::new(&self.output);
+            }
+        }
+
+        if workspace_idx == plane_workspace_count - 1 {
+            self.add_workspace_bottom_in_plane(plane_idx);
+        }
+        if self.options.layout.empty_workspace_above_first && workspace_idx == 0 {
+            self.add_workspace_at_in_plane(plane_idx, 0);
+            workspace_idx += 1;
+        }
+
+        if activate {
+            self.activate_plane(plane_idx)
+                .expect("the target plane index must be valid");
+            self.activate_workspace(workspace_idx);
+        }
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub fn add_tile(
         &mut self,
@@ -1352,6 +1397,90 @@ impl<W: LayoutElement> Monitor<W> {
         };
 
         self.add_column(new_idx, column, activate);
+    }
+
+    /// Moves the active column to a workspace on the specified plane.
+    ///
+    /// The source is always the currently active plane and workspace. The
+    /// destination is resolved by stable plane identity, without activating
+    /// that plane before the source column has been removed.
+    pub fn move_column_to_workspace_on_plane(
+        &mut self,
+        target_plane_id: Option<PlaneId>,
+        idx: usize,
+        activate: bool,
+    ) {
+        let source_plane_idx = self.active_plane_idx();
+        let source_workspace_idx = self.active_workspace_idx();
+        let target_plane_idx = match target_plane_id {
+            Some(id) => {
+                let Some(index) = self.workspaces.index_of(id) else {
+                    return;
+                };
+                index
+            }
+            None => source_plane_idx,
+        };
+
+        let target_workspace_count = self
+            .workspaces
+            .plane(target_plane_idx)
+            .expect("the target plane must exist")
+            .workspace_count();
+        let new_idx = min(idx, target_workspace_count - 1);
+
+        if target_plane_idx == source_plane_idx && new_idx == source_workspace_idx {
+            return;
+        }
+
+        let source_workspace = self
+            .workspaces
+            .plane(source_plane_idx)
+            .expect("the source plane must exist")
+            .workspaces()
+            .get(source_workspace_idx)
+            .expect("the source workspace must exist");
+
+        if source_workspace.floating_is_active() {
+            let Some(window) = source_workspace
+                .active_window()
+                .map(|window| window.id().clone())
+            else {
+                return;
+            };
+
+            self.activate_plane(target_plane_idx)
+                .expect("the target plane index must be valid");
+            self.move_to_workspace(
+                Some(&window),
+                new_idx,
+                if activate {
+                    ActivateWindow::Yes
+                } else {
+                    ActivateWindow::No
+                },
+            );
+
+            if !activate {
+                self.activate_plane(source_plane_idx)
+                    .expect("the source plane index must be valid");
+            }
+            return;
+        }
+
+        let Some(column) = self
+            .workspaces
+            .plane_mut(source_plane_idx)
+            .expect("the source plane must exist")
+            .workspaces_mut()
+            .get_mut(source_workspace_idx)
+            .expect("the source workspace must exist")
+            .remove_active_column()
+        else {
+            return;
+        };
+
+        self.add_column_to_plane(target_plane_idx, new_idx, column, activate);
     }
 
     pub fn switch_workspace_up(&mut self) {
