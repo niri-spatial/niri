@@ -478,6 +478,10 @@ pub enum Action {
     FocusPlaneBackward {},
     /// Focus the plane in front of the current plane.
     FocusPlaneForward {},
+    /// Move the current plane one step farther back in depth order.
+    MovePlaneBackward {},
+    /// Move the current plane one step closer to the front in depth order.
+    MovePlaneForward {},
     /// Focus the workspace below.
     FocusWorkspaceDown {},
     /// Focus the workspace above.
