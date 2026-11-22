@@ -2980,6 +2980,70 @@ fn add_window_to_named_workspace_on_inactive_plane() {
 }
 
 #[test]
+fn move_window_to_another_output_from_inactive_plane() {
+    let ops = [
+        Op::AddOutput(1),
+        Op::AddWindow {
+            params: TestWindowParams::new(2),
+        },
+        Op::AddOutput(2),
+    ];
+    let mut layout = check_ops(ops);
+
+    let source_output = layout
+        .outputs()
+        .find(|output| output.name() == "output1")
+        .unwrap()
+        .clone();
+    let target_output = layout
+        .outputs()
+        .find(|output| output.name() == "output2")
+        .unwrap()
+        .clone();
+
+    layout.focus_output(&source_output);
+    let source_plane_id = layout.active_monitor().unwrap().active_plane_id();
+    layout.create_plane();
+    let active_source_plane_id = layout.active_monitor().unwrap().active_plane_id();
+
+    layout.focus_output(&target_output);
+    layout.set_workspace_name("cross-output-target".into(), None);
+    let target_workspace_id = layout.active_monitor().unwrap().active_workspace_ref().id();
+
+    layout.focus_output(&source_output);
+    layout.move_to_output(Some(&2), &target_output, Some(0), ActivateWindow::No);
+
+    let MonitorSet::Normal { monitors, .. } = &layout.monitor_set else {
+        unreachable!()
+    };
+    let source_monitor = monitors
+        .iter()
+        .find(|monitor| monitor.output == source_output)
+        .unwrap();
+    assert_eq!(source_monitor.active_plane_id(), active_source_plane_id);
+    assert!(source_monitor
+        .workspaces
+        .plane_by_id(source_plane_id)
+        .unwrap()
+        .workspaces()
+        .iter()
+        .all(|workspace| !workspace.has_window(&2)));
+
+    let target_monitor = monitors
+        .iter()
+        .find(|monitor| monitor.output == target_output)
+        .unwrap();
+    let (_, _, target_workspace) = target_monitor
+        .workspaces
+        .iter_workspaces()
+        .find(|(_, _, workspace)| workspace.id() == target_workspace_id)
+        .unwrap();
+    assert!(target_workspace.has_window(&2));
+    assert_eq!(layout.active_output(), Some(&source_output));
+    layout.verify_invariants();
+}
+
+#[test]
 fn move_window_to_named_workspace_on_inactive_plane() {
     let ops = [
         Op::AddOutput(1),
