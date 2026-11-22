@@ -3441,7 +3441,6 @@ fn move_workspace_to_another_output_from_inactive_plane() {
     layout.focus_plane_backward();
 
     layout.focus_output(&target_output);
-    let target_plane_id = layout.active_monitor().unwrap().active_plane_id();
     let previous_source_plane_id = layout
         .activate_plane_by_id(&source_output, source_plane_id)
         .unwrap();
