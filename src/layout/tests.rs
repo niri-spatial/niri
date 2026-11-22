@@ -11,9 +11,8 @@ use proptest_derive::Arbitrary;
 use smithay::output::{Mode, PhysicalProperties, Subpixel};
 use smithay::utils::Rectangle;
 
-use crate::layout::plane::WorkspacePlane;
-
 use super::*;
+use crate::layout::plane::WorkspacePlane;
 
 mod animations;
 mod fullscreen;
