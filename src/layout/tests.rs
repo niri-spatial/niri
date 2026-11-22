@@ -3514,7 +3514,10 @@ fn moving_active_plane_preserves_workspace_and_stops_at_depth_boundaries() {
     let front_plane_id = layout.active_monitor().unwrap().active_plane_id();
     let front_workspace_id = layout.active_monitor().unwrap().active_workspace_ref().id();
 
-    assert_eq!(layout.active_monitor().unwrap().active_plane_id(), front_plane_id);
+    assert_eq!(
+        layout.active_monitor().unwrap().active_plane_id(),
+        front_plane_id
+    );
     assert!(!layout.move_active_plane_forward());
 
     assert!(layout.move_active_plane_backward());
@@ -3547,21 +3550,30 @@ fn moving_active_plane_preserves_workspace_and_stops_at_depth_boundaries() {
         assert_eq!(monitor.active_workspace_ref().id(), front_workspace_id);
     }
 
-    assert!(layout.activate_plane_by_id(&output, first_plane_id).is_some());
+    assert!(layout
+        .activate_plane_by_id(&output, first_plane_id)
+        .is_some());
     assert!(!layout.move_active_plane_backward());
     assert_eq!(
         layout.active_monitor().unwrap().active_plane_id(),
         first_plane_id
     );
 
-    assert!(layout.activate_plane_by_id(&output, middle_plane_id).is_some());
+    assert!(layout
+        .activate_plane_by_id(&output, middle_plane_id)
+        .is_some());
     assert!(layout.move_active_plane_backward());
     assert_eq!(
         layout.active_monitor().unwrap().active_plane_id(),
         middle_plane_id
     );
     assert_eq!(
-        layout.active_monitor().unwrap().active_workspace_ref().name().map(String::as_str),
+        layout
+            .active_monitor()
+            .unwrap()
+            .active_workspace_ref()
+            .name()
+            .map(String::as_str),
         Some("middle-plane")
     );
 
