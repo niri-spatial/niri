@@ -1513,6 +1513,16 @@ impl State {
                 // FIXME: granular
                 self.niri.queue_redraw_all();
             }
+            Action::MovePlaneBackward => {
+                self.niri.layout.move_active_plane_backward();
+                // FIXME: granular
+                self.niri.queue_redraw_all();
+            }
+            Action::MovePlaneForward => {
+                self.niri.layout.move_active_plane_forward();
+                // FIXME: granular
+                self.niri.queue_redraw_all();
+            }
             Action::FocusWorkspaceDown => {
                 self.niri.layout.switch_workspace_down();
                 self.maybe_warp_cursor_to_focus();
