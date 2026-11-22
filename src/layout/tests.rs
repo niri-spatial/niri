@@ -3444,11 +3444,7 @@ fn remove_active_plane_rejects_named_workspaces() {
     layout.set_workspace_name("keep-this-plane".into(), None);
 
     let plane_id = layout.active_monitor().unwrap().active_plane_id();
-    let workspace_id = layout
-        .active_monitor()
-        .unwrap()
-        .active_workspace_ref()
-        .id();
+    let workspace_id = layout.active_monitor().unwrap().active_workspace_ref().id();
 
     assert!(!layout.remove_active_plane());
 
