@@ -3567,7 +3567,7 @@ impl<W: LayoutElement> Layout<W> {
                 self.move_to_output(
                     None,
                     output,
-                    None,
+                    target_ws_idx,
                     if activate {
                         ActivateWindow::Smart
                     } else {
