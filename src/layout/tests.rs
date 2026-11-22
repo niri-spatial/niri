@@ -3095,7 +3095,10 @@ fn move_column_to_inactive_plane_on_another_output_with_focus() {
         .find(|monitor| monitor.output == target_output)
         .unwrap();
     assert_eq!(target_monitor.active_plane_id(), target_plane_id);
-    assert_eq!(target_monitor.active_workspace_ref().id(), target_workspace_id);
+    assert_eq!(
+        target_monitor.active_workspace_ref().id(),
+        target_workspace_id
+    );
     assert!(target_monitor.active_workspace_ref().has_window(&2));
     assert!(layout.focus().is_some_and(|window| window.id() == &2));
     assert_eq!(monitors[*active_monitor_idx].output, target_output);
@@ -3413,10 +3416,7 @@ fn move_window_to_active_output_from_inactive_output_and_plane() {
 
 #[test]
 fn move_workspace_to_another_output_from_inactive_plane() {
-    let ops = [
-        Op::AddOutput(1),
-        Op::AddOutput(2),
-    ];
+    let ops = [Op::AddOutput(1), Op::AddOutput(2)];
     let mut layout = check_ops(ops);
 
     let source_output = layout
@@ -3443,11 +3443,7 @@ fn move_workspace_to_another_output_from_inactive_plane() {
         .activate_plane_by_id(&source_output, source_plane_id)
         .unwrap();
 
-    assert!(!layout.move_workspace_to_output_by_id(
-        0,
-        Some(source_output.clone()),
-        &target_output,
-    ));
+    assert!(!layout.move_workspace_to_output_by_id(0, Some(source_output.clone()), &target_output,));
 
     layout
         .activate_plane_by_id(&source_output, previous_source_plane_id)
@@ -3461,7 +3457,10 @@ fn move_workspace_to_another_output_from_inactive_plane() {
         .find(|monitor| monitor.output == source_output)
         .unwrap();
     assert_ne!(source_monitor.active_plane_id(), source_plane_id);
-    assert!(source_monitor.workspaces.plane_by_id(source_plane_id).is_some());
+    assert!(source_monitor
+        .workspaces
+        .plane_by_id(source_plane_id)
+        .is_some());
 
     let target_monitor = monitors
         .iter()
@@ -3472,7 +3471,10 @@ fn move_workspace_to_another_output_from_inactive_plane() {
         .iter_workspaces()
         .find(|(_, _, workspace)| workspace.id() == workspace_id)
         .unwrap();
-    assert_eq!(moved_workspace.name().map(String::as_str), Some("workspace-to-move"));
+    assert_eq!(
+        moved_workspace.name().map(String::as_str),
+        Some("workspace-to-move")
+    );
     assert_eq!(target_plane_id, target_monitor.active_plane_id());
     assert_eq!(layout.active_output(), Some(&target_output));
     layout.verify_invariants();
