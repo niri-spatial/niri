@@ -1438,41 +1438,36 @@ impl State {
                 self.niri.queue_redraw_all();
             }
             Action::MoveColumnToWorkspace(reference, focus) => {
-                if let Some((mut output, plane_id, index)) =
+                if let Some((output, plane_id, index)) =
                     self.niri.find_output_and_workspace_index(reference)
                 {
-                    let target_output = output
-                        .clone()
-                        .or_else(|| self.niri.layout.active_output().cloned());
-                    let previous_plane = plane_id.and_then(|plane_id| {
-                        target_output.as_ref().and_then(|output| {
-                            self.niri.layout.activate_plane_by_id(output, plane_id)
-                        })
+                    let target_is_active_output = output.as_ref().is_none_or(|output| {
+                        self.niri.layout.active_output() == Some(output)
                     });
 
-                    if let Some(active) = self.niri.layout.active_output() {
-                        if output.as_ref() == Some(active) {
-                            output = None;
+                    if target_is_active_output {
+                        self.niri
+                            .layout
+                            .move_column_to_workspace_on_plane(plane_id, index, focus);
+                        if focus {
+                            self.maybe_warp_cursor_to_focus();
                         }
-                    }
+                    } else if let Some(output) = output {
+                        let previous_plane = plane_id.and_then(|plane_id| {
+                            self.niri.layout.activate_plane_by_id(&output, plane_id)
+                        });
 
-                    if let Some(output) = output {
                         self.niri
                             .layout
                             .move_column_to_output(&output, Some(index), focus);
                         if focus && !self.maybe_warp_cursor_to_focus_centered() {
                             self.move_cursor_to_output(&output);
                         }
-                    } else {
-                        self.niri.layout.move_column_to_workspace(index, focus);
-                        if focus {
-                            self.maybe_warp_cursor_to_focus();
-                        }
-                    }
 
-                    if !focus {
-                        if let (Some(output), Some(plane_id)) = (target_output, previous_plane) {
-                            self.niri.layout.activate_plane_by_id(&output, plane_id);
+                        if !focus {
+                            if let Some(plane_id) = previous_plane {
+                                self.niri.layout.activate_plane_by_id(&output, plane_id);
+                            }
                         }
                     }
 
