@@ -1535,6 +1535,18 @@ impl State {
                 // FIXME: granular
                 self.niri.queue_redraw_all();
             }
+            Action::MoveColumnToPlaneBackward(focus) => {
+                self.niri.layout.move_active_column_to_plane_backward(focus);
+                self.maybe_warp_cursor_to_focus();
+                // FIXME: granular
+                self.niri.queue_redraw_all();
+            }
+            Action::MoveColumnToPlaneForward(focus) => {
+                self.niri.layout.move_active_column_to_plane_forward(focus);
+                self.maybe_warp_cursor_to_focus();
+                // FIXME: granular
+                self.niri.queue_redraw_all();
+            }
             Action::FocusWorkspaceDown => {
                 self.niri.layout.switch_workspace_down();
                 self.maybe_warp_cursor_to_focus();
