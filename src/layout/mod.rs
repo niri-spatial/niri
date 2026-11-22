@@ -2262,6 +2262,18 @@ impl<W: LayoutElement> Layout<W> {
         monitor.move_column_to_workspace(idx, activate);
     }
 
+    pub fn move_column_to_workspace_on_plane(
+        &mut self,
+        target_plane_id: Option<PlaneId>,
+        idx: usize,
+        activate: bool,
+    ) {
+        let Some(monitor) = self.active_monitor() else {
+            return;
+        };
+        monitor.move_column_to_workspace_on_plane(target_plane_id, idx, activate);
+    }
+
     pub fn create_plane(&mut self) {
         let Some(monitor) = self.active_monitor() else {
             return;
