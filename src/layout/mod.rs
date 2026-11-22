@@ -2281,6 +2281,28 @@ impl<W: LayoutElement> Layout<W> {
         monitor.add_plane();
     }
 
+    /// Removes the active plane when all of its workspaces are empty and unnamed.
+    ///
+    /// The final plane cannot be removed. A plane containing windows or named
+    /// workspaces is left untouched so this operation never discards user data.
+    pub fn remove_active_plane(&mut self) -> bool {
+        let Some(monitor) = self.active_monitor_mut() else {
+            return false;
+        };
+
+        let plane_idx = monitor.active_plane_idx();
+        let is_empty = monitor
+            .workspaces
+            .plane(plane_idx)
+            .is_some_and(|plane| plane.workspaces().iter().all(|ws| !ws.has_windows_or_name()));
+
+        if !is_empty {
+            return false;
+        }
+
+        monitor.remove_plane(plane_idx).is_ok()
+    }
+
     /// Activates a plane on the specified output by its stable identity.
     ///
     /// Returns the plane that was active before the switch, allowing callers
