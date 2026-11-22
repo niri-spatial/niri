@@ -580,6 +580,33 @@ impl<W: LayoutElement> Monitor<W> {
         }
     }
 
+    /// Moves the active plane one step farther back in depth order.
+    ///
+    /// The active plane and its selected workspace remain active. Returns
+    /// whether the plane changed position.
+    pub fn move_active_plane_backward(&mut self) -> bool {
+        let index = self.active_plane_idx();
+        if index == 0 {
+            return false;
+        }
+
+        self.workspaces.move_plane(index, index - 1).is_ok()
+    }
+
+    /// Moves the active plane one step closer to the front in depth order.
+    ///
+    /// The active plane and its selected workspace remain active. Returns
+    /// whether the plane changed position.
+    pub fn move_active_plane_forward(&mut self) -> bool {
+        let index = self.active_plane_idx();
+        let next_index = index + 1;
+        if next_index >= self.plane_count() {
+            return false;
+        }
+
+        self.workspaces.move_plane(index, next_index).is_ok()
+    }
+
     /// Removes a plane and returns it with all of its workspaces.
     ///
     /// The final plane cannot be removed. If the active plane is removed, the
