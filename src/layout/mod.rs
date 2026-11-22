@@ -2291,12 +2291,14 @@ impl<W: LayoutElement> Layout<W> {
         };
 
         let plane_idx = monitor.active_plane_idx();
-        let is_empty = monitor
-            .workspaces
-            .plane(plane_idx)
-            .is_some_and(|plane| plane.workspaces().iter().all(|ws| !ws.has_windows_or_name()));
-
-        if !is_empty {
+        let Some(plane) = monitor.workspaces.plane(plane_idx) else {
+            return false;
+        };
+        if plane
+            .workspaces()
+            .iter()
+            .any(|workspace| workspace.has_windows_or_name())
+        {
             return false;
         }
 
