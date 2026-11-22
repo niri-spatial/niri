@@ -4434,9 +4434,9 @@ fn move_active_column_to_adjacent_plane_moves_all_column_windows() {
     assert!(source_workspace.has_window(&3));
     assert!(!source_workspace.has_window(&1));
     assert!(!source_workspace.has_window(&2));
-    assert!(layout.focus().is_some_and(|window| {
-        window.id() == &1 || window.id() == &2
-    }));
+    assert!(layout
+        .focus()
+        .is_some_and(|window| { window.id() == &1 || window.id() == &2 }));
     layout.verify_invariants();
 }
 
