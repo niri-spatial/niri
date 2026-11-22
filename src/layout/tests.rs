@@ -3499,6 +3499,7 @@ fn remove_active_plane_rejects_last_plane() {
 #[test]
 fn moving_active_plane_preserves_workspace_and_stops_at_depth_boundaries() {
     let mut layout = check_ops([Op::AddOutput(1)]);
+    let output = layout.active_output().unwrap().clone();
 
     layout.set_workspace_name("back-plane".into(), None);
     let first_plane_id = layout.active_monitor().unwrap().active_plane_id();
