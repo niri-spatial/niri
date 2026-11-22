@@ -3423,6 +3423,7 @@ fn move_workspace_to_another_output_from_inactive_plane() {
     layout.focus_plane_backward();
 
     layout.focus_output(&target_output);
+    let target_plane_id = layout.active_monitor().unwrap().active_plane_id();
     let previous_source_plane_id = layout
         .activate_plane_by_id(&source_output, source_plane_id)
         .unwrap();
@@ -3457,7 +3458,7 @@ fn move_workspace_to_another_output_from_inactive_plane() {
         .find(|(_, _, workspace)| workspace.id() == workspace_id)
         .unwrap();
     assert_eq!(moved_workspace.name().map(String::as_str), Some("workspace-to-move"));
-    assert_ne!(target_plane_id, source_plane_id);
+    assert_eq!(target_plane_id, target_monitor.active_plane_id());
     assert_eq!(layout.active_output(), Some(&target_output));
     layout.verify_invariants();
 }
