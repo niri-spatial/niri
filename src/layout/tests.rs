@@ -2891,6 +2891,101 @@ fn disconnecting_primary_output_preserves_later_active_monitor() {
 }
 
 #[test]
+fn disconnecting_inactive_middle_output_preserves_primary_and_active_monitor() {
+    let ops = [Op::AddOutput(1), Op::AddOutput(2), Op::AddOutput(3)];
+    let mut layout = check_ops(ops);
+
+    let primary_output = layout
+        .outputs()
+        .find(|output| output.name() == "output1")
+        .unwrap()
+        .clone();
+    let disconnected_output = layout
+        .outputs()
+        .find(|output| output.name() == "output2")
+        .unwrap()
+        .clone();
+    let active_output = layout
+        .outputs()
+        .find(|output| output.name() == "output3")
+        .unwrap()
+        .clone();
+
+    layout.focus_output(&disconnected_output);
+    let first_plane_id = layout.active_monitor().unwrap().active_plane_id();
+    layout.set_workspace_name("middle-first-plane-first".into(), None);
+    layout.switch_workspace_down();
+    layout.set_workspace_name("middle-first-plane-active".into(), None);
+    let first_plane_active_workspace_id =
+        layout.active_monitor().unwrap().active_workspace_ref().id();
+
+    layout.create_plane();
+    let second_plane_id = layout.active_monitor().unwrap().active_plane_id();
+    layout.set_workspace_name("middle-second-plane-first".into(), None);
+    layout.switch_workspace_down();
+    layout.set_workspace_name("middle-second-plane-active".into(), None);
+    let second_plane_active_workspace_id =
+        layout.active_monitor().unwrap().active_workspace_ref().id();
+
+    // Keep the last monitor active while removing the middle monitor.
+    layout.focus_output(&active_output);
+    layout.remove_output(&disconnected_output);
+
+    let MonitorSet::Normal {
+        monitors,
+        primary_idx,
+        active_monitor_idx,
+    } = &layout.monitor_set
+    else {
+        unreachable!()
+    };
+    assert_eq!(monitors.len(), 2);
+    assert_eq!(monitors[*primary_idx].output, primary_output);
+    assert_eq!(monitors[*active_monitor_idx].output, active_output);
+    assert!(monitors[*primary_idx]
+        .workspaces
+        .plane_by_id(first_plane_id)
+        .is_some());
+    assert!(monitors[*primary_idx]
+        .workspaces
+        .plane_by_id(second_plane_id)
+        .is_some());
+
+    layout.add_output(disconnected_output.clone(), None);
+
+    let MonitorSet::Normal {
+        monitors,
+        primary_idx,
+        active_monitor_idx,
+    } = &layout.monitor_set
+    else {
+        unreachable!()
+    };
+    assert_eq!(monitors.len(), 3);
+    assert_eq!(monitors[*primary_idx].output, primary_output);
+    assert_eq!(monitors[*active_monitor_idx].output, active_output);
+
+    let restored_monitor = monitors
+        .iter()
+        .find(|monitor| monitor.output == disconnected_output)
+        .unwrap();
+    assert_eq!(restored_monitor.plane_count(), 2);
+    assert_eq!(restored_monitor.active_plane_id(), second_plane_id);
+    assert_eq!(
+        restored_monitor.active_workspace_ref().id(),
+        second_plane_active_workspace_id
+    );
+
+    let first_plane = restored_monitor
+        .workspaces
+        .plane_by_id(first_plane_id)
+        .unwrap();
+    assert_eq!(first_plane.active_workspace().id(), first_plane_active_workspace_id);
+
+    layout.verify_invariants();
+}
+
+#[test]
 fn primary_output_disconnect_and_reconnect_preserves_planes() {
     let ops = [Op::AddOutput(1), Op::AddOutput(2), Op::AddOutput(3)];
     let mut layout = check_ops(ops);
