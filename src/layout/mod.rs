@@ -3564,7 +3564,16 @@ impl<W: LayoutElement> Layout<W> {
             let ws = current.active_workspace();
 
             if ws.floating_is_active() {
-                self.move_to_output(None, output, None, ActivateWindow::Smart);
+                self.move_to_output(
+                    None,
+                    output,
+                    None,
+                    if activate {
+                        ActivateWindow::Smart
+                    } else {
+                        ActivateWindow::No
+                    },
+                );
                 return;
             }
 
