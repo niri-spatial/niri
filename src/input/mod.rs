@@ -1349,6 +1349,7 @@ impl State {
                 focus,
             } => {
                 let window = self.niri.layout.windows().find(|(_, m)| m.id().get() == id);
+                let source_output = window.and_then(|(output, _)| output.cloned());
                 let window = window.map(|(_, m)| m.window.clone());
                 if let Some(window) = window {
                     let window_was_focused = self
@@ -1356,27 +1357,31 @@ impl State {
                         .layout
                         .focus()
                         .is_some_and(|focused| focused.window == window);
-                    if let Some((mut output, plane_id, index)) =
+                    let source_output_was_active = source_output
+                        .as_ref()
+                        .is_some_and(|source| self.niri.layout.active_output() == Some(source));
+                    if let Some((output, plane_id, index)) =
                         self.niri.find_output_and_workspace_index(reference)
                     {
                         let target_output = output
                             .clone()
                             .or_else(|| self.niri.layout.active_output().cloned());
+                        let target_is_source_output = source_output
+                            .as_ref()
+                            .is_some_and(|source| target_output.as_ref() == Some(source));
                         let previous_plane = plane_id.and_then(|plane_id| {
                             target_output.as_ref().and_then(|output| {
                                 self.niri.layout.activate_plane_by_id(output, plane_id)
                             })
                         });
-                        let target_was_active = self
-                            .niri
-                            .layout
-                            .active_output()
-                            .is_some_and(|active| output.as_ref() == Some(active));
-                        if target_was_active {
+
+                        let output = if target_is_source_output {
                             // Use the same-monitor path so the source can be found on an
                             // inactive plane and the target is resolved by its stable ID.
-                            output = None;
-                        }
+                            None
+                        } else {
+                            target_output.clone()
+                        };
 
                         let activate = if focus && window_was_focused {
                             ActivateWindow::Yes
@@ -1393,8 +1398,7 @@ impl State {
                             );
 
                             // If the active output changed (window was moved and focused).
-                            #[allow(clippy::collapsible_if)]
-                            if !target_was_active
+                            if source_output_was_active
                                 && self.niri.layout.active_output() == Some(&output)
                             {
                                 if !self.maybe_warp_cursor_to_focus_centered() {
