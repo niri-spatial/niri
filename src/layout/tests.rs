@@ -2954,7 +2954,9 @@ fn disconnecting_active_middle_output_falls_back_to_primary() {
         monitors[*active_monitor_idx].active_workspace_ref().id(),
         primary_workspace_id
     );
-    assert!(monitors.iter().any(|monitor| monitor.output == other_output));
+    assert!(monitors
+        .iter()
+        .any(|monitor| monitor.output == other_output));
     assert!(monitors[*primary_idx]
         .workspaces
         .plane_by_id(first_plane_id)
