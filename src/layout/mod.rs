@@ -3471,11 +3471,8 @@ impl<W: LayoutElement> Layout<W> {
             };
 
             let target_plane_idx = monitors[new_idx].workspaces.active_plane_idx();
-            let workspace_idx =
-                target_ws_idx.unwrap_or(monitors[new_idx].active_workspace_idx());
-            if mon_idx == new_idx
-                && source_plane_idx == target_plane_idx
-                && ws_idx == workspace_idx
+            let workspace_idx = target_ws_idx.unwrap_or(monitors[new_idx].active_workspace_idx());
+            if mon_idx == new_idx && source_plane_idx == target_plane_idx && ws_idx == workspace_idx
             {
                 return;
             }
