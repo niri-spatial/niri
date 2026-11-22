@@ -221,6 +221,8 @@ pub enum Action {
     MovePlaneForward,
     MoveWindowToPlaneBackward(#[knuffel(property(name = "focus"), default = true)] bool),
     MoveWindowToPlaneForward(#[knuffel(property(name = "focus"), default = true)] bool),
+    MoveColumnToPlaneBackward(#[knuffel(property(name = "focus"), default = true)] bool),
+    MoveColumnToPlaneForward(#[knuffel(property(name = "focus"), default = true)] bool),
     FocusWorkspaceDown,
     #[knuffel(skip)]
     FocusWorkspaceDownUnderMouse,
@@ -523,6 +525,12 @@ impl From<niri_ipc::Action> for Action {
             }
             niri_ipc::Action::MoveWindowToPlaneForward { focus } => {
                 Self::MoveWindowToPlaneForward(focus)
+            }
+            niri_ipc::Action::MoveColumnToPlaneBackward { focus } => {
+                Self::MoveColumnToPlaneBackward(focus)
+            }
+            niri_ipc::Action::MoveColumnToPlaneForward { focus } => {
+                Self::MoveColumnToPlaneForward(focus)
             }
             niri_ipc::Action::FocusWorkspaceDown {} => Self::FocusWorkspaceDown,
             niri_ipc::Action::FocusWorkspaceUp {} => Self::FocusWorkspaceUp,
