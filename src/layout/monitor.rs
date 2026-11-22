@@ -1529,11 +1529,7 @@ impl<W: LayoutElement> Monitor<W> {
             .expect("the target plane must exist")
             .active_workspace_idx();
 
-        self.move_column_to_workspace_on_plane(
-            Some(target_plane_id),
-            target_workspace_idx,
-            focus,
-        );
+        self.move_column_to_workspace_on_plane(Some(target_plane_id), target_workspace_idx, focus);
     }
 
     /// Moves the active column to the adjacent plane farther back.
