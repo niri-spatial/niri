@@ -2799,6 +2799,129 @@ fn secondary_output_disconnect_and_reconnect_preserves_planes() {
 }
 
 #[test]
+fn primary_output_disconnect_and_reconnect_preserves_planes() {
+    let ops = [Op::AddOutput(1), Op::AddOutput(2), Op::AddOutput(3)];
+    let mut layout = check_ops(ops);
+
+    let disconnected_output = layout
+        .outputs()
+        .find(|output| output.name() == "output1")
+        .unwrap()
+        .clone();
+    let remaining_primary_output = layout
+        .outputs()
+        .find(|output| output.name() == "output2")
+        .unwrap()
+        .clone();
+    let other_output = layout
+        .outputs()
+        .find(|output| output.name() == "output3")
+        .unwrap()
+        .clone();
+
+    layout.focus_output(&remaining_primary_output);
+    let remaining_plane_id = layout.active_monitor().unwrap().active_plane_id();
+    let remaining_workspace_id = layout.active_monitor().unwrap().active_workspace_ref().id();
+
+    layout.focus_output(&disconnected_output);
+    let first_plane_id = layout.active_monitor().unwrap().active_plane_id();
+    layout.set_workspace_name("primary-first-plane-first".into(), None);
+    layout.switch_workspace_down();
+    layout.set_workspace_name("primary-first-plane-active".into(), None);
+    let first_plane_active_workspace_id =
+        layout.active_monitor().unwrap().active_workspace_ref().id();
+
+    layout.create_plane();
+    let second_plane_id = layout.active_monitor().unwrap().active_plane_id();
+    layout.set_workspace_name("primary-second-plane-first".into(), None);
+    layout.switch_workspace_down();
+    layout.set_workspace_name("primary-second-plane-active".into(), None);
+    let second_plane_active_workspace_id =
+        layout.active_monitor().unwrap().active_workspace_ref().id();
+
+    // Removing the primary output makes the second output the new primary.
+    layout.focus_output(&remaining_primary_output);
+    layout.remove_output(&disconnected_output);
+
+    let MonitorSet::Normal {
+        monitors,
+        primary_idx,
+        active_monitor_idx,
+    } = &layout.monitor_set
+    else {
+        unreachable!()
+    };
+    assert_eq!(monitors.len(), 2);
+    assert_eq!(monitors[*primary_idx].output, remaining_primary_output);
+    assert_eq!(monitors[*active_monitor_idx].output, remaining_primary_output);
+    assert!(monitors.iter().any(|monitor| monitor.output == other_output));
+    assert!(monitors[*primary_idx]
+        .workspaces
+        .plane_by_id(first_plane_id)
+        .is_some());
+    assert!(monitors[*primary_idx]
+        .workspaces
+        .plane_by_id(second_plane_id)
+        .is_some());
+
+    // Restore the surviving monitor's original plane before reconnecting.
+    layout
+        .activate_plane_by_id(&remaining_primary_output, remaining_plane_id)
+        .unwrap();
+    assert_eq!(
+        layout.active_monitor().unwrap().active_workspace_ref().id(),
+        remaining_workspace_id
+    );
+
+    layout.add_output(disconnected_output.clone(), None);
+
+    let MonitorSet::Normal {
+        monitors,
+        primary_idx,
+        active_monitor_idx,
+    } = &layout.monitor_set
+    else {
+        unreachable!()
+    };
+    assert_eq!(monitors.len(), 3);
+    assert_eq!(monitors[*primary_idx].output, remaining_primary_output);
+    assert_eq!(monitors[*active_monitor_idx].output, remaining_primary_output);
+
+    let remaining_monitor = monitors
+        .iter()
+        .find(|monitor| monitor.output == remaining_primary_output)
+        .unwrap();
+    assert_eq!(remaining_monitor.plane_count(), 1);
+    assert_eq!(remaining_monitor.active_plane_id(), remaining_plane_id);
+    assert_eq!(
+        remaining_monitor.active_workspace_ref().id(),
+        remaining_workspace_id
+    );
+
+    let restored_monitor = monitors
+        .iter()
+        .find(|monitor| monitor.output == disconnected_output)
+        .unwrap();
+    assert_eq!(restored_monitor.plane_count(), 2);
+    assert_eq!(restored_monitor.active_plane_id(), second_plane_id);
+    assert_eq!(
+        restored_monitor.active_workspace_ref().id(),
+        second_plane_active_workspace_id
+    );
+    assert_eq!(
+        restored_monitor
+            .workspaces
+            .plane_by_id(first_plane_id)
+            .unwrap()
+            .active_workspace()
+            .id(),
+        first_plane_active_workspace_id
+    );
+
+    layout.verify_invariants();
+}
+
+#[test]
 fn output_disconnect_and_reconnect_preserves_planes() {
     let ops = [
         Op::AddOutput(1),
