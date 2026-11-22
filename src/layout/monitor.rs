@@ -1510,6 +1510,71 @@ impl<W: LayoutElement> Monitor<W> {
         self.add_column_to_plane(target_plane_idx, new_idx, column, activate);
     }
 
+    /// Moves the active window to the active workspace on another plane.
+    ///
+    /// When focus is false, the window is moved without changing the active
+    /// plane. Otherwise, focus follows the window to the destination plane.
+    pub fn move_active_window_to_plane(&mut self, target_plane_id: PlaneId, focus: bool) {
+        let Some(window_id) = self.active_window().map(|window| window.id().clone()) else {
+            return;
+        };
+
+        let source_plane_idx = self.active_plane_idx();
+        let Some(target_plane_idx) = self.workspaces.index_of(target_plane_id) else {
+            return;
+        };
+        if source_plane_idx == target_plane_idx {
+            return;
+        }
+
+        let target_workspace_idx = self
+            .workspaces
+            .plane(target_plane_idx)
+            .expect("the target plane must exist")
+            .active_workspace_idx();
+
+        self.activate_plane(target_plane_idx)
+            .expect("the target plane index must be valid");
+        self.move_to_workspace(
+            Some(&window_id),
+            target_workspace_idx,
+            if focus {
+                ActivateWindow::Yes
+            } else {
+                ActivateWindow::No
+            },
+        );
+
+        if !focus {
+            self.activate_plane(source_plane_idx)
+                .expect("the source plane index must be valid");
+        }
+    }
+
+    /// Moves the active window to the adjacent plane farther back.
+    pub fn move_active_window_to_plane_backward(&mut self, focus: bool) {
+        let Some(target_plane_idx) = self.active_plane_idx().checked_sub(1) else {
+            return;
+        };
+        let Some(target_plane_id) = self.workspaces.plane(target_plane_idx).map(|plane| plane.id())
+        else {
+            return;
+        };
+
+        self.move_active_window_to_plane(target_plane_id, focus);
+    }
+
+    /// Moves the active window to the adjacent plane closer to the front.
+    pub fn move_active_window_to_plane_forward(&mut self, focus: bool) {
+        let target_plane_idx = self.active_plane_idx() + 1;
+        let Some(target_plane_id) = self.workspaces.plane(target_plane_idx).map(|plane| plane.id())
+        else {
+            return;
+        };
+
+        self.move_active_window_to_plane(target_plane_id, focus);
+    }
+
     pub fn switch_workspace_up(&mut self) {
         let new_idx = match &self.workspace_switch {
             // During a DnD scroll, select the prev apparent workspace.
