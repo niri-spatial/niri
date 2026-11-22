@@ -1441,9 +1441,9 @@ impl State {
                 if let Some((output, plane_id, index)) =
                     self.niri.find_output_and_workspace_index(reference)
                 {
-                    let target_is_active_output = output.as_ref().is_none_or(|output| {
-                        self.niri.layout.active_output() == Some(output)
-                    });
+                    let target_is_active_output = output
+                        .as_ref()
+                        .is_none_or(|output| self.niri.layout.active_output() == Some(output));
 
                     if target_is_active_output {
                         self.niri
