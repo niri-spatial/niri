@@ -2946,7 +2946,10 @@ fn disconnecting_active_middle_output_falls_back_to_primary() {
     assert_eq!(monitors.len(), 2);
     assert_eq!(monitors[*primary_idx].output, primary_output);
     assert_eq!(monitors[*active_monitor_idx].output, primary_output);
-    assert_eq!(monitors[*active_monitor_idx].active_plane_id(), primary_plane_id);
+    assert_eq!(
+        monitors[*active_monitor_idx].active_plane_id(),
+        primary_plane_id
+    );
     assert_eq!(
         monitors[*active_monitor_idx].active_workspace_ref().id(),
         primary_workspace_id
@@ -2998,7 +3001,10 @@ fn disconnecting_active_middle_output_falls_back_to_primary() {
         .workspaces
         .plane_by_id(first_plane_id)
         .unwrap();
-    assert_eq!(first_plane.active_workspace().id(), first_plane_active_workspace_id);
+    assert_eq!(
+        first_plane.active_workspace().id(),
+        first_plane_active_workspace_id
+    );
 
     layout.verify_invariants();
 }
