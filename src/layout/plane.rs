@@ -375,6 +375,34 @@ impl<T> WorkspacePlanes<T> {
         self.planes.iter()
     }
 
+    /// Iterates over every workspace with its plane position and local selection.
+    ///
+    /// The plane index and workspace index are zero-based.
+    pub fn iter_workspaces_with_plane_idx(
+        &self,
+    ) -> impl Iterator<Item = (usize, PlaneId, usize, bool, &T)> {
+        self.planes
+            .iter()
+            .enumerate()
+            .flat_map(|(plane_idx, plane)| {
+                let plane_id = plane.id();
+                let active_workspace_idx = plane.active_workspace_idx();
+                plane
+                    .workspaces()
+                    .iter()
+                    .enumerate()
+                    .map(move |(workspace_idx, workspace)| {
+                        (
+                            plane_idx,
+                            plane_id,
+                            workspace_idx,
+                            workspace_idx == active_workspace_idx,
+                            workspace,
+                        )
+                    })
+            })
+    }
+
     /// Iterates mutably over planes in depth order.
     pub fn iter_planes_mut(&mut self) -> impl Iterator<Item = &mut WorkspacePlane<T>> {
         self.planes.iter_mut()
@@ -694,6 +722,11 @@ impl<T> NoOutputWorkspacePlanes<T> {
         self.planes.plane_count()
     }
 
+    /// Returns the active plane's index in depth order.
+    pub fn active_plane_idx(&self) -> usize {
+        self.planes.active_plane_idx()
+    }
+
     /// Returns the active plane's depth-order index, or zero when empty.
     pub fn active_plane_idx(&self) -> usize {
         self.planes.active_plane_idx()
@@ -731,6 +764,15 @@ impl<T> NoOutputWorkspacePlanes<T> {
     /// Iterates over all workspaces with their plane IDs and plane-local indices.
     pub fn iter_workspaces(&self) -> impl Iterator<Item = (PlaneId, usize, &T)> {
         self.planes.iter_workspaces()
+    }
+
+    /// Iterates over all workspaces with their plane position and local selection.
+    ///
+    /// The plane index and workspace index are zero-based.
+    pub fn iter_workspaces_with_plane_idx(
+        &self,
+    ) -> impl Iterator<Item = (usize, PlaneId, usize, bool, &T)> {
+        self.planes.iter_workspaces_with_plane_idx()
     }
 
     /// Iterates over all workspaces in depth and vertical order.
@@ -1372,6 +1414,51 @@ mod tests {
         assert_eq!(flat.active_plane_idx(), 0);
         assert!(flat.active_plane_id().is_some());
         assert_eq!(flat.iter().copied().collect::<Vec<_>>(), vec![5]);
+    }
+
+    #[test]
+    fn workspace_iteration_exposes_plane_position_and_local_selection() {
+        let first_id = PlaneId::new(300);
+        let second_id = PlaneId::new(301);
+        let first = WorkspacePlane::new(first_id, vec!["a", "b"], 1).unwrap();
+        let second = WorkspacePlane::new(second_id, vec!["c", "d", "e"], 2).unwrap();
+        let mut planes = WorkspacePlanes::new(first);
+        planes.push_plane(second).unwrap();
+        planes.activate_plane(1).unwrap();
+
+        let positions = planes
+            .iter_workspaces_with_plane_idx()
+            .map(|(plane_idx, plane_id, workspace_idx, is_active, workspace)| {
+                (plane_idx, plane_id, workspace_idx, is_active, *workspace)
+            })
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            positions,
+            vec![
+                (0, first_id, 0, false, "a"),
+                (0, first_id, 1, true, "b"),
+                (1, second_id, 0, false, "c"),
+                (1, second_id, 1, false, "d"),
+                (1, second_id, 2, true, "e"),
+            ]
+        );
+
+        let no_output = NoOutputWorkspacePlanes::from_planes(planes);
+        assert_eq!(no_output.active_plane_idx(), 1);
+        assert_eq!(
+            no_output
+                .iter_workspaces_with_plane_idx()
+                .map(|(plane_idx, plane_id, workspace_idx, is_active, workspace)| (
+                    plane_idx,
+                    plane_id,
+                    workspace_idx,
+                    is_active,
+                    *workspace,
+                ))
+                .collect::<Vec<_>>(),
+            positions
+        );
     }
 
     #[test]
