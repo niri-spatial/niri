@@ -1423,9 +1423,11 @@ mod tests {
 
         let positions = planes
             .iter_workspaces_with_plane_idx()
-            .map(|(plane_idx, plane_id, workspace_idx, is_active, workspace)| {
-                (plane_idx, plane_id, workspace_idx, is_active, *workspace)
-            })
+            .map(
+                |(plane_idx, plane_id, workspace_idx, is_active, workspace)| {
+                    (plane_idx, plane_id, workspace_idx, is_active, *workspace)
+                },
+            )
             .collect::<Vec<_>>();
 
         assert_eq!(
@@ -1444,13 +1446,15 @@ mod tests {
         assert_eq!(
             no_output
                 .iter_workspaces_with_plane_idx()
-                .map(|(plane_idx, plane_id, workspace_idx, is_active, workspace)| (
-                    plane_idx,
-                    plane_id,
-                    workspace_idx,
-                    is_active,
-                    *workspace,
-                ))
+                .map(
+                    |(plane_idx, plane_id, workspace_idx, is_active, workspace)| (
+                        plane_idx,
+                        plane_id,
+                        workspace_idx,
+                        is_active,
+                        *workspace,
+                    )
+                )
                 .collect::<Vec<_>>(),
             positions
         );
