@@ -369,9 +369,12 @@ pub fn handle_msg(mut msg: Msg, json: bool) -> anyhow::Result<()> {
 
             for ws in &response {
                 if current_output.as_ref() != Some(&ws.output) {
+                    if current_output.is_some() {
+                        println!();
+                    }
                     match ws.output.as_deref() {
-                        Some(output) => println!("\\nOutput \"{output}\":"),
-                        None => println!("\\nNo output:"),
+                        Some(output) => println!("Output \"{output}\":"),
+                        None => println!("No output:"),
                     }
                     current_output = Some(ws.output.clone());
                     current_plane = None;
