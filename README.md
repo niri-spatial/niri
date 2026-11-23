@@ -44,6 +44,37 @@ When a monitor disconnects, its workspaces will move to another monitor, but upo
 - Live-reloading config
 - Works with [screen readers](https://niri-wm.github.io/niri/Accessibility.html)
 
+## Spatial Workspaces (Development Fork)
+
+This development fork adds depth-oriented **Planes** on top of niri's existing per-monitor workspace model. Each Plane owns an independent vertical workspace list and remembers its selected workspace. The active Plane is shown one at a time; the configured Plane navigation actions can also be used while the Overview is open.
+
+### Validation status
+
+The current implementation has passed automated checks and a manual regression pass in a nested **Winit** session on NixOS. The host's normal niri installation was left unchanged.
+
+Automated checks run successfully:
+
+- `cargo fmt --check`
+- `cargo test layout::plane::tests`
+- `cargo test layout::tests` — 153 passed
+- `cargo test -p niri-ipc workspace_deserializes_legacy_payload_without_plane_metadata` — 1 passed
+- `cargo clippy --all-targets -- -D warnings`
+- `cargo build --release`
+
+Manual checks in the nested Winit session covered:
+
+- Creating, navigating between, and removing an empty Plane.
+- Independent workspace lists and remembered workspace selections per Plane.
+- Switching Planes while Overview is open, then closing Overview and checking that the selected workspace and windows remain intact.
+- Workspace navigation, moving windows between workspaces, and setting/unsetting workspace names.
+- Tiled window launch and close, focus navigation, column movement and swapping, window movement within a column, and consume/expel operations.
+- Floating and fullscreen toggles, column and window maximization, width and height adjustments, and reset to automatic height.
+- Normal and tabbed column display.
+- `niri msg workspaces` text output and `niri msg --json workspaces`, including Plane IDs, ordering, active-Plane state, and per-Plane selected-workspace state.
+- Closing a window on a non-selected workspace, confirming empty-workspace cleanup, and opening a new window afterward.
+
+The manual session used one virtual Winit output. The output configuration `off/on` action does not simulate physical output hotplug in the Winit backend, so **monitor disconnect/reconnect, multi-monitor behavior, and physical-display validation remain outstanding**. These checks are reserved for a later run on actual display hardware. The regression pass is broad but is not a claim that every niri feature or every hardware configuration has been exhaustively tested.
+
 ## Video Demo
 
 https://github.com/niri-wm/niri/assets/1794388/bce834b0-f205-434e-a027-b373495f9729
