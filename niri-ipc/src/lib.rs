@@ -1459,6 +1459,27 @@ pub struct Workspace {
     ///
     /// If you need a unique workspace id that doesn't change, see [`Self::id`].
     pub idx: u8,
+
+    /// Stable identity of the depth plane containing this workspace.
+    ///
+    /// This ID remains the same when the plane is reordered or moved between outputs,
+    /// but is not intended to persist across compositor restarts.
+    #[serde(default)]
+    pub plane_id: u64,
+    /// One-based position of the plane in depth order on its output.
+    #[serde(default)]
+    pub plane_idx: u8,
+    /// One-based position of this workspace within its plane.
+    #[serde(default)]
+    pub plane_workspace_idx: u8,
+    /// Whether this plane is currently selected on its output.
+    #[serde(default)]
+    pub is_plane_active: bool,
+    /// Whether this workspace is the selected workspace within its plane.
+    ///
+    /// This remains true for the remembered workspace of inactive planes.
+    #[serde(default)]
+    pub is_plane_workspace_active: bool,
     /// Optional name of the workspace.
     pub name: Option<String>,
     /// Name of the output that the workspace is on.
