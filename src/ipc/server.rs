@@ -708,7 +708,8 @@ impl State {
                             is_focused: Some(id) == focused_ws_id,
                             active_window_id: ws.active_window().map(|win| win.id().get()),
                         }
-                })
+                    },
+                )
                 .collect();
 
             events.push(Event::WorkspacesChanged { workspaces });
