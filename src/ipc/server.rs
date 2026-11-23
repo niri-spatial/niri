@@ -616,8 +616,7 @@ impl State {
         {
             let id = ws.id().get();
             let plane_idx = u8::try_from(plane_idx + 1).unwrap_or(u8::MAX);
-            let plane_workspace_idx =
-                u8::try_from(plane_workspace_idx + 1).unwrap_or(u8::MAX);
+            let plane_workspace_idx = u8::try_from(plane_workspace_idx + 1).unwrap_or(u8::MAX);
             seen.insert(id);
 
             let Some(ipc_ws) = state.workspaces.get(&id) else {
