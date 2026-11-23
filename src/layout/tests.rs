@@ -3315,6 +3315,55 @@ fn output_disconnect_and_reconnect_preserves_planes() {
 }
 
 #[test]
+fn workspace_iteration_exposes_plane_metadata() {
+    let mut layout = check_ops([Op::AddOutput(1)]);
+    let first_plane_id = layout.active_monitor().unwrap().active_plane_id().get();
+
+    layout.create_plane();
+    let second_plane_id = layout.active_monitor().unwrap().active_plane_id().get();
+    layout.focus_plane_backward();
+
+    let workspaces = layout
+        .workspaces_with_plane()
+        .map(
+            |(
+                _monitor,
+                global_idx,
+                plane_id,
+                plane_idx,
+                plane_workspace_idx,
+                is_plane_active,
+                is_plane_workspace_active,
+                _workspace,
+            )| {
+                (
+                    global_idx,
+                    plane_id,
+                    plane_idx,
+                    plane_workspace_idx,
+                    is_plane_active,
+                    is_plane_workspace_active,
+                )
+            },
+        )
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        workspaces,
+        vec![
+            (0, first_plane_id, 0, 0, true, true),
+            (1, second_plane_id, 1, 0, false, true),
+        ]
+    );
+
+    let flattened = layout
+        .workspaces()
+        .map(|(_, idx, _workspace)| idx)
+        .collect::<Vec<_>>();
+    assert_eq!(flattened, vec![0, 1]);
+}
+
+#[test]
 fn monitor_plane_management_preserves_active_workspace() {
     let ops = [
         Op::AddOutput(1),
