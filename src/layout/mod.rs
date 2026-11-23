@@ -690,6 +690,23 @@ impl OverviewProgress {
     }
 }
 
+/// A workspace together with its depth-plane metadata.
+///
+/// The tuple contains the monitor, the legacy flattened workspace index,
+/// the plane ID, the zero-based plane index, the zero-based workspace index
+/// within the plane, whether the plane is active, whether the workspace is
+/// the selected workspace within its plane, and the workspace itself.
+pub type WorkspaceWithPlane<'a, W: LayoutElement> = (
+    Option<&'a Monitor<W>>,
+    usize,
+    u64,
+    usize,
+    usize,
+    bool,
+    bool,
+    &'a Workspace<W>,
+);
+
 impl<W: LayoutElement> Layout<W> {
     pub fn new(clock: Clock, config: &Config) -> Self {
         Self::with_options_and_workspaces(clock, config, Options::from_config(config))
@@ -5187,25 +5204,7 @@ impl<W: LayoutElement> Layout<W> {
     }
 
     /// Iterates over workspaces with their depth-plane metadata.
-    ///
-    /// The tuple contains the monitor, the legacy flattened workspace index,
-    /// the plane ID, the zero-based plane index, the zero-based workspace index
-    /// within the plane, whether the plane is active, whether the workspace is
-    /// the selected workspace within its plane, and the workspace itself.
-    pub fn workspaces_with_plane(
-        &self,
-    ) -> impl Iterator<
-        Item = (
-            Option<&Monitor<W>>,
-            usize,
-            u64,
-            usize,
-            usize,
-            bool,
-            bool,
-            &Workspace<W>,
-        ),
-    > + '_ {
+    pub fn workspaces_with_plane(&self) -> impl Iterator<Item = WorkspaceWithPlane<'_, W>> + '_ {
         let iter_normal;
         let iter_no_outputs;
 
