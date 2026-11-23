@@ -5180,26 +5180,97 @@ impl<W: LayoutElement> Layout<W> {
     pub fn workspaces(
         &self,
     ) -> impl Iterator<Item = (Option<&Monitor<W>>, usize, &Workspace<W>)> + '_ {
+        self.workspaces_with_plane()
+            .map(|(monitor, workspace_idx, _, _, _, _, _, workspace)| {
+                (monitor, workspace_idx, workspace)
+            })
+    }
+
+    /// Iterates over workspaces with their depth-plane metadata.
+    ///
+    /// The tuple contains the monitor, the legacy flattened workspace index,
+    /// the plane ID, the zero-based plane index, the zero-based workspace index
+    /// within the plane, whether the plane is active, whether the workspace is
+    /// the selected workspace within its plane, and the workspace itself.
+    pub fn workspaces_with_plane(
+        &self,
+    ) -> impl Iterator<
+        Item = (
+            Option<&Monitor<W>>,
+            usize,
+            u64,
+            usize,
+            usize,
+            bool,
+            bool,
+            &Workspace<W>,
+        ),
+    > + '_ {
         let iter_normal;
         let iter_no_outputs;
 
         match &self.monitor_set {
             MonitorSet::Normal { monitors, .. } => {
-                let it = monitors.iter().flat_map(|mon| {
-                    mon.workspaces
-                        .iter_workspaces()
+                let it = monitors.iter().flat_map(|monitor| {
+                    let active_plane_idx = monitor.active_plane_idx();
+                    monitor
+                        .workspaces
+                        .iter_workspaces_with_plane_idx()
                         .enumerate()
-                        .map(move |(idx, (_, _, ws))| (Some(mon), idx, ws))
+                        .map(move |(
+                            workspace_idx,
+                            (
+                                plane_idx,
+                                plane_id,
+                                plane_workspace_idx,
+                                is_plane_workspace_active,
+                                workspace,
+                            ),
+                        )| {
+                            (
+                                Some(monitor),
+                                workspace_idx,
+                                plane_id.get(),
+                                plane_idx,
+                                plane_workspace_idx,
+                                plane_idx == active_plane_idx,
+                                is_plane_workspace_active,
+                                workspace,
+                            )
+                        })
                 });
 
                 iter_normal = Some(it);
                 iter_no_outputs = None;
             }
             MonitorSet::NoOutputs { workspaces } => {
+                let active_plane_idx = workspaces.active_plane_idx();
                 let it = workspaces
-                    .iter()
+                    .iter_workspaces_with_plane_idx()
                     .enumerate()
-                    .map(|(idx, ws)| (None, idx, ws));
+                    .map(
+                        |(
+                            workspace_idx,
+                            (
+                                plane_idx,
+                                plane_id,
+                                plane_workspace_idx,
+                                is_plane_workspace_active,
+                                workspace,
+                            ),
+                        )| {
+                            (
+                                None,
+                                workspace_idx,
+                                plane_id.get(),
+                                plane_idx,
+                                plane_workspace_idx,
+                                plane_idx == active_plane_idx,
+                                is_plane_workspace_active,
+                                workspace,
+                            )
+                        },
+                    );
 
                 iter_normal = None;
                 iter_no_outputs = Some(it);
