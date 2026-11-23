@@ -5248,7 +5248,7 @@ impl<W: LayoutElement> Layout<W> {
             MonitorSet::NoOutputs { workspaces } => {
                 let active_plane_idx = workspaces.active_plane_idx();
                 let it = workspaces.iter_workspaces_with_plane_idx().enumerate().map(
-                    |(
+                    move |(
                         workspace_idx,
                         (
                             plane_idx,
