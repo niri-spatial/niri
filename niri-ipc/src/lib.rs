@@ -1456,6 +1456,8 @@ pub struct Workspace {
     ///
     /// This index *will change* as you move and re-order workspace. It is merely the workspace's
     /// current position on its monitor. Workspaces on different monitors can have the same index.
+    /// On monitors with multiple planes, this remains a flattened index across planes; use
+    /// [`Self::plane_workspace_idx`] for the position within a single plane.
     ///
     /// If you need a unique workspace id that doesn't change, see [`Self::id`].
     pub idx: u8,
