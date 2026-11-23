@@ -2165,6 +2165,7 @@ mod tests {
         assert!("-".parse::<PositionChange>().is_err());
         assert!("10% ".parse::<PositionChange>().is_err());
     }
+
     #[test]
     fn workspace_deserializes_legacy_payload_without_plane_metadata() {
         let legacy_payload = r#"{
@@ -2186,5 +2187,4 @@ mod tests {
         assert!(!workspace.is_plane_active);
         assert!(!workspace.is_plane_workspace_active);
     }
-
 }
