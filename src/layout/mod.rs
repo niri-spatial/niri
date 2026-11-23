@@ -5217,27 +5217,29 @@ impl<W: LayoutElement> Layout<W> {
                         .workspaces
                         .iter_workspaces_with_plane_idx()
                         .enumerate()
-                        .map(move |(
-                            workspace_idx,
-                            (
-                                plane_idx,
-                                plane_id,
-                                plane_workspace_idx,
-                                is_plane_workspace_active,
-                                workspace,
-                            ),
-                        )| {
-                            (
-                                Some(monitor),
+                        .map(
+                            move |(
                                 workspace_idx,
-                                plane_id.get(),
-                                plane_idx,
-                                plane_workspace_idx,
-                                plane_idx == active_plane_idx,
-                                is_plane_workspace_active,
-                                workspace,
-                            )
-                        })
+                                (
+                                    plane_idx,
+                                    plane_id,
+                                    plane_workspace_idx,
+                                    is_plane_workspace_active,
+                                    workspace,
+                                ),
+                            )| {
+                                (
+                                    Some(monitor),
+                                    workspace_idx,
+                                    plane_id.get(),
+                                    plane_idx,
+                                    plane_workspace_idx,
+                                    plane_idx == active_plane_idx,
+                                    is_plane_workspace_active,
+                                    workspace,
+                                )
+                            },
+                        )
                 });
 
                 iter_normal = Some(it);
@@ -5245,32 +5247,29 @@ impl<W: LayoutElement> Layout<W> {
             }
             MonitorSet::NoOutputs { workspaces } => {
                 let active_plane_idx = workspaces.active_plane_idx();
-                let it = workspaces
-                    .iter_workspaces_with_plane_idx()
-                    .enumerate()
-                    .map(
-                        |(
+                let it = workspaces.iter_workspaces_with_plane_idx().enumerate().map(
+                    |(
+                        workspace_idx,
+                        (
+                            plane_idx,
+                            plane_id,
+                            plane_workspace_idx,
+                            is_plane_workspace_active,
+                            workspace,
+                        ),
+                    )| {
+                        (
+                            None,
                             workspace_idx,
-                            (
-                                plane_idx,
-                                plane_id,
-                                plane_workspace_idx,
-                                is_plane_workspace_active,
-                                workspace,
-                            ),
-                        )| {
-                            (
-                                None,
-                                workspace_idx,
-                                plane_id.get(),
-                                plane_idx,
-                                plane_workspace_idx,
-                                plane_idx == active_plane_idx,
-                                is_plane_workspace_active,
-                                workspace,
-                            )
-                        },
-                    );
+                            plane_id.get(),
+                            plane_idx,
+                            plane_workspace_idx,
+                            plane_idx == active_plane_idx,
+                            is_plane_workspace_active,
+                            workspace,
+                        )
+                    },
+                );
 
                 iter_normal = None;
                 iter_no_outputs = Some(it);
