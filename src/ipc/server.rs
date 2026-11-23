@@ -603,8 +603,21 @@ impl State {
         // Check for workspace changes.
         let mut seen = HashSet::new();
         let mut need_workspaces_changed = false;
-        for (mon, ws_idx, ws) in layout.workspaces() {
+        for (
+            mon,
+            ws_idx,
+            plane_id,
+            plane_idx,
+            plane_workspace_idx,
+            is_plane_active,
+            is_plane_workspace_active,
+            ws,
+        ) in layout.workspaces_with_plane()
+        {
             let id = ws.id().get();
+            let plane_idx = u8::try_from(plane_idx + 1).unwrap_or(u8::MAX);
+            let plane_workspace_idx =
+                u8::try_from(plane_workspace_idx + 1).unwrap_or(u8::MAX);
             seen.insert(id);
 
             let Some(ipc_ws) = state.workspaces.get(&id) else {
@@ -616,6 +629,11 @@ impl State {
             // Check for any changes that we can't signal as individual events.
             let output_name = mon.map(|mon| mon.output_name());
             if ipc_ws.idx != u8::try_from(ws_idx + 1).unwrap_or(u8::MAX)
+                || ipc_ws.plane_id != plane_id
+                || ipc_ws.plane_idx != plane_idx
+                || ipc_ws.plane_workspace_idx != plane_workspace_idx
+                || ipc_ws.is_plane_active != is_plane_active
+                || ipc_ws.is_plane_workspace_active != is_plane_workspace_active
                 || ipc_ws.name.as_ref() != ws.name()
                 || ipc_ws.output.as_ref() != output_name
             {
@@ -660,13 +678,29 @@ impl State {
             events.clear();
 
             let workspaces = layout
-                .workspaces()
-                .map(|(mon, ws_idx, ws)| {
-                    let id = ws.id().get();
-                    Workspace {
-                        id,
-                        idx: u8::try_from(ws_idx + 1).unwrap_or(u8::MAX),
-                        name: ws.name().cloned(),
+                .workspaces_with_plane()
+                .map(
+                    |(
+                        mon,
+                        ws_idx,
+                        plane_id,
+                        plane_idx,
+                        plane_workspace_idx,
+                        is_plane_active,
+                        is_plane_workspace_active,
+                        ws,
+                    )| {
+                        let id = ws.id().get();
+                        Workspace {
+                            id,
+                            idx: u8::try_from(ws_idx + 1).unwrap_or(u8::MAX),
+                            plane_id,
+                            plane_idx: u8::try_from(plane_idx + 1).unwrap_or(u8::MAX),
+                            plane_workspace_idx: u8::try_from(plane_workspace_idx + 1)
+                                .unwrap_or(u8::MAX),
+                            is_plane_active,
+                            is_plane_workspace_active,
+                            name: ws.name().cloned(),
                         output: mon.map(|mon| mon.output_name().clone()),
                         is_urgent: ws.is_urgent(),
                         is_active: mon
