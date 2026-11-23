@@ -722,11 +722,6 @@ impl<T> NoOutputWorkspacePlanes<T> {
         self.planes.plane_count()
     }
 
-    /// Returns the active plane's index in depth order.
-    pub fn active_plane_idx(&self) -> usize {
-        self.planes.active_plane_idx()
-    }
-
     /// Returns the active plane's depth-order index, or zero when empty.
     pub fn active_plane_idx(&self) -> usize {
         self.planes.active_plane_idx()
