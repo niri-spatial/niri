@@ -356,35 +356,63 @@ pub fn handle_msg(mut msg: Msg, json: bool) -> anyhow::Result<()> {
                 return Ok(());
             }
 
-            response.sort_by_key(|ws| ws.idx);
-            response.sort_by(|a, b| a.output.cmp(&b.output));
+            response.sort_by(|a, b| {
+                a.output
+                    .cmp(&b.output)
+                    .then_with(|| a.plane_idx.cmp(&b.plane_idx))
+                    .then_with(|| a.plane_workspace_idx.cmp(&b.plane_workspace_idx))
+                    .then_with(|| a.idx.cmp(&b.idx))
+            });
 
-            let mut current_output = if let Some(output) = response[0].output.as_deref() {
-                println!("Output \"{output}\":");
-                Some(output)
-            } else {
-                println!("No output:");
-                None
-            };
+            let mut current_output: Option<Option<String>> = None;
+            let mut current_plane: Option<(Option<String>, u8)> = None;
 
             for ws in &response {
-                if ws.output.as_deref() != current_output {
-                    let output = ws.output.as_deref().context(
-                        "invalid response: workspace with no output \
-                         following a workspace with an output",
-                    )?;
-                    current_output = Some(output);
-                    println!("\nOutput \"{output}\":");
+                if current_output.as_ref() != Some(&ws.output) {
+                    match ws.output.as_deref() {
+                        Some(output) => println!("\\nOutput \"{output}\":"),
+                        None => println!("\\nNo output:"),
+                    }
+                    current_output = Some(ws.output.clone());
+                    current_plane = None;
                 }
 
-                let is_active = if ws.is_active { " * " } else { "   " };
-                let idx = ws.idx;
-                let name = if let Some(name) = ws.name.as_deref() {
-                    format!(" \"{name}\"")
+                // A zero plane index indicates a response from an older compositor
+                // that does not yet provide depth-plane metadata.
+                if ws.plane_idx == 0 {
+                    let is_active = if ws.is_active { " * " } else { "   " };
+                    let name = ws
+                        .name
+                        .as_deref()
+                        .map(|name| format!(" \"{name}\""))
+                        .unwrap_or_default();
+                    println!("{is_active}{}{name}", ws.idx);
+                    continue;
+                }
+
+                let plane_key = (ws.output.clone(), ws.plane_idx);
+                if current_plane.as_ref() != Some(&plane_key) {
+                    let active = if ws.is_plane_active { " (active)" } else { "" };
+                    println!("  Plane {}{active} (id: {}):", ws.plane_idx, ws.plane_id);
+                    current_plane = Some(plane_key);
+                }
+
+                let marker = if ws.is_active {
+                    " * "
+                } else if ws.is_plane_workspace_active {
+                    " > "
                 } else {
-                    String::new()
+                    "   "
                 };
-                println!("{is_active}{idx}{name}");
+                let name = ws
+                    .name
+                    .as_deref()
+                    .map(|name| format!(" \"{name}\""))
+                    .unwrap_or_default();
+                println!(
+                    "{marker}Workspace {} (global idx {}){name}",
+                    ws.plane_workspace_idx, ws.idx
+                );
             }
         }
         Msg::KeyboardLayouts => {
