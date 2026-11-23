@@ -2163,4 +2163,26 @@ mod tests {
         assert!("-".parse::<PositionChange>().is_err());
         assert!("10% ".parse::<PositionChange>().is_err());
     }
+    #[test]
+    fn workspace_deserializes_legacy_payload_without_plane_metadata() {
+        let legacy_payload = r#"{
+            "id": 1,
+            "idx": 2,
+            "name": null,
+            "output": "winit",
+            "is_urgent": false,
+            "is_active": true,
+            "is_focused": true,
+            "active_window_id": null
+        }"#;
+
+        let workspace: Workspace = serde_json::from_str(legacy_payload).unwrap();
+
+        assert_eq!(workspace.plane_id, 0);
+        assert_eq!(workspace.plane_idx, 0);
+        assert_eq!(workspace.plane_workspace_idx, 0);
+        assert!(!workspace.is_plane_active);
+        assert!(!workspace.is_plane_workspace_active);
+    }
+
 }
