@@ -696,6 +696,7 @@ impl OverviewProgress {
 /// the plane ID, the zero-based plane index, the zero-based workspace index
 /// within the plane, whether the plane is active, whether the workspace is
 /// the selected workspace within its plane, and the workspace itself.
+#[allow(type_alias_bounds)]
 pub type WorkspaceWithPlane<'a, W: LayoutElement> = (
     Option<&'a Monitor<W>>,
     usize,
