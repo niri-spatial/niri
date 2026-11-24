@@ -529,6 +529,15 @@ impl<W: LayoutElement> Monitor<W> {
         self.workspaces.active_plane().id()
     }
 
+    /// Returns whether the active plane contains no windows and no named workspaces.
+    fn active_plane_is_empty(&self) -> bool {
+        self.workspaces
+            .active_plane()
+            .workspaces()
+            .iter()
+            .all(|workspace| !workspace.has_windows_or_name())
+    }
+
     /// Inserts an existing plane into this monitor.
     ///
     /// Workspaces are updated to use this monitor's output and current options.
@@ -616,7 +625,11 @@ impl<W: LayoutElement> Monitor<W> {
     pub fn focus_plane_backward(&mut self) {
         let index = self.active_plane_idx();
         if index == 0 {
-            self.add_plane_at(0);
+            // Keep a single empty boundary plane. It becomes eligible for
+            // another plane only after it is used.
+            if !self.active_plane_is_empty() {
+                self.add_plane_at(0);
+            }
         } else {
             self.activate_plane(index - 1)
                 .expect("the previous plane index must be valid");
@@ -631,7 +644,8 @@ impl<W: LayoutElement> Monitor<W> {
         if index < self.plane_count() {
             self.activate_plane(index)
                 .expect("the next plane index must be valid");
-        } else {
+        } else if !self.active_plane_is_empty() {
+            // Keep a single empty boundary plane until it receives content.
             self.add_plane();
         }
     }
