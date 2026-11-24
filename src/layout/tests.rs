@@ -2788,7 +2788,8 @@ fn secondary_output_disconnect_and_reconnect_preserves_planes() {
     assert_eq!(monitors[1].plane_count(), 2);
     assert_eq!(monitors[1].active_plane_idx(), 1);
     assert_eq!(monitors[1].active_plane_id(), second_plane_id);
-    assert_eq!(monitors[1].active_workspace_idx(), 2);
+    // Empty alignment rows are compacted while no outputs are connected.
+    assert_eq!(monitors[1].active_workspace_idx(), 1);
     assert_eq!(
         monitors[1].workspaces.plane(0).unwrap().id(),
         first_plane_id
@@ -3290,7 +3291,7 @@ fn output_disconnect_and_reconnect_preserves_planes() {
     };
     assert_eq!(monitors[0].plane_count(), 2);
     assert_eq!(monitors[0].active_plane_id(), second_plane_id);
-    assert_eq!(monitors[0].active_workspace_idx(), 2);
+    assert_eq!(monitors[0].active_workspace_idx(), 1);
 
     Op::RemoveOutput(1).apply(&mut layout);
 
@@ -3299,7 +3300,8 @@ fn output_disconnect_and_reconnect_preserves_planes() {
     };
     assert_eq!(workspaces.plane_count(), 2);
     assert_eq!(workspaces.active_plane_idx(), 1);
-    assert_eq!(workspaces.active_workspace_idx(), Some(2));
+    // Empty unnamed alignment rows are removed while no outputs are connected.
+    assert_eq!(workspaces.active_workspace_idx(), Some(1));
     assert_eq!(workspaces.plane_id(0), Some(first_plane_id));
     assert_eq!(workspaces.plane_id(1), Some(second_plane_id));
 
@@ -5210,9 +5212,9 @@ fn reconnecting_output_restores_planes_and_workspace_selection() {
         .workspaces
         .plane_by_id(first_plane_id)
         .unwrap();
-    // The active Y coordinate is shared: the first plane follows the second
-    // plane to workspace 3, while its own workspace 2 remains in place.
-    assert_eq!(first_plane.active_workspace_idx(), 2);
+    // Empty alignment rows are compacted while disconnected. After the
+    // output reconnects, all planes share the restored active row.
+    assert_eq!(first_plane.active_workspace_idx(), 1);
     assert_eq!(
         first_plane.workspaces()[1].id(),
         first_plane_active_workspace_id
@@ -5269,7 +5271,7 @@ fn reconnecting_last_output_restores_planes_and_workspace_selection() {
         .workspaces
         .plane_by_id(first_plane_id)
         .unwrap();
-    assert_eq!(first_plane.active_workspace_idx(), 2);
+    assert_eq!(first_plane.active_workspace_idx(), 1);
     assert_eq!(
         first_plane.workspaces()[1].id(),
         first_plane_active_workspace_id
