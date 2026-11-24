@@ -345,11 +345,10 @@ impl<W: LayoutElement> Monitor<W> {
         for (plane_idx, plane) in workspaces.iter_planes_mut().enumerate() {
             let mut active_workspace_idx = plane.active_workspace_idx();
 
-            for (idx, ws) in plane.workspaces_mut().iter_mut().enumerate() {
-                if !(needs_initial_workspace && plane_idx == 0 && idx == 0) {
-                    assert!(ws.has_windows_or_name());
-                }
-
+            for ws in plane.workspaces_mut().iter_mut() {
+                // Empty workspaces are valid Y-coordinate placeholders. Keep
+                // them when restoring a plane so every plane can share the
+                // same active vertical position without compressing its rows.
                 if ws.original_output.is_empty() {
                     ws.original_output = OutputId::new(&output);
                 }
@@ -373,6 +372,10 @@ impl<W: LayoutElement> Monitor<W> {
 
             if options.layout.empty_workspace_above_first
                 && !(needs_initial_workspace && plane_idx == 0)
+                && plane
+                    .workspaces()
+                    .first()
+                    .is_some_and(|workspace| workspace.has_windows_or_name())
             {
                 let mut ws = Workspace::new(output.clone(), clock.clone(), options.clone());
                 ws.original_output = plane_original_output.clone();
@@ -381,7 +384,12 @@ impl<W: LayoutElement> Monitor<W> {
                     .expect("inserting the first workspace must succeed");
             }
 
-            if !needs_initial_workspace {
+            if !needs_initial_workspace
+                && plane
+                    .workspaces()
+                    .last()
+                    .is_some_and(|workspace| workspace.has_windows_or_name())
+            {
                 let mut ws = Workspace::new(output.clone(), clock.clone(), options.clone());
                 ws.original_output = plane_original_output;
                 plane.push_workspace(ws);
@@ -434,9 +442,28 @@ impl<W: LayoutElement> Monitor<W> {
     /// Transfers this monitor's non-empty planes to the no-output state.
     pub fn into_planes(self) -> NoOutputWorkspacePlanes<Workspace<W>> {
         let mut planes = self.workspaces;
-        // Extract and discard empty unnamed workspaces so plane IDs remain
-        // attached to the workspaces that survive the output disconnection.
-        let _empty_workspaces = planes.extract_workspaces_where(|ws| !ws.has_windows_or_name());
+
+        // Preserve empty workspaces up to each plane's active Y coordinate.
+        // They may be alignment placeholders for the monitor-wide shared
+        // workspace position, so removing them would shift later workspaces
+        // when the output is disconnected and restored. Keep content beyond
+        // the active row as well, plus at most one empty trailing boundary.
+        for plane in planes.iter_planes_mut() {
+            let last_non_empty_workspace_idx = plane
+                .workspaces()
+                .iter()
+                .rposition(|workspace| workspace.has_windows_or_name());
+            let keep_workspace_count = (plane.active_workspace_idx() + 1).max(
+                last_non_empty_workspace_idx.map_or(1, |idx| idx.saturating_add(2)),
+            );
+
+            while plane.workspace_count() > keep_workspace_count {
+                let last_idx = plane.workspace_count() - 1;
+                plane
+                    .remove_workspace(last_idx)
+                    .expect("trailing workspace must exist");
+            }
+        }
 
         for (_, _, workspace) in planes.iter_workspaces_mut() {
             workspace.set_output(None);
@@ -1271,15 +1298,21 @@ impl<W: LayoutElement> Monitor<W> {
                     .expect("inserting the first workspace must succeed");
             }
 
-            let mut empty = Workspace::new(
-                self.output.clone(),
-                self.clock.clone(),
-                self.options.clone(),
-            );
-            // Keep generated boundary workspaces with the transferred plane so
-            // reconnecting its original output restores the complete plane.
-            empty.original_output = original_output.clone();
-            plane.push_workspace(empty);
+            if plane
+                .workspaces()
+                .last()
+                .is_some_and(|workspace| workspace.has_windows_or_name())
+            {
+                let mut empty = Workspace::new(
+                    self.output.clone(),
+                    self.clock.clone(),
+                    self.options.clone(),
+                );
+                // Keep generated boundary workspaces with the transferred plane so
+                // reconnecting its original output restores the complete plane.
+                empty.original_output = original_output.clone();
+                plane.push_workspace(empty);
+            }
 
             let plane_idx = self.workspaces.plane_count();
             self.workspaces
@@ -1290,14 +1323,14 @@ impl<W: LayoutElement> Monitor<W> {
 
         // Before planes existed, disconnected workspaces were inserted before
         // the primary monitor's trailing empty workspace. When that empty
-        // workspace was focused, the focus therefore moved to the new trailing
-        // empty workspace. Preserve that behavior by activating the last
-        // imported plane and its trailing workspace.
+        // workspace was focused, focus moved to the imported workspaces. Keep
+        // that behavior by activating the last imported plane, but retain the
+        // monitor's shared Y coordinate: activate_plane() already aligns the
+        // imported plane to the current row.
         if empty_was_focused {
             if let Some(plane_idx) = last_added_plane_idx {
                 self.activate_plane(plane_idx)
                     .expect("the last imported plane index must be valid");
-                self.set_active_workspace_idx(self.workspaces.len() - 1);
             }
         }
 
