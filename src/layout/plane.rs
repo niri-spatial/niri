@@ -244,8 +244,8 @@ impl<T> WorkspacePlane<T> {
 /// An ordered collection of depth planes for one monitor.
 ///
 /// The planes are stored in depth order. `active_plane_idx` identifies the
-/// currently selected plane. Each plane independently tracks its active
-/// workspace, so switching planes does not lose the vertical position.
+/// currently selected plane. Each plane stores an active workspace index, while
+/// the owning Monitor keeps those indices synchronized to one shared Y position.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WorkspacePlanes<T> {
     planes: Vec<WorkspacePlane<T>>,
