@@ -3415,19 +3415,11 @@ fn monitor_plane_management_preserves_shared_workspace_position() {
     assert_eq!(monitor.active_plane_idx(), 2);
     assert_eq!(monitor.active_plane_id(), new_plane_id);
 
-    // Crossing the front edge creates another plane after the current last one.
+    // An unused empty boundary plane is retained instead of creating another.
     monitor.focus_plane_forward();
-    let front_plane_id = monitor.active_plane_id();
-    assert_eq!(monitor.plane_count(), 4);
-    assert_eq!(monitor.active_plane_idx(), 3);
-    assert_ne!(front_plane_id, new_plane_id);
-    assert_eq!(monitor.active_workspace_idx(), 1);
-
-    let removed = monitor.remove_plane(3).unwrap();
-    assert_eq!(removed.id(), front_plane_id);
-    assert_eq!(monitor.plane_count(), 3);
+    assert_eq!(monitor.active_plane_idx(), 2);
     assert_eq!(monitor.active_plane_id(), new_plane_id);
-    assert_eq!(monitor.active_workspace_idx(), 1);
+    assert_eq!(monitor.plane_count(), 3);
 
     let removed = monitor.remove_plane(0).unwrap();
     assert_eq!(removed.id(), back_plane_id);
