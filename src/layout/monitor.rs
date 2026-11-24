@@ -1275,7 +1275,8 @@ impl<W: LayoutElement> Monitor<W> {
             return;
         }
 
-        let empty_was_focused = self.active_workspace_idx() == self.workspaces.len() - 1;
+        let active_workspace_idx = self.active_workspace_idx();
+        let empty_was_focused = active_workspace_idx == self.workspaces.len() - 1;
         let mut last_added_plane_idx = None;
 
         for mut plane in planes.into_planes().into_planes() {
@@ -1320,6 +1321,11 @@ impl<W: LayoutElement> Monitor<W> {
                 .expect("transferred plane IDs must be unique");
             last_added_plane_idx = Some(plane_idx);
         }
+
+        // Imported planes join this monitor's shared Y coordinate while they
+        // are attached here. Their saved active workspace IDs allow their
+        // original vertical selection to be restored when their output returns.
+        self.set_active_workspace_idx(active_workspace_idx);
 
         // Before planes existed, disconnected workspaces were inserted before
         // the primary monitor's trailing empty workspace. When that empty
