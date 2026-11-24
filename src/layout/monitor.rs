@@ -568,13 +568,10 @@ impl<W: LayoutElement> Monitor<W> {
     /// current workspace position, so a new plane starts at the same Y coordinate.
     fn add_plane_at(&mut self, index: usize) -> PlaneId {
         let active_workspace_idx = self.active_workspace_idx();
-        let workspace_count = self
-            .workspaces
-            .iter_planes()
-            .map(|plane| plane.workspace_count())
-            .max()
-            .unwrap_or(0)
-            .max(active_workspace_idx + 1);
+        // Only materialize the rows needed to reach the shared Y position,
+        // plus one trailing empty workspace. Rows before the selected index
+        // are alignment padding for a newly-created Plane.
+        let workspace_count = active_workspace_idx + 2;
 
         let mut workspaces = Vec::with_capacity(workspace_count);
         for _ in 0..workspace_count {
@@ -1123,6 +1120,7 @@ impl<W: LayoutElement> Monitor<W> {
     pub(super) fn clean_up_plane_workspaces(&mut self, plane_idx: usize) {
         let empty_workspace_above_first = self.options.layout.empty_workspace_above_first;
         let range_start = if empty_workspace_above_first { 1 } else { 0 };
+        let shared_active_workspace_idx = self.active_workspace_idx();
         {
             let plane = self
                 .workspaces
@@ -1130,7 +1128,10 @@ impl<W: LayoutElement> Monitor<W> {
                 .expect("the plane index must be valid");
 
             for idx in (range_start..plane.workspace_count() - 1).rev() {
-                if plane.active_workspace_idx() == idx {
+                // Empty rows before the shared Y coordinate are alignment
+                // padding. They must remain so every Plane maps the same
+                // vertical position to the same workspace index.
+                if idx <= shared_active_workspace_idx {
                     continue;
                 }
 
@@ -2926,10 +2927,12 @@ impl<W: LayoutElement> Monitor<W> {
                 // skip last
                 .skip(1)
             {
-                if idx != self.active_workspace_idx() {
+                // Empty workspaces before the shared Y coordinate are
+                // intentional alignment padding in a newly-created Plane.
+                if idx > shared_active_workspace_idx {
                     assert!(
                         ws.has_windows_or_name(),
-                        "non-active workspace can't be empty and unnamed except the last one"
+                        "workspace below the active row can't be empty and unnamed except the last one"
                     );
                 }
             }
