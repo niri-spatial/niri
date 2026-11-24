@@ -345,7 +345,7 @@ impl<W: LayoutElement> Monitor<W> {
         for (plane_idx, plane) in workspaces.iter_planes_mut().enumerate() {
             let mut active_workspace_idx = plane.active_workspace_idx();
 
-            for ws in plane.workspaces_mut().iter_mut() {
+            for (idx, ws) in plane.workspaces_mut().iter_mut().enumerate() {
                 // Empty workspaces are valid Y-coordinate placeholders. Keep
                 // them when restoring a plane so every plane can share the
                 // same active vertical position without compressing its rows.
