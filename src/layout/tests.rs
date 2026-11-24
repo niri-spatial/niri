@@ -5288,35 +5288,59 @@ fn plane_navigation_creates_planes_at_both_edges_and_shares_workspace_position()
 
     let first_plane_id = layout.active_monitor().unwrap().active_plane_id();
 
-    // Moving beyond the front edge creates the next plane automatically.
+    // Moving beyond the front edge creates a single empty boundary plane.
     layout.focus_plane_forward();
     let front_plane_id = layout.active_monitor().unwrap().active_plane_id();
     assert_ne!(front_plane_id, first_plane_id);
     assert_eq!(layout.active_monitor().unwrap().active_workspace_idx(), 1);
+    assert_eq!(layout.active_monitor().unwrap().plane_count(), 2);
 
-    // Moving back returns to the original plane without changing its Y position.
+    // Further navigation does not accumulate empty planes at the boundary.
+    layout.focus_plane_forward();
+    assert_eq!(layout.active_monitor().unwrap().active_plane_id(), front_plane_id);
+    assert_eq!(layout.active_monitor().unwrap().plane_count(), 2);
+
+    // Once the boundary plane is used, moving past it creates the next empty plane.
+    Op::AddWindow {
+        params: TestWindowParams::new(3),
+    }
+    .apply(&mut layout);
+    layout.focus_plane_forward();
+    let next_front_plane_id = layout.active_monitor().unwrap().active_plane_id();
+    assert_ne!(next_front_plane_id, front_plane_id);
+    assert_eq!(layout.active_monitor().unwrap().plane_count(), 3);
+    assert_eq!(layout.active_monitor().unwrap().active_workspace_idx(), 1);
+
+    // Moving back returns through the existing planes without changing Y.
+    layout.focus_plane_backward();
+    assert_eq!(layout.active_monitor().unwrap().active_plane_id(), front_plane_id);
     layout.focus_plane_backward();
     assert_eq!(layout.active_monitor().unwrap().active_plane_id(), first_plane_id);
     assert_eq!(layout.active_monitor().unwrap().active_workspace_idx(), 1);
 
-    // Moving beyond the back edge also creates a plane automatically.
+    // Moving beyond the back edge creates one empty plane there as well.
     layout.focus_plane_backward();
     let back_plane_id = layout.active_monitor().unwrap().active_plane_id();
     assert_ne!(back_plane_id, first_plane_id);
     assert_eq!(layout.active_monitor().unwrap().active_workspace_idx(), 1);
+    assert_eq!(layout.active_monitor().unwrap().plane_count(), 4);
+
+    // The new back boundary also remains a single empty plane until used.
+    layout.focus_plane_backward();
+    assert_eq!(layout.active_monitor().unwrap().active_plane_id(), back_plane_id);
+    assert_eq!(layout.active_monitor().unwrap().plane_count(), 4);
 
     let MonitorSet::Normal { monitors, .. } = &layout.monitor_set else {
         unreachable!()
     };
     let monitor = &monitors[0];
-    assert_eq!(monitor.plane_count(), 3);
     assert_eq!(
         monitor
             .workspaces
             .iter_planes()
             .map(|plane| plane.active_workspace_idx())
             .collect::<Vec<_>>(),
-        vec![1, 1, 1]
+        vec![1, 1, 1, 1]
     );
 
     layout.verify_invariants();
