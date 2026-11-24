@@ -64,13 +64,13 @@ Automated checks run successfully:
 Manual checks in the nested Winit session covered:
 
 - Creating, navigating between, and removing an empty Plane.
-- Independent workspace lists and remembered workspace selections per Plane.
+- Plane-local workspace contents with one shared active vertical workspace position across Planes.
 - Switching Planes while Overview is open, then closing Overview and checking that the selected workspace and windows remain intact.
 - Workspace navigation, moving windows between workspaces, and setting/unsetting workspace names.
 - Tiled window launch and close, focus navigation, column movement and swapping, window movement within a column, and consume/expel operations.
 - Floating and fullscreen toggles, column and window maximization, width and height adjustments, and reset to automatic height.
 - Normal and tabbed column display.
-- `niri msg workspaces` text output and `niri msg --json workspaces`, including Plane IDs, ordering, active-Plane state, and per-Plane selected-workspace state.
+- `niri msg workspaces` text output and `niri msg --json workspaces`, including Plane IDs, ordering, active-Plane state, and the shared selected-workspace position.
 - Closing a window on a non-selected workspace, confirming empty-workspace cleanup, and opening a new window afterward.
 
 The nested Winit session was used for broad window-management regression testing. A separate physical-device session has since confirmed that the development binary initializes the laptop's eDP-1 display and that Plane navigation and shared workspace-position behavior work with the real display. The Winit backend's output `off/on` action still does not simulate physical hotplug, so **multi-monitor behavior and real monitor disconnect/reconnect remain outstanding**. The regression pass is broad but is not a claim that every niri feature or every hardware configuration has been exhaustively tested.
