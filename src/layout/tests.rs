@@ -5184,7 +5184,9 @@ fn reconnecting_output_restores_planes_and_workspace_selection() {
         .workspaces
         .plane_by_id(first_plane_id)
         .unwrap();
-    assert_eq!(first_plane.active_workspace_idx(), 1);
+    // The active Y coordinate is shared: the first plane follows the second
+    // plane to workspace 3, while its own workspace 2 remains in place.
+    assert_eq!(first_plane.active_workspace_idx(), 2);
     assert_eq!(
         first_plane.workspaces()[1].id(),
         first_plane_active_workspace_id
@@ -5245,6 +5247,53 @@ fn reconnecting_last_output_restores_planes_and_workspace_selection() {
     assert_eq!(
         first_plane.workspaces()[1].id(),
         first_plane_active_workspace_id
+    );
+
+    layout.verify_invariants();
+}
+ 
+#[test]
+fn plane_navigation_creates_planes_at_both_edges_and_shares_workspace_position() {
+    let ops = [Op::AddOutput(1)];
+    let mut layout = check_ops(ops);
+
+    // Create a non-zero vertical position on the initial plane.
+    layout.set_workspace_name("first-row".into(), None);
+    layout.switch_workspace_down();
+    layout.set_workspace_name("second-row".into(), None);
+    assert_eq!(layout.active_monitor().unwrap().active_workspace_idx(), 1);
+
+    let first_plane_id = layout.active_monitor().unwrap().active_plane_id();
+
+    // Moving beyond the front edge creates the next plane automatically.
+    layout.focus_plane_forward();
+    let front_plane_id = layout.active_monitor().unwrap().active_plane_id();
+    assert_ne!(front_plane_id, first_plane_id);
+    assert_eq!(layout.active_monitor().unwrap().active_workspace_idx(), 1);
+
+    // Moving back returns to the original plane without changing its Y position.
+    layout.focus_plane_backward();
+    assert_eq!(layout.active_monitor().unwrap().active_plane_id(), first_plane_id);
+    assert_eq!(layout.active_monitor().unwrap().active_workspace_idx(), 1);
+
+    // Moving beyond the back edge also creates a plane automatically.
+    layout.focus_plane_backward();
+    let back_plane_id = layout.active_monitor().unwrap().active_plane_id();
+    assert_ne!(back_plane_id, first_plane_id);
+    assert_eq!(layout.active_monitor().unwrap().active_workspace_idx(), 1);
+
+    let MonitorSet::Normal { monitors, .. } = &layout.monitor_set else {
+        unreachable!()
+    };
+    let monitor = &monitors[0];
+    assert_eq!(monitor.plane_count(), 3);
+    assert_eq!(
+        monitor
+            .workspaces
+            .iter_planes()
+            .map(|plane| plane.active_workspace_idx())
+            .collect::<Vec<_>>(),
+        vec![1, 1, 1]
     );
 
     layout.verify_invariants();
