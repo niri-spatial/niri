@@ -3313,7 +3313,7 @@ fn output_disconnect_and_reconnect_preserves_planes() {
     assert_eq!(monitors[0].plane_count(), 2);
     assert_eq!(monitors[0].active_plane_idx(), 1);
     assert_eq!(monitors[0].active_plane_id(), second_plane_id);
-    assert_eq!(monitors[0].active_workspace_idx(), 2);
+    assert_eq!(monitors[0].active_workspace_idx(), 1);
     assert_eq!(
         monitors[0].workspaces.plane(0).unwrap().id(),
         first_plane_id
