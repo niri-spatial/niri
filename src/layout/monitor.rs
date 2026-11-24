@@ -618,7 +618,8 @@ impl<W: LayoutElement> Monitor<W> {
     /// Focuses the adjacent plane farther back in depth order.
     ///
     /// Plane indices increase toward the front. Moving past the back edge
-    /// creates and activates a new plane there.
+    /// creates a new plane when the current boundary plane has been used;
+    /// an unused empty boundary plane is kept instead of accumulating blanks.
     pub fn focus_plane_backward(&mut self) {
         let index = self.active_plane_idx();
         if index == 0 {
@@ -635,7 +636,8 @@ impl<W: LayoutElement> Monitor<W> {
 
     /// Focuses the adjacent plane closer to the front in depth order.
     ///
-    /// Moving past the front edge creates and activates a new plane there.
+    /// Moving past the front edge creates a new plane when the current boundary
+    /// plane has been used; an unused empty boundary plane is kept in place.
     pub fn focus_plane_forward(&mut self) {
         let index = self.active_plane_idx() + 1;
         if index < self.plane_count() {
