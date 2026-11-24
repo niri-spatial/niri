@@ -408,8 +408,7 @@ impl<W: LayoutElement> Monitor<W> {
         let shared_active_workspace_idx = workspaces.active_workspace_idx();
         for plane in workspaces.iter_planes_mut() {
             while plane.workspace_count() <= shared_active_workspace_idx {
-                let mut workspace =
-                    Workspace::new(output.clone(), clock.clone(), options.clone());
+                let mut workspace = Workspace::new(output.clone(), clock.clone(), options.clone());
                 workspace.original_output = OutputId::new(&output);
                 plane.push_workspace(workspace);
             }
@@ -725,8 +724,7 @@ impl<W: LayoutElement> Monitor<W> {
                     break;
                 }
 
-                let mut workspace =
-                    Workspace::new(output.clone(), clock.clone(), options.clone());
+                let mut workspace = Workspace::new(output.clone(), clock.clone(), options.clone());
                 workspace.original_output = OutputId::new(&output);
                 self.workspaces
                     .plane_mut(plane_idx)
