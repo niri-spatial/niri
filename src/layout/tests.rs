@@ -1,6 +1,6 @@
 use std::cell::{Cell, OnceCell, RefCell};
 
-use niri_config::utils::{Flag, MergeWith as _};
+use niri_config::utils::Flag;
 use niri_config::workspace::WorkspaceName;
 use niri_config::{
     CenterFocusedColumn, FloatOrInt, OutputName, Struts, TabIndicatorLength, TabIndicatorPosition,
@@ -2758,7 +2758,9 @@ fn secondary_output_disconnect_and_reconnect_preserves_planes() {
     };
     assert_eq!(monitors[1].plane_count(), 2);
     assert_eq!(monitors[1].active_plane_id(), second_plane_id);
-    assert_eq!(monitors[1].active_workspace_idx(), 1);
+    // Plane creation keeps the shared Y coordinate and provides a trailing
+    // workspace, so navigating down selects row 2.
+    assert_eq!(monitors[1].active_workspace_idx(), 2);
 
     Op::RemoveOutput(2).apply(&mut layout);
 
@@ -2786,7 +2788,7 @@ fn secondary_output_disconnect_and_reconnect_preserves_planes() {
     assert_eq!(monitors[1].plane_count(), 2);
     assert_eq!(monitors[1].active_plane_idx(), 1);
     assert_eq!(monitors[1].active_plane_id(), second_plane_id);
-    assert_eq!(monitors[1].active_workspace_idx(), 1);
+    assert_eq!(monitors[1].active_workspace_idx(), 2);
     assert_eq!(
         monitors[1].workspaces.plane(0).unwrap().id(),
         first_plane_id
@@ -3353,6 +3355,7 @@ fn workspace_iteration_exposes_plane_metadata() {
         vec![
             (0, first_plane_id, 0, 0, true, true),
             (1, second_plane_id, 1, 0, false, true),
+            (2, second_plane_id, 1, 1, false, false),
         ]
     );
 
@@ -3360,7 +3363,7 @@ fn workspace_iteration_exposes_plane_metadata() {
         .workspaces()
         .map(|(_, idx, _workspace)| idx)
         .collect::<Vec<_>>();
-    assert_eq!(flattened, vec![0, 1]);
+    assert_eq!(flattened, vec![0, 1, 2]);
 }
 
 #[test]
