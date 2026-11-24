@@ -2005,9 +2005,9 @@ fn removing_output_must_keep_empty_focus_on_primary() {
         unreachable!()
     };
 
-    // The workspace from the removed output was inserted at position 0, so the active workspace
-    // must change to 1 to keep the focus on the empty workspace.
-    assert_eq!(monitors[0].active_workspace_idx(), 1);
+    // The imported Plane is activated at the primary monitor's current
+    // shared Y coordinate instead of shifting the active row.
+    assert_eq!(monitors[0].active_workspace_idx(), 0);
 }
 
 #[test]
@@ -3006,10 +3006,14 @@ fn disconnecting_active_middle_output_falls_back_to_primary() {
         .workspaces
         .plane_by_id(first_plane_id)
         .unwrap();
+    // All Planes share the active Y coordinate. The old workspace
+    // remains in its original row, while the active row is aligned with the
+    // restored Plane's selected workspace.
     assert_eq!(
-        first_plane.active_workspace().id(),
-        first_plane_active_workspace_id
+        first_plane.active_workspace_idx(),
+        restored_monitor.active_workspace_idx()
     );
+    assert_eq!(first_plane.workspaces()[1].id(), first_plane_active_workspace_id);
 
     layout.verify_invariants();
 }
@@ -3104,10 +3108,14 @@ fn disconnecting_inactive_middle_output_preserves_primary_and_active_monitor() {
         .workspaces
         .plane_by_id(first_plane_id)
         .unwrap();
+    // All Planes share the active Y coordinate. The old workspace
+    // remains in its original row, while the active row is aligned with the
+    // restored Plane's selected workspace.
     assert_eq!(
-        first_plane.active_workspace().id(),
-        first_plane_active_workspace_id
+        first_plane.active_workspace_idx(),
+        restored_monitor.active_workspace_idx()
     );
+    assert_eq!(first_plane.workspaces()[1].id(), first_plane_active_workspace_id);
 
     layout.verify_invariants();
 }
@@ -3230,15 +3238,15 @@ fn primary_output_disconnect_and_reconnect_preserves_planes() {
         restored_monitor.active_workspace_ref().id(),
         second_plane_active_workspace_id
     );
+    let first_plane = restored_monitor
+        .workspaces
+        .plane_by_id(first_plane_id)
+        .unwrap();
     assert_eq!(
-        restored_monitor
-            .workspaces
-            .plane_by_id(first_plane_id)
-            .unwrap()
-            .active_workspace()
-            .id(),
-        first_plane_active_workspace_id
+        first_plane.active_workspace_idx(),
+        restored_monitor.active_workspace_idx()
     );
+    assert_eq!(first_plane.workspaces()[1].id(), first_plane_active_workspace_id);
 
     layout.verify_invariants();
 }
