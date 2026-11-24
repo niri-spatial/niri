@@ -776,13 +776,11 @@ impl<W: LayoutElement> Layout<W> {
                     .workspaces()
                     .iter()
                     .any(|ws| ws.original_output.matches(&output));
-                let mut transferred = primary
+                let transferred = primary
                     .workspaces
                     .extract_workspaces_where(|ws| ws.original_output.matches(&output));
-                // Drop empty unnamed workspaces without changing the IDs of
-                // planes that are being restored to their original output.
-                let _empty_workspaces =
-                    transferred.extract_workspaces_where(|ws| !ws.has_windows_or_name());
+                // Keep empty alignment workspaces: they preserve the original
+                // Y coordinate of each restored plane.
                 let workspaces = transferred;
 
                 // The active plane may have been entirely routed to the newly
