@@ -584,12 +584,8 @@ impl<W: LayoutElement> Monitor<W> {
             workspaces.push(workspace);
         }
 
-        let plane = WorkspacePlane::new(
-            PlaneId::next(),
-            workspaces,
-            active_workspace_idx,
-        )
-        .expect("a new plane must contain the active workspace");
+        let plane = WorkspacePlane::new(PlaneId::next(), workspaces, active_workspace_idx)
+            .expect("a new plane must contain the active workspace");
         let plane_id = plane.id();
 
         self.insert_plane(index, plane)
