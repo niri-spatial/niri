@@ -542,7 +542,10 @@ impl<W: LayoutElement> Monitor<W> {
             workspace.update_config(self.options.clone());
         }
 
-        self.workspaces.insert_plane(index, plane)
+        self.workspaces.insert_plane(index, plane)?;
+        let active_workspace_idx = self.active_workspace_idx();
+        self.set_active_workspace_idx(active_workspace_idx);
+        Ok(())
     }
 
     /// Creates a new empty plane immediately after the active plane and activates it.
@@ -670,6 +673,7 @@ impl<W: LayoutElement> Monitor<W> {
         index: usize,
     ) -> Result<WorkspacePlane<Workspace<W>>, PlaneError> {
         let active_plane_id = self.active_plane_id();
+        let active_workspace_idx = self.active_workspace_idx();
         let removed = self.workspaces.remove_plane(index)?;
 
         if self.active_plane_id() != active_plane_id {
@@ -677,6 +681,7 @@ impl<W: LayoutElement> Monitor<W> {
             self.previous_workspace_id = None;
         }
 
+        self.set_active_workspace_idx(active_workspace_idx);
         Ok(removed)
     }
 
@@ -2838,7 +2843,19 @@ impl<W: LayoutElement> Monitor<W> {
             !self.workspaces.is_empty(),
             "monitor must have at least one workspace"
         );
-        assert!(self.active_workspace_idx() < self.workspaces.len());
+        let shared_active_workspace_idx = self.active_workspace_idx();
+        assert!(shared_active_workspace_idx < self.workspaces.len());
+        for plane in self.workspaces.iter_planes() {
+            assert!(
+                shared_active_workspace_idx < plane.workspace_count(),
+                "every plane must contain the shared active workspace"
+            );
+            assert_eq!(
+                plane.active_workspace_idx(),
+                shared_active_workspace_idx,
+                "all planes on a monitor must share the active workspace index"
+            );
+        }
 
         if let Some(WorkspaceSwitch::Animation(anim)) = &self.workspace_switch {
             let before_idx = anim.from() as usize;
