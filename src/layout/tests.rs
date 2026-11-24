@@ -3292,6 +3292,7 @@ fn output_disconnect_and_reconnect_preserves_planes() {
     assert_eq!(monitors[0].plane_count(), 2);
     assert_eq!(monitors[0].active_plane_id(), second_plane_id);
     assert_eq!(monitors[0].active_workspace_idx(), 1);
+    let active_workspace_id = monitors[0].active_workspace_ref().id();
 
     Op::RemoveOutput(1).apply(&mut layout);
 
@@ -3313,7 +3314,13 @@ fn output_disconnect_and_reconnect_preserves_planes() {
     assert_eq!(monitors[0].plane_count(), 2);
     assert_eq!(monitors[0].active_plane_idx(), 1);
     assert_eq!(monitors[0].active_plane_id(), second_plane_id);
-    assert_eq!(monitors[0].active_workspace_idx(), 1);
+    // Reconnection may change the numeric Y index, but it must restore the
+    // same active workspace and align every plane to that shared position.
+    assert_eq!(monitors[0].active_workspace_ref().id(), active_workspace_id);
+    let shared_workspace_idx = monitors[0].active_workspace_idx();
+    for plane in monitors[0].workspaces.iter_planes() {
+        assert_eq!(plane.active_workspace_idx(), shared_workspace_idx);
+    }
     assert_eq!(
         monitors[0].workspaces.plane(0).unwrap().id(),
         first_plane_id
