@@ -50,9 +50,9 @@ This development fork adds depth-oriented **Planes** on top of niri's existing p
 
 ### Validation status
 
-The current implementation has passed automated checks and a manual regression pass in a nested **Winit** session on NixOS. The host's normal niri installation was left unchanged.
+The baseline implementation passed automated checks and a broad manual regression pass in a nested **Winit** session on NixOS. The host's normal niri installation was left unchanged. The shared vertical-position and single-empty-boundary behavior described above are newer changes; their full regression suite is pending.
 
-Automated checks run successfully:
+Baseline automated checks that passed:
 
 - `cargo fmt --check`
 - `cargo test layout::plane::tests`
@@ -61,11 +61,11 @@ Automated checks run successfully:
 - `cargo clippy --all-targets -- -D warnings`
 - `cargo build --release`
 
-Manual checks in the nested Winit session covered:
+Earlier manual checks in the nested Winit session covered:
 
 - Creating, navigating between, and removing an empty Plane.
-- Plane-local workspace contents with one shared active vertical workspace position across Planes.
-- Switching Planes while Overview is open, then closing Overview and checking that the selected workspace and windows remain intact.
+- Independent workspace lists and remembered selections per Plane (the previous behavior).
+- Switching Planes while Overview was open, then closing Overview and checking that the selected workspace and windows remained intact.
 - Workspace navigation, moving windows between workspaces, and setting/unsetting workspace names.
 - Tiled window launch and close, focus navigation, column movement and swapping, window movement within a column, and consume/expel operations.
 - Floating and fullscreen toggles, column and window maximization, width and height adjustments, and reset to automatic height.
