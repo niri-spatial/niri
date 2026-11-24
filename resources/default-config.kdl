@@ -456,8 +456,7 @@ binds {
     // Mod+Shift+Ctrl+Left  { move-workspace-to-monitor-left; }
     // ...
 
-    // Switch between depth planes (the Z axis).
-    Mod+Alt+I          { create-plane; }
+    // Switch between depth planes (the Z axis). New planes are created at either edge.
     Mod+U              { focus-plane-backward; }
     Mod+I              { focus-plane-forward; }
 
