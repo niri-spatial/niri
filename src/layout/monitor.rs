@@ -2911,9 +2911,9 @@ impl<W: LayoutElement> Monitor<W> {
             )
         }
 
-        // If there's no workspace switch in progress, there can't be any non-last non-active
-        // empty workspaces. If empty_workspace_above_first is set then the first workspace
-        // will be empty too.
+        // If there's no workspace switch in progress, workspaces below the active row
+        // cannot be empty and unnamed except for the last boundary workspace. Empty rows
+        // before the active row are allowed as Y-alignment padding in a new Plane.
         let pre_skip = if self.options.layout.empty_workspace_above_first {
             1
         } else {
