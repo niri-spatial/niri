@@ -3291,7 +3291,8 @@ fn output_disconnect_and_reconnect_preserves_planes() {
     };
     assert_eq!(monitors[0].plane_count(), 2);
     assert_eq!(monitors[0].active_plane_id(), second_plane_id);
-    assert_eq!(monitors[0].active_workspace_idx(), 1);
+    // Two downward workspace moves place the shared Y position at index 2.
+    assert_eq!(monitors[0].active_workspace_idx(), 2);
     let active_workspace_id = monitors[0].active_workspace_ref().id();
 
     Op::RemoveOutput(1).apply(&mut layout);
