@@ -3014,7 +3014,10 @@ fn disconnecting_active_middle_output_falls_back_to_primary() {
         first_plane.active_workspace_idx(),
         restored_monitor.active_workspace_idx()
     );
-    assert_eq!(first_plane.workspaces()[1].id(), first_plane_active_workspace_id);
+    assert_eq!(
+        first_plane.workspaces()[1].id(),
+        first_plane_active_workspace_id
+    );
 
     layout.verify_invariants();
 }
@@ -3116,7 +3119,10 @@ fn disconnecting_inactive_middle_output_preserves_primary_and_active_monitor() {
         first_plane.active_workspace_idx(),
         restored_monitor.active_workspace_idx()
     );
-    assert_eq!(first_plane.workspaces()[1].id(), first_plane_active_workspace_id);
+    assert_eq!(
+        first_plane.workspaces()[1].id(),
+        first_plane_active_workspace_id
+    );
 
     layout.verify_invariants();
 }
@@ -3247,7 +3253,10 @@ fn primary_output_disconnect_and_reconnect_preserves_planes() {
         first_plane.active_workspace_idx(),
         restored_monitor.active_workspace_idx()
     );
-    assert_eq!(first_plane.workspaces()[1].id(), first_plane_active_workspace_id);
+    assert_eq!(
+        first_plane.workspaces()[1].id(),
+        first_plane_active_workspace_id
+    );
 
     layout.verify_invariants();
 }
@@ -5287,7 +5296,7 @@ fn reconnecting_last_output_restores_planes_and_workspace_selection() {
 
     layout.verify_invariants();
 }
- 
+
 #[test]
 fn plane_navigation_creates_planes_at_both_edges_and_shares_workspace_position() {
     let ops = [Op::AddOutput(1)];
@@ -5310,7 +5319,10 @@ fn plane_navigation_creates_planes_at_both_edges_and_shares_workspace_position()
 
     // Further navigation does not accumulate empty planes at the boundary.
     layout.focus_plane_forward();
-    assert_eq!(layout.active_monitor().unwrap().active_plane_id(), front_plane_id);
+    assert_eq!(
+        layout.active_monitor().unwrap().active_plane_id(),
+        front_plane_id
+    );
     assert_eq!(layout.active_monitor().unwrap().plane_count(), 2);
 
     // Once the boundary plane is used, moving past it creates the next empty plane.
@@ -5326,9 +5338,15 @@ fn plane_navigation_creates_planes_at_both_edges_and_shares_workspace_position()
 
     // Moving back returns through the existing planes without changing Y.
     layout.focus_plane_backward();
-    assert_eq!(layout.active_monitor().unwrap().active_plane_id(), front_plane_id);
+    assert_eq!(
+        layout.active_monitor().unwrap().active_plane_id(),
+        front_plane_id
+    );
     layout.focus_plane_backward();
-    assert_eq!(layout.active_monitor().unwrap().active_plane_id(), first_plane_id);
+    assert_eq!(
+        layout.active_monitor().unwrap().active_plane_id(),
+        first_plane_id
+    );
     assert_eq!(layout.active_monitor().unwrap().active_workspace_idx(), 1);
 
     // Moving beyond the back edge creates one empty plane there as well.
@@ -5340,7 +5358,10 @@ fn plane_navigation_creates_planes_at_both_edges_and_shares_workspace_position()
 
     // The new back boundary also remains a single empty plane until used.
     layout.focus_plane_backward();
-    assert_eq!(layout.active_monitor().unwrap().active_plane_id(), back_plane_id);
+    assert_eq!(
+        layout.active_monitor().unwrap().active_plane_id(),
+        back_plane_id
+    );
     assert_eq!(layout.active_monitor().unwrap().plane_count(), 4);
 
     let MonitorSet::Normal { monitors, .. } = &layout.monitor_set else {
