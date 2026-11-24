@@ -394,6 +394,22 @@ impl<W: LayoutElement> Monitor<W> {
                 .expect("the matching workspace plane index must be valid");
         }
 
+        // Reconnected and restored planes may have been saved with different
+        // local selections by an older session. Normalize them to one monitor-
+        // wide vertical position before exposing the monitor.
+        let shared_active_workspace_idx = workspaces.active_workspace_idx();
+        for plane in workspaces.iter_planes_mut() {
+            while plane.workspace_count() <= shared_active_workspace_idx {
+                let mut workspace =
+                    Workspace::new(output.clone(), clock.clone(), options.clone());
+                workspace.original_output = OutputId::new(&output);
+                plane.push_workspace(workspace);
+            }
+            plane
+                .activate_workspace(shared_active_workspace_idx)
+                .expect("every plane must contain the shared active workspace");
+        }
+
         Self {
             output_name: output.name(),
             output,
