@@ -815,11 +815,17 @@ impl<W: LayoutElement> Monitor<W> {
             self.clock.clone(),
             self.options.clone(),
         );
-        self.workspaces
+        let shared_active_workspace_idx = self.active_workspace_idx();
+        let plane = self
+            .workspaces
             .plane_mut(plane_idx)
-            .expect("the plane index must be valid")
+            .expect("the plane index must be valid");
+        plane
             .insert_workspace(idx, workspace)
             .expect("the workspace index must be valid");
+        plane
+            .activate_workspace(shared_active_workspace_idx)
+            .expect("every plane must retain the shared active workspace index");
     }
 
     fn add_workspace_bottom_in_plane(&mut self, plane_idx: usize) {
