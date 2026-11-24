@@ -768,8 +768,7 @@ impl<W: LayoutElement> Layout<W> {
                 let primary = &mut monitors[primary_idx];
 
                 // Extract every workspace that originally belonged to this output,
-                // preserving the depth-plane groups. Empty unnamed workspaces are discarded,
-                // just as they were in the former flat workspace list.
+                // preserving the depth-plane groups and empty Y-coordinate alignment rows.
                 let active_plane_had_matching_workspaces = primary
                     .workspaces
                     .active_plane()
