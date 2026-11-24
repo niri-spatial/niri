@@ -778,35 +778,16 @@ impl<W: LayoutElement> Monitor<W> {
     }
 
     pub fn add_workspace_at(&mut self, idx: usize) {
-        let active_workspace_idx = self.active_workspace_idx();
-        let output = self.output.clone();
-        let clock = self.clock.clone();
-        let options = self.options.clone();
+        let workspace = Workspace::new(
+            self.output.clone(),
+            self.clock.clone(),
+            self.options.clone(),
+        );
 
-        // Insert the same vertical row in every plane. Workspace contents stay
-        // plane-local, but their Y positions remain part of one shared sequence.
-        for plane_idx in 0..self.workspaces.plane_count() {
-            let workspace_count = self
-                .workspaces
-                .plane(plane_idx)
-                .expect("the plane index must be valid")
-                .workspace_count();
-            let insert_idx = idx.min(workspace_count);
-            let mut workspace = Workspace::new(output.clone(), clock.clone(), options.clone());
-            workspace.original_output = OutputId::new(&output);
-            self.workspaces
-                .plane_mut(plane_idx)
-                .expect("the plane index must be valid")
-                .insert_workspace(insert_idx, workspace)
-                .expect("the workspace insertion index must be valid");
+        self.workspaces.insert(idx, workspace);
+        if idx <= self.active_workspace_idx() {
+            self.set_active_workspace_idx(self.active_workspace_idx() + 1);
         }
-
-        let new_active_workspace_idx = if idx <= active_workspace_idx {
-            active_workspace_idx + 1
-        } else {
-            active_workspace_idx
-        };
-        self.set_active_workspace_idx(new_active_workspace_idx);
 
         if let Some(switch) = &mut self.workspace_switch {
             if idx as f64 <= switch.target_idx() {
@@ -824,10 +805,21 @@ impl<W: LayoutElement> Monitor<W> {
     }
 
     pub(super) fn add_workspace_at_in_plane(&mut self, plane_idx: usize, idx: usize) {
+        if plane_idx == self.workspaces.active_plane_idx() {
+            self.add_workspace_at(idx);
+            return;
+        }
+
+        let workspace = Workspace::new(
+            self.output.clone(),
+            self.clock.clone(),
+            self.options.clone(),
+        );
         self.workspaces
-            .plane(plane_idx)
-            .expect("the plane index must be valid");
-        self.add_workspace_at(idx);
+            .plane_mut(plane_idx)
+            .expect("the plane index must be valid")
+            .insert_workspace(idx, workspace)
+            .expect("the workspace index must be valid");
     }
 
     fn add_workspace_bottom_in_plane(&mut self, plane_idx: usize) {
