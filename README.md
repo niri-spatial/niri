@@ -46,7 +46,7 @@ When a monitor disconnects, its workspaces will move to another monitor, but upo
 
 ## Spatial Workspaces (Development Fork)
 
-This development fork adds depth-oriented **Planes** on top of niri's existing per-monitor workspace model. Each Plane owns its own vertical workspace contents, while all Planes on one monitor share the same active vertical workspace index. Switching depth therefore preserves the user's Y position; a Plane that does not yet have that workspace is extended with empty workspaces. Each depth edge keeps at most one empty boundary Plane: moving past an occupied edge creates a new empty Plane, while moving past an unused empty boundary does not accumulate more blank Planes. A Plane becomes eligible for another boundary Plane once it contains a window or a named workspace. The active Plane is shown one at a time; Plane navigation also works while the Overview is open.
+This development fork adds depth-oriented **Planes** on top of niri's existing per-monitor workspace model. Each Plane owns its own vertical workspace contents, while all Planes on one monitor share the same active vertical workspace index. Switching depth therefore preserves the user's Y position; a Plane that does not yet contain the selected row receives empty workspaces up to that index as alignment padding. Each depth edge keeps at most one empty boundary Plane: moving past an occupied edge creates a new empty Plane, while moving past an unused empty boundary does not accumulate more blank Planes. A Plane becomes eligible for another boundary Plane once it contains a window or a named workspace. The active Plane is shown one at a time; Plane navigation also works while the Overview is open.
 
 ### Validation status
 
