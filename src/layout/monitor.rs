@@ -442,28 +442,9 @@ impl<W: LayoutElement> Monitor<W> {
     /// Transfers this monitor's non-empty planes to the no-output state.
     pub fn into_planes(self) -> NoOutputWorkspacePlanes<Workspace<W>> {
         let mut planes = self.workspaces;
-
-        // Preserve empty workspaces up to each plane's active Y coordinate.
-        // They may be alignment placeholders for the monitor-wide shared
-        // workspace position, so removing them would shift later workspaces
-        // when the output is disconnected and restored. Keep content beyond
-        // the active row as well, plus at most one empty trailing boundary.
-        for plane in planes.iter_planes_mut() {
-            let last_non_empty_workspace_idx = plane
-                .workspaces()
-                .iter()
-                .rposition(|workspace| workspace.has_windows_or_name());
-            let keep_workspace_count = (plane.active_workspace_idx() + 1).max(
-                last_non_empty_workspace_idx.map_or(1, |idx| idx.saturating_add(2)),
-            );
-
-            while plane.workspace_count() > keep_workspace_count {
-                let last_idx = plane.workspace_count() - 1;
-                plane
-                    .remove_workspace(last_idx)
-                    .expect("trailing workspace must exist");
-            }
-        }
+        // Extract and discard empty unnamed workspaces so plane IDs remain
+        // attached to the workspaces that survive the output disconnection.
+        let _empty_workspaces = planes.extract_workspaces_where(|ws| !ws.has_windows_or_name());
 
         for (_, _, workspace) in planes.iter_workspaces_mut() {
             workspace.set_output(None);
