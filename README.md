@@ -46,7 +46,7 @@ When a monitor disconnects, its workspaces will move to another monitor, but upo
 
 ## Spatial Workspaces (Development Fork)
 
-This development fork adds depth-oriented **Planes** on top of niri's existing per-monitor workspace model. Each Plane owns an independent vertical workspace list and remembers its selected workspace. The active Plane is shown one at a time; the configured Plane navigation actions can also be used while the Overview is open.
+This development fork adds depth-oriented **Planes** on top of niri's existing per-monitor workspace model. Each Plane owns its own vertical workspace contents, while all Planes on one monitor share the same active vertical workspace index. Switching depth therefore preserves the user's Y position; a Plane that does not yet have that workspace is extended with empty workspaces. Navigating past either depth edge creates and activates a new Plane. The active Plane is shown one at a time; Plane navigation also works while the Overview is open.
 
 ### Validation status
 
@@ -73,7 +73,7 @@ Manual checks in the nested Winit session covered:
 - `niri msg workspaces` text output and `niri msg --json workspaces`, including Plane IDs, ordering, active-Plane state, and per-Plane selected-workspace state.
 - Closing a window on a non-selected workspace, confirming empty-workspace cleanup, and opening a new window afterward.
 
-The manual session used one virtual Winit output. The output configuration `off/on` action does not simulate physical output hotplug in the Winit backend, so **monitor disconnect/reconnect, multi-monitor behavior, and physical-display validation remain outstanding**. These checks are reserved for a later run on actual display hardware. The regression pass is broad but is not a claim that every niri feature or every hardware configuration has been exhaustively tested.
+The nested Winit session was used for broad window-management regression testing. A separate physical-device session has since confirmed that the development binary initializes the laptop's eDP-1 display and that Plane navigation and shared workspace-position behavior work with the real display. The Winit backend's output `off/on` action still does not simulate physical hotplug, so **multi-monitor behavior and real monitor disconnect/reconnect remain outstanding**. The regression pass is broad but is not a claim that every niri feature or every hardware configuration has been exhaustively tested.
 
 ## Video Demo
 
