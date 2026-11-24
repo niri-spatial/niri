@@ -493,6 +493,9 @@ impl<W: LayoutElement> Monitor<W> {
                 plane.push_workspace(workspace);
             }
         }
+
+        let active_workspace_idx = self.active_workspace_idx();
+        self.set_active_workspace_idx(active_workspace_idx);
     }
 
     /// Returns the number of depth planes on this monitor.
@@ -528,14 +531,40 @@ impl<W: LayoutElement> Monitor<W> {
 
     /// Creates a new empty plane immediately after the active plane and activates it.
     pub fn add_plane(&mut self) -> PlaneId {
-        let index = self.active_plane_idx() + 1;
-        let workspace = Workspace::new(
-            self.output.clone(),
-            self.clock.clone(),
-            self.options.clone(),
-        );
-        let plane = WorkspacePlane::new(PlaneId::next(), vec![workspace], 0)
-            .expect("a new plane must contain one workspace");
+        self.add_plane_at(self.active_plane_idx() + 1)
+    }
+
+    /// Creates and activates an empty plane at the requested depth-order index.
+    ///
+    /// Its workspace sequence and current vertical selection match the monitor's
+    /// current workspace position, so a new plane starts at the same Y coordinate.
+    fn add_plane_at(&mut self, index: usize) -> PlaneId {
+        let active_workspace_idx = self.active_workspace_idx();
+        let workspace_count = self
+            .workspaces
+            .iter_planes()
+            .map(|plane| plane.workspace_count())
+            .max()
+            .unwrap_or(0)
+            .max(active_workspace_idx + 1);
+
+        let mut workspaces = Vec::with_capacity(workspace_count);
+        for _ in 0..workspace_count {
+            let mut workspace = Workspace::new(
+                self.output.clone(),
+                self.clock.clone(),
+                self.options.clone(),
+            );
+            workspace.original_output = OutputId::new(&self.output);
+            workspaces.push(workspace);
+        }
+
+        let plane = WorkspacePlane::new(
+            PlaneId::next(),
+            workspaces,
+            active_workspace_idx,
+        )
+        .expect("a new plane must contain the active workspace");
         let plane_id = plane.id();
 
         self.insert_plane(index, plane)
@@ -548,10 +577,12 @@ impl<W: LayoutElement> Monitor<W> {
 
     /// Activates a plane by its depth-order index.
     ///
-    /// The active Y workspace of each plane is stored independently.
+    /// All planes on this monitor share one active vertical workspace index.
     pub fn activate_plane(&mut self, index: usize) -> Result<(), PlaneError> {
         if index != self.active_plane_idx() {
+            let active_workspace_idx = self.active_workspace_idx();
             self.workspaces.activate_plane(index)?;
+            self.set_active_workspace_idx(active_workspace_idx);
             self.workspace_switch = None;
             self.previous_workspace_id = None;
         }
@@ -561,22 +592,28 @@ impl<W: LayoutElement> Monitor<W> {
 
     /// Focuses the adjacent plane farther back in depth order.
     ///
-    /// Plane indices increase toward the front, so the first plane is the
-    /// farthest back. The focus stays in place at the back edge.
+    /// Plane indices increase toward the front. Moving past the back edge
+    /// creates and activates a new plane there.
     pub fn focus_plane_backward(&mut self) {
-        let index = self.active_plane_idx().saturating_sub(1);
-        self.activate_plane(index)
-            .expect("the previous plane index must be valid");
+        let index = self.active_plane_idx();
+        if index == 0 {
+            self.add_plane_at(0);
+        } else {
+            self.activate_plane(index - 1)
+                .expect("the previous plane index must be valid");
+        }
     }
 
     /// Focuses the adjacent plane closer to the front in depth order.
     ///
-    /// The focus stays in place at the front edge.
+    /// Moving past the front edge creates and activates a new plane there.
     pub fn focus_plane_forward(&mut self) {
-        let index = self.active_plane_idx().saturating_add(1);
+        let index = self.active_plane_idx() + 1;
         if index < self.plane_count() {
             self.activate_plane(index)
                 .expect("the next plane index must be valid");
+        } else {
+            self.add_plane();
         }
     }
 
@@ -632,9 +669,39 @@ impl<W: LayoutElement> Monitor<W> {
     }
 
     pub(super) fn set_active_workspace_idx(&mut self, index: usize) {
-        self.workspaces
-            .activate_workspace(index)
-            .expect("active workspace index must be valid");
+        let output = self.output.clone();
+        let clock = self.clock.clone();
+        let options = self.options.clone();
+
+        // Keep the active Y coordinate shared across all depth planes. A plane
+        // that has not reached this workspace yet receives empty workspaces up
+        // to the requested index.
+        for plane_idx in 0..self.workspaces.plane_count() {
+            loop {
+                let workspace_count = self
+                    .workspaces
+                    .plane(plane_idx)
+                    .expect("the plane index must be valid")
+                    .workspace_count();
+                if workspace_count > index {
+                    break;
+                }
+
+                let mut workspace =
+                    Workspace::new(output.clone(), clock.clone(), options.clone());
+                workspace.original_output = OutputId::new(&output);
+                self.workspaces
+                    .plane_mut(plane_idx)
+                    .expect("the plane index must be valid")
+                    .push_workspace(workspace);
+            }
+        }
+
+        for plane in self.workspaces.iter_planes_mut() {
+            plane
+                .activate_workspace(index)
+                .expect("the shared active workspace index must exist on every plane");
+        }
     }
 
     pub fn active_workspace_ref(&self) -> &Workspace<W> {
@@ -677,16 +744,35 @@ impl<W: LayoutElement> Monitor<W> {
     }
 
     pub fn add_workspace_at(&mut self, idx: usize) {
-        let ws = Workspace::new(
-            self.output.clone(),
-            self.clock.clone(),
-            self.options.clone(),
-        );
+        let active_workspace_idx = self.active_workspace_idx();
+        let output = self.output.clone();
+        let clock = self.clock.clone();
+        let options = self.options.clone();
 
-        self.workspaces.insert(idx, ws);
-        if idx <= self.active_workspace_idx() {
-            self.set_active_workspace_idx(self.active_workspace_idx() + 1);
+        // Insert the same vertical row in every plane. Workspace contents stay
+        // plane-local, but their Y positions remain part of one shared sequence.
+        for plane_idx in 0..self.workspaces.plane_count() {
+            let workspace_count = self
+                .workspaces
+                .plane(plane_idx)
+                .expect("the plane index must be valid")
+                .workspace_count();
+            let insert_idx = idx.min(workspace_count);
+            let mut workspace = Workspace::new(output.clone(), clock.clone(), options.clone());
+            workspace.original_output = OutputId::new(&output);
+            self.workspaces
+                .plane_mut(plane_idx)
+                .expect("the plane index must be valid")
+                .insert_workspace(insert_idx, workspace)
+                .expect("the workspace insertion index must be valid");
         }
+
+        let new_active_workspace_idx = if idx <= active_workspace_idx {
+            active_workspace_idx + 1
+        } else {
+            active_workspace_idx
+        };
+        self.set_active_workspace_idx(new_active_workspace_idx);
 
         if let Some(switch) = &mut self.workspace_switch {
             if idx as f64 <= switch.target_idx() {
@@ -704,21 +790,10 @@ impl<W: LayoutElement> Monitor<W> {
     }
 
     pub(super) fn add_workspace_at_in_plane(&mut self, plane_idx: usize, idx: usize) {
-        if plane_idx == self.workspaces.active_plane_idx() {
-            self.add_workspace_at(idx);
-            return;
-        }
-
-        let workspace = Workspace::new(
-            self.output.clone(),
-            self.clock.clone(),
-            self.options.clone(),
-        );
         self.workspaces
-            .plane_mut(plane_idx)
-            .expect("the plane index must be valid")
-            .insert_workspace(idx, workspace)
-            .expect("the workspace index must be valid");
+            .plane(plane_idx)
+            .expect("the plane index must be valid");
+        self.add_workspace_at(idx);
     }
 
     fn add_workspace_bottom_in_plane(&mut self, plane_idx: usize) {
@@ -1013,32 +1088,39 @@ impl<W: LayoutElement> Monitor<W> {
     pub(super) fn clean_up_plane_workspaces(&mut self, plane_idx: usize) {
         let empty_workspace_above_first = self.options.layout.empty_workspace_above_first;
         let range_start = if empty_workspace_above_first { 1 } else { 0 };
-        let plane = self
-            .workspaces
-            .plane_mut(plane_idx)
-            .expect("the plane index must be valid");
+        {
+            let plane = self
+                .workspaces
+                .plane_mut(plane_idx)
+                .expect("the plane index must be valid");
 
-        for idx in (range_start..plane.workspace_count() - 1).rev() {
-            if plane.active_workspace_idx() == idx {
-                continue;
+            for idx in (range_start..plane.workspace_count() - 1).rev() {
+                if plane.active_workspace_idx() == idx {
+                    continue;
+                }
+
+                if !plane.workspaces()[idx].has_windows_or_name() {
+                    plane
+                        .remove_workspace(idx)
+                        .expect("the workspace index must be valid");
+                }
             }
 
-            if !plane.workspaces()[idx].has_windows_or_name() {
+            // Special case handling when empty_workspace_above_first is set and all workspaces
+            // are empty.
+            if empty_workspace_above_first && plane.workspace_count() == 2 {
+                assert!(!plane.workspaces()[0].has_windows_or_name());
+                assert!(!plane.workspaces()[1].has_windows_or_name());
                 plane
-                    .remove_workspace(idx)
-                    .expect("the workspace index must be valid");
+                    .remove_workspace(1)
+                    .expect("the trailing workspace must exist");
             }
         }
 
-        // Special case handling when empty_workspace_above_first is set and all workspaces
-        // are empty.
-        if empty_workspace_above_first && plane.workspace_count() == 2 {
-            assert!(!plane.workspaces()[0].has_windows_or_name());
-            assert!(!plane.workspaces()[1].has_windows_or_name());
-            plane
-                .remove_workspace(1)
-                .expect("the trailing workspace must exist");
-        }
+        // Cleanup may shift an inactive plane's local index. Reapply the
+        // monitor-wide Y coordinate so switching planes never changes location.
+        let active_workspace_idx = self.active_workspace_idx();
+        self.set_active_workspace_idx(active_workspace_idx);
     }
 
     pub fn unname_workspace(&mut self, id: WorkspaceId) -> bool {
