@@ -159,7 +159,7 @@ fn render_indicator(
     let label_y: i32 = to_physical_precise_round(scale_factor, 43);
     let value_y: i32 = to_physical_precise_round(scale_factor, 51);
     let separator_top: i32 = to_physical_precise_round(scale_factor, 34);
-    let separator_bottom = to_physical_precise_round(scale_factor, 79);
+    let separator_bottom: i32 = to_physical_precise_round(scale_factor, 79);
 
     for separator in [1., 2.] {
         let x = padding as f64 + cell_width * separator;
@@ -219,19 +219,18 @@ fn render_indicator(
     depth_font.set_absolute_size(to_physical_precise_round(scale_factor, depth_font.size()));
     layout.set_font_description(Some(&depth_font));
 
+    let depth_label_y: i32 = to_physical_precise_round(scale_factor, 92);
+
     cr.set_source_rgba(0.67, 0.75, 0.86, 0.82);
     layout.set_text("BACK");
-    cr.move_to(
-        padding.into(),
-        to_physical_precise_round(scale_factor, 92).into(),
-    );
+    cr.move_to(padding.into(), depth_label_y.into());
     pangocairo::functions::show_layout(&cr, &layout);
 
     layout.set_text("FRONT");
     let (front_width, _) = layout.pixel_size();
     cr.move_to(
         (width - padding - front_width).into(),
-        to_physical_precise_round(scale_factor, 92).into(),
+        depth_label_y.into(),
     );
     pangocairo::functions::show_layout(&cr, &layout);
 
