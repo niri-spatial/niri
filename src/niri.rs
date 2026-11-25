@@ -4299,20 +4299,21 @@ impl Niri {
         // Get monitor elements.
         let mon = self.layout.monitor_for_output(output).unwrap();
         if self.layout.is_overview_open() {
-            if let Some(element) = self.spatial_indicator.render(
+            let workspace = mon.active_workspace_ref();
+            if let Some(elements) = self.spatial_indicator.render(
                 ctx.renderer,
                 output,
                 SpatialPosition {
-                    x: mon
-                        .active_workspace_ref()
-                        .active_column_idx()
-                        .map(|idx| idx + 1),
+                    x: workspace.active_column_idx().map(|idx| idx + 1),
                     y: mon.active_workspace_idx() + 1,
                     z: mon.active_plane_idx() + 1,
-                    workspaces: mon.spatial_workspace_map(),
+                    plane_count: mon.plane_count(),
                 },
+                workspace,
             ) {
-                push(element.into());
+                for element in elements {
+                    push(element.into());
+                }
             }
         }
 
