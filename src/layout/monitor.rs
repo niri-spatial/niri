@@ -614,10 +614,12 @@ impl<W: LayoutElement> Monitor<W> {
     /// All planes on this monitor share one active vertical workspace index.
     pub fn activate_plane(&mut self, index: usize) -> Result<(), PlaneError> {
         if index != self.active_plane_idx() {
-            let from_zoom = self.plane_switch.as_ref().map_or(
-                PLANE_SWITCH_START_ZOOM,
-                |animation| animation.value().clamp(PLANE_SWITCH_START_ZOOM, 1.),
-            );
+            let from_zoom = self
+                .plane_switch
+                .as_ref()
+                .map_or(PLANE_SWITCH_START_ZOOM, |animation| {
+                    animation.value().clamp(PLANE_SWITCH_START_ZOOM, 1.)
+                });
             let active_workspace_idx = self.active_workspace_idx();
             self.workspaces.activate_plane(index)?;
             self.set_active_workspace_idx(active_workspace_idx);
@@ -2362,7 +2364,10 @@ impl<W: LayoutElement> Monitor<W> {
         }
 
         let center = self.view_size.to_point().downscale(2.);
-        Rectangle::new(center - center.downscale(zoom), self.view_size.downscale(zoom))
+        Rectangle::new(
+            center - center.downscale(zoom),
+            self.view_size.downscale(zoom),
+        )
     }
 
     pub fn workspaces_with_render_geo(
@@ -2662,7 +2667,8 @@ impl<W: LayoutElement> Monitor<W> {
             ws.render_shadow(renderer, &mut |elem| {
                 let elem = elem.with_alpha(alpha);
                 let elem = MonitorInnerRenderElement::Shadow(elem);
-                let elem = RescaleRenderElement::from_element(elem, Point::from((0, 0)), total_zoom);
+                let elem =
+                    RescaleRenderElement::from_element(elem, Point::from((0, 0)), total_zoom);
                 let plane_geo_loc = plane_center + (geo.loc - plane_center).upscale(plane_zoom);
                 let elem = RelocateRenderElement::from_element(
                     elem,
