@@ -4309,7 +4309,7 @@ impl Niri {
                         .map(|idx| idx + 1),
                     y: mon.active_workspace_idx() + 1,
                     z: mon.active_plane_idx() + 1,
-                    plane_count: mon.plane_count(),
+                    workspaces: mon.spatial_workspace_map(),
                 },
             ) {
                 push(element.into());
