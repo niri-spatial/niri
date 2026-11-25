@@ -239,7 +239,7 @@ fn render_indicator(
     cr.line_to(track_end, track_y);
     cr.stroke()?;
 
-    let plane_count = position.plane_count.max(1);
+    let plane_count = position.workspaces.len().max(1);
     let active_plane = position.z.saturating_sub(1).min(plane_count - 1);
     let marker_count = plane_count.min(15);
     let active_marker = if marker_count <= 1 || plane_count <= marker_count {
@@ -272,6 +272,55 @@ fn render_indicator(
 
         cr.arc(x, track_y, radius, 0., std::f64::consts::PI * 2.);
         cr.fill()?;
+    }
+
+    // Draw the complete Y/Z workspace layout. Each column is a depth plane;
+    // each cell is one workspace, ordered from top to bottom.
+    let map_divider_y = base_height + map_margin / 2;
+    cr.set_source_rgba(0.55, 0.66, 0.78, 0.24);
+    cr.set_line_width(scale_factor.max(1.));
+    cr.move_to(padding as f64, map_divider_y as f64);
+    cr.line_to((width - padding) as f64, map_divider_y as f64);
+    cr.stroke()?;
+
+    let active_plane_idx = position.z.saturating_sub(1);
+    let active_workspace_idx = position.y.saturating_sub(1);
+
+    for (plane_idx, workspaces) in position.workspaces.iter().enumerate() {
+        let plane_x = grid_start_x + plane_idx as i32 * (cell_width + map_gap);
+
+        for (workspace_idx, occupied) in workspaces.iter().enumerate() {
+            let workspace_y = map_top
+                + padding
+                + workspace_idx.min(i32::MAX as usize) as i32 * (cell_height + map_gap);
+            let is_active =
+                plane_idx == active_plane_idx && workspace_idx == active_workspace_idx;
+
+            let x = plane_x as f64;
+            let y = workspace_y as f64;
+            let w = cell_width as f64;
+            let h = cell_height as f64;
+
+            let (fill, border) = match (is_active, occupied) {
+                (true, true) => ((0.16, 0.48, 0.74, 0.98), (0.55, 0.84, 1.0, 1.0)),
+                (true, false) => ((0.11, 0.29, 0.47, 0.98), (0.55, 0.84, 1.0, 1.0)),
+                (false, true) => ((0.29, 0.45, 0.61, 0.88), (0.55, 0.68, 0.82, 0.7)),
+                (false, false) => ((0.12, 0.16, 0.22, 0.72), (0.48, 0.57, 0.69, 0.42)),
+            };
+
+            cr.set_source_rgba(fill.0, fill.1, fill.2, fill.3);
+            cr.rectangle(x, y, w, h);
+            cr.fill()?;
+
+            cr.set_source_rgba(border.0, border.1, border.2, border.3);
+            cr.set_line_width(if is_active {
+                scale_factor.max(1.) * 1.8
+            } else {
+                scale_factor.max(1.)
+            });
+            cr.rectangle(x + 0.5, y + 0.5, (w - 1.).max(0.), (h - 1.).max(0.));
+            cr.stroke()?;
+        }
     }
 
     drop(layout);
