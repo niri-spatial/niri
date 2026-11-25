@@ -190,7 +190,7 @@ fn render_indicator(
         let (label_width, _) = layout.pixel_size();
         cr.set_source_rgba(0.45, 0.76, 1.0, 0.92);
         cr.move_to(
-            (cell_center - label_width as f64 / 2.).into(),
+            cell_center - label_width as f64 / 2.,
             label_y.into(),
         );
         pangocairo::functions::show_layout(&cr, &layout);
@@ -200,7 +200,7 @@ fn render_indicator(
         let (value_width, _) = layout.pixel_size();
         cr.set_source_rgba(0.92, 0.96, 1.0, 0.98);
         cr.move_to(
-            (cell_center - value_width as f64 / 2.).into(),
+            cell_center - value_width as f64 / 2.,
             value_y.into(),
         );
         pangocairo::functions::show_layout(&cr, &layout);
