@@ -486,7 +486,7 @@ impl<W: LayoutElement> Workspace<W> {
             return None;
         }
 
-        self.scrolling.active_column_idx()
+        self.scrolling.focused_column_index()
     }
 
     pub fn active_window_mut(&mut self) -> Option<&mut W> {
