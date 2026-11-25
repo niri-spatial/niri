@@ -172,6 +172,7 @@ use crate::ui::hotkey_overlay::HotkeyOverlay;
 use crate::ui::mru::{MruCloseRequest, WindowMruUi, WindowMruUiRenderElement};
 use crate::ui::screen_transition::{self, ScreenTransition};
 use crate::ui::screenshot_ui::{OutputScreenshot, ScreenshotUi, ScreenshotUiRenderElement};
+use crate::ui::spatial_indicator::{SpatialIndicator, SpatialPosition};
 use crate::utils::scale::{closest_representable_scale, guess_monitor_scale};
 use crate::utils::spawning::{CHILD_DISPLAY, CHILD_ENV};
 use crate::utils::vblank_throttle::VBlankThrottle;
@@ -388,6 +389,7 @@ pub struct Niri {
     pub screenshot_ui: ScreenshotUi,
     pub config_error_notification: ConfigErrorNotification,
     pub hotkey_overlay: HotkeyOverlay,
+    pub spatial_indicator: SpatialIndicator,
     pub exit_confirm_dialog: ExitConfirmDialog,
 
     pub window_mru_ui: WindowMruUi,
@@ -2417,6 +2419,7 @@ impl Niri {
             hotkey_overlay.show();
         }
 
+        let spatial_indicator = SpatialIndicator::new();
         let exit_confirm_dialog = ExitConfirmDialog::new(animation_clock.clone(), config.clone());
 
         #[cfg(feature = "dbus")]
@@ -2599,6 +2602,7 @@ impl Niri {
             screenshot_ui,
             config_error_notification,
             hotkey_overlay,
+            spatial_indicator,
             exit_confirm_dialog,
 
             window_mru_ui,
@@ -4294,6 +4298,19 @@ impl Niri {
 
         // Get monitor elements.
         let mon = self.layout.monitor_for_output(output).unwrap();
+        if let Some(element) = self.spatial_indicator.render(
+            ctx.renderer,
+            output,
+            SpatialPosition {
+                plane_idx: mon.active_plane_idx(),
+                plane_count: mon.plane_count(),
+                workspace_idx: mon.active_workspace_idx(),
+                workspace_count: mon.active_plane_workspace_count(),
+            },
+        ) {
+            push(element.into());
+        }
+
         let zoom = mon.overview_zoom();
         let plane_zoom = mon.plane_switch_zoom();
         let total_zoom = zoom * plane_zoom;
