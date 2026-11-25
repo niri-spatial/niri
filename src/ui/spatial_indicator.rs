@@ -62,7 +62,7 @@ impl SpatialIndicator {
         buffers.retain(|output, _| output.is_alive());
 
         let weak = output.downgrade();
-        let needs_render = buffers.get(&weak).is_none_or(|rendered| {
+        let needs_render = buffers.get(&weak).map_or(true, |rendered| {
             rendered.position != position || rendered.scale != scale
         });
 
@@ -86,10 +86,8 @@ impl SpatialIndicator {
 
         let size = buffer.logical_size();
         let output_size = output_size(output).to_f64();
-        let location = Point::from((
-            output_size.w - size.w - MARGIN as f64,
-            MARGIN as f64,
-        ));
+        let location =
+            Point::from((output_size.w - size.w - MARGIN as f64, MARGIN as f64));
         let location = location.to_physical_precise_round(scale).to_logical(scale);
 
         let elem = TextureRenderElement::from_texture_buffer(
@@ -133,15 +131,9 @@ fn render_indicator(
     cr.stroke()?;
 
     let mut title_font = FontDescription::from_string("sans Bold 11px");
-    title_font.set_absolute_size(to_physical_precise_round(
-        scale_factor,
-        title_font.size(),
-    ));
+    title_font.set_absolute_size(to_physical_precise_round(scale_factor, title_font.size()));
     let mut body_font = FontDescription::from_string("monospace 10px");
-    body_font.set_absolute_size(to_physical_precise_round(
-        scale_factor,
-        body_font.size(),
-    ));
+    body_font.set_absolute_size(to_physical_precise_round(scale_factor, body_font.size()));
 
     let layout = pangocairo::functions::create_layout(&cr);
     layout.context().set_round_glyph_positions(false);
@@ -232,10 +224,7 @@ fn render_indicator(
 
     // Axis hints make the map readable without taking much space.
     let mut hint_font = FontDescription::from_string("sans 8px");
-    hint_font.set_absolute_size(to_physical_precise_round(
-        scale_factor,
-        hint_font.size(),
-    ));
+    hint_font.set_absolute_size(to_physical_precise_round(scale_factor, hint_font.size()));
     layout.set_font_description(Some(&hint_font));
     cr.set_source_rgba(0.62, 0.7, 0.8, 0.78);
     layout.set_text("BACK");
