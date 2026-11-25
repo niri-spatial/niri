@@ -137,10 +137,9 @@ impl SpatialIndicator {
             (MAP_WIDTH as f64 - content_size.w * map_zoom) / 2.,
             (MAP_HEIGHT as f64 - content_size.h * map_zoom) / 2.,
         ));
-        let map_size = Size::from((
-            to_physical_precise_round(scale_factor, MAP_WIDTH),
-            to_physical_precise_round(scale_factor, MAP_HEIGHT),
-        ));
+        let map_width_px: i32 = to_physical_precise_round(scale_factor, MAP_WIDTH);
+        let map_height_px: i32 = to_physical_precise_round(scale_factor, MAP_HEIGHT);
+        let map_size = Size::from((map_width_px, map_height_px));
 
         let map_buffer = match workspace.render_minimap_texture(
             renderer.as_gles_renderer(),
@@ -374,7 +373,7 @@ fn render_viewport_overlay(
     let visible_height = viewport.size.h.min(content_size.h);
     if visible_width > 0. && visible_height > 0. {
         let x = (map_origin.x + viewport_left * map_zoom) * scale_factor;
-        let y = (map_origin.y) * scale_factor;
+        let y = map_origin.y * scale_factor;
         let w = visible_width * map_zoom * scale_factor;
         let h = visible_height * map_zoom * scale_factor;
 
@@ -383,7 +382,8 @@ fn render_viewport_overlay(
         cr.fill()?;
 
         cr.set_source_rgba(0.62, 0.88, 1.0, 0.98);
-        cr.set_line_width(to_physical_precise_round(scale_factor, 1.5) as f64);
+        let line_width_px: i32 = to_physical_precise_round(scale_factor, 1.5);
+        cr.set_line_width(line_width_px as f64);
         cr.rectangle(x + 0.5, y + 0.5, (w - 1.).max(0.), (h - 1.).max(0.));
         cr.stroke()?;
     }
