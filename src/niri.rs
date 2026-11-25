@@ -4298,17 +4298,17 @@ impl Niri {
 
         // Get monitor elements.
         let mon = self.layout.monitor_for_output(output).unwrap();
-        if let Some(element) = self.spatial_indicator.render(
-            ctx.renderer,
-            output,
-            SpatialPosition {
-                plane_idx: mon.active_plane_idx(),
-                plane_count: mon.plane_count(),
-                workspace_idx: mon.active_workspace_idx(),
-                workspace_count: mon.active_plane_workspace_count(),
-            },
-        ) {
-            push(element.into());
+        if self.layout.is_overview_open() {
+            if let Some(element) = self.spatial_indicator.render(
+                ctx.renderer,
+                output,
+                SpatialPosition {
+                    plane_idx: mon.active_plane_idx(),
+                    plane_count: mon.plane_count(),
+                },
+            ) {
+                push(element.into());
+            }
         }
 
         let zoom = mon.overview_zoom();
