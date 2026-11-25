@@ -726,11 +726,6 @@ impl<W: LayoutElement> Monitor<W> {
         self.workspaces.active_workspace_idx()
     }
 
-    /// Returns the number of workspaces in the active depth plane.
-    pub fn active_plane_workspace_count(&self) -> usize {
-        self.workspaces.active_plane().workspace_count()
-    }
-
     pub(super) fn set_active_workspace_idx(&mut self, index: usize) {
         let output = self.output.clone();
         let clock = self.clock.clone();
