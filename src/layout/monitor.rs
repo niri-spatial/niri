@@ -46,6 +46,9 @@ const WORKSPACE_GESTURE_RUBBER_BAND: RubberBand = RubberBand {
 /// This constant is tied to the default dnd-edge-workspace-switch max-speed setting.
 const WORKSPACE_DND_EDGE_SCROLL_MOVEMENT: f64 = 1500.;
 
+/// Starting zoom for the lightweight depth-plane transition.
+const PLANE_SWITCH_START_ZOOM: f64 = 0.96;
+
 #[derive(Debug)]
 pub struct Monitor<W: LayoutElement> {
     /// Output for this monitor.
@@ -70,6 +73,8 @@ pub struct Monitor<W: LayoutElement> {
     pub(super) previous_workspace_id: Option<WorkspaceId>,
     /// In-progress switch between workspaces.
     pub(super) workspace_switch: Option<WorkspaceSwitch>,
+    /// In-progress camera movement into the active depth plane.
+    pub(super) plane_switch: Option<Animation>,
     /// Indication where an interactively-moved window is about to be placed.
     pub(super) insert_hint: Option<InsertHint>,
     /// Insert hint element for rendering.
@@ -431,6 +436,7 @@ impl<W: LayoutElement> Monitor<W> {
             overview_open: false,
             overview_progress: None,
             workspace_switch: None,
+            plane_switch: None,
             clock,
             base_options,
             options,
@@ -608,11 +614,22 @@ impl<W: LayoutElement> Monitor<W> {
     /// All planes on this monitor share one active vertical workspace index.
     pub fn activate_plane(&mut self, index: usize) -> Result<(), PlaneError> {
         if index != self.active_plane_idx() {
+            let from_zoom = self.plane_switch.as_ref().map_or(
+                PLANE_SWITCH_START_ZOOM,
+                |animation| animation.value().clamp(PLANE_SWITCH_START_ZOOM, 1.),
+            );
             let active_workspace_idx = self.active_workspace_idx();
             self.workspaces.activate_plane(index)?;
             self.set_active_workspace_idx(active_workspace_idx);
             self.workspace_switch = None;
             self.previous_workspace_id = None;
+            self.plane_switch = Some(Animation::new(
+                self.clock.clone(),
+                from_zoom,
+                1.,
+                0.,
+                self.options.animations.workspace_switch.0,
+            ));
         }
 
         Ok(())
@@ -694,6 +711,7 @@ impl<W: LayoutElement> Monitor<W> {
 
         if self.active_plane_id() != active_plane_id {
             self.workspace_switch = None;
+            self.plane_switch = None;
             self.previous_workspace_id = None;
         }
 
@@ -1859,15 +1877,21 @@ impl<W: LayoutElement> Monitor<W> {
             None => (),
         }
 
+        if self.plane_switch.as_ref().is_some_and(Animation::is_done) {
+            self.plane_switch = None;
+        }
+
         for (_, _, ws) in self.workspaces.iter_workspaces_mut() {
             ws.advance_animations();
         }
     }
 
     pub(super) fn are_animations_ongoing(&self) -> bool {
-        self.workspace_switch
-            .as_ref()
-            .is_some_and(|s| s.is_animation_ongoing())
+        self.plane_switch.is_some()
+            || self
+                .workspace_switch
+                .as_ref()
+                .is_some_and(|s| s.is_animation_ongoing())
             || self
                 .workspaces
                 .iter_workspaces()
@@ -1875,7 +1899,8 @@ impl<W: LayoutElement> Monitor<W> {
     }
 
     pub fn are_transitions_ongoing(&self) -> bool {
-        self.workspace_switch.is_some()
+        self.plane_switch.is_some()
+            || self.workspace_switch.is_some()
             || self
                 .workspaces
                 .iter_workspaces()
@@ -2301,10 +2326,43 @@ impl<W: LayoutElement> Monitor<W> {
         })
     }
 
+    fn plane_switch_zoom(&self) -> f64 {
+        self.plane_switch
+            .as_ref()
+            .map_or(1., |animation| animation.value())
+            .clamp(PLANE_SWITCH_START_ZOOM, 1.)
+    }
+
+    fn plane_switch_untransform_pos(
+        &self,
+        pos: Point<f64, Logical>,
+    ) -> Point<f64, Logical> {
+        let zoom = self.plane_switch_zoom();
+        if zoom == 1. {
+            return pos;
+        }
+
+        let center = self.view_size.to_point().downscale(2.);
+        center + (pos - center).downscale(zoom)
+    }
+
+    fn workspace_render_bounds(&self) -> Rectangle<f64, Logical> {
+        let zoom = self.plane_switch_zoom();
+        if zoom == 1. {
+            return Rectangle::from_size(self.view_size);
+        }
+
+        let center = self.view_size.to_point().downscale(2.);
+        Rectangle::new(
+            center - center.downscale(zoom),
+            self.view_size.downscale(zoom),
+        )
+    }
+
     pub fn workspaces_with_render_geo(
         &self,
     ) -> impl Iterator<Item = (&Workspace<W>, Rectangle<f64, Logical>)> {
-        let output_geo = Rectangle::from_size(self.view_size);
+        let output_geo = self.workspace_render_bounds();
 
         let geo = self.workspaces_render_geo();
         zip(self.workspaces.iter(), geo)
@@ -2315,7 +2373,7 @@ impl<W: LayoutElement> Monitor<W> {
     pub fn workspaces_with_render_geo_idx(
         &self,
     ) -> impl Iterator<Item = ((usize, &Workspace<W>), Rectangle<f64, Logical>)> {
-        let output_geo = Rectangle::from_size(self.view_size);
+        let output_geo = self.workspace_render_bounds();
 
         let geo = self.workspaces_render_geo();
         zip(self.workspaces.iter().enumerate(), geo)
@@ -2327,7 +2385,7 @@ impl<W: LayoutElement> Monitor<W> {
         &mut self,
         cull: bool,
     ) -> impl Iterator<Item = (&mut Workspace<W>, Rectangle<f64, Logical>)> {
-        let output_geo = Rectangle::from_size(self.view_size);
+        let output_geo = self.workspace_render_bounds();
 
         let geo = self.workspaces_render_geo();
         zip(self.workspaces.iter_mut(), geo)
@@ -2336,6 +2394,13 @@ impl<W: LayoutElement> Monitor<W> {
     }
 
     pub fn workspace_under(
+        &self,
+        pos_within_output: Point<f64, Logical>,
+    ) -> Option<(&Workspace<W>, Rectangle<f64, Logical>)> {
+        self.workspace_under_untransformed(self.plane_switch_untransform_pos(pos_within_output))
+    }
+
+    fn workspace_under_untransformed(
         &self,
         pos_within_output: Point<f64, Logical>,
     ) -> Option<(&Workspace<W>, Rectangle<f64, Logical>)> {
@@ -2354,12 +2419,14 @@ impl<W: LayoutElement> Monitor<W> {
         &self,
         pos_within_output: Point<f64, Logical>,
     ) -> Option<&Workspace<W>> {
+        let pos_within_output = self.plane_switch_untransform_pos(pos_within_output);
         self.workspaces_with_render_geo()
             .find_map(|(ws, geo)| geo.contains(pos_within_output).then_some(ws))
     }
 
     pub fn window_under(&self, pos_within_output: Point<f64, Logical>) -> Option<(&W, HitType)> {
-        let (ws, geo) = self.workspace_under(pos_within_output)?;
+        let pos_within_output = self.plane_switch_untransform_pos(pos_within_output);
+        let (ws, geo) = self.workspace_under_untransformed(pos_within_output)?;
 
         if self.overview_progress.is_some() {
             let zoom = self.overview_zoom();
@@ -2379,7 +2446,8 @@ impl<W: LayoutElement> Monitor<W> {
             return None;
         }
 
-        let (ws, geo) = self.workspace_under(pos_within_output)?;
+        let pos_within_output = self.plane_switch_untransform_pos(pos_within_output);
+        let (ws, geo) = self.workspace_under_untransformed(pos_within_output)?;
         ws.resize_edges_under(pos_within_output - geo.loc)
     }
 
@@ -2387,6 +2455,7 @@ impl<W: LayoutElement> Monitor<W> {
         &self,
         pos_within_output: Point<f64, Logical>,
     ) -> (InsertWorkspace, Rectangle<f64, Logical>) {
+        let pos_within_output = self.plane_switch_untransform_pos(pos_within_output);
         let mut iter = self.workspaces_with_render_geo_idx();
 
         let dummy = Rectangle::default();
@@ -2434,7 +2503,10 @@ impl<W: LayoutElement> Monitor<W> {
 
     pub fn render_above_top_layer(&self) -> bool {
         // Render above the top layer only if the view is stationary.
-        if self.workspace_switch.is_some() || self.overview_progress.is_some() {
+        if self.workspace_switch.is_some()
+            || self.plane_switch.is_some()
+            || self.overview_progress.is_some()
+        {
             return false;
         }
 
@@ -2489,7 +2561,10 @@ impl<W: LayoutElement> Monitor<W> {
         // rendering for maximized GTK windows.
         //
         // FIXME: use proper bounds after fixing the Crop element.
-        let crop_bounds = if self.workspace_switch.is_some() || self.overview_progress.is_some() {
+        let crop_bounds = if self.workspace_switch.is_some()
+            || self.plane_switch.is_some()
+            || self.overview_progress.is_some()
+        {
             Rectangle::new(
                 Point::from((-i32::MAX / 2, 0)),
                 Size::from((i32::MAX, height)),
@@ -2502,19 +2577,23 @@ impl<W: LayoutElement> Monitor<W> {
         };
 
         let zoom = self.overview_zoom();
+        let plane_zoom = self.plane_switch_zoom();
+        let total_zoom = zoom * plane_zoom;
+        let plane_center = self.view_size.to_point().downscale(2.);
 
         let insert_hint_render_loc = self
             .insert_hint_render_loc
             .filter(|_| !self.options.layout.insert_hint.off);
 
         let scale_relocate = move |geo: Rectangle<f64, Logical>, elem| {
-            let elem = RescaleRenderElement::from_element(elem, Point::from((0, 0)), zoom);
+            let elem =
+                RescaleRenderElement::from_element(elem, Point::from((0, 0)), total_zoom);
+            let plane_geo_loc = plane_center + (geo.loc - plane_center).upscale(plane_zoom);
             RelocateRenderElement::from_element(
                 elem,
-                // The offset we get from workspaces_with_render_geo() is already
-                // rounded to physical pixels, but it's in the logical coordinate
-                // space, so we need to convert it to physical.
-                geo.loc.to_physical_precise_round(scale),
+                // The transformed offset is rounded to physical pixels to keep
+                // every frame aligned with the output's scale.
+                plane_geo_loc.to_physical_precise_round(scale),
                 Relocate::Relative,
             )
         };
@@ -2533,7 +2612,8 @@ impl<W: LayoutElement> Monitor<W> {
                 }};
             }
 
-            let xray_pos = XrayPos::new(geo.loc, zoom);
+            let plane_geo_loc = plane_center + (geo.loc - plane_center).upscale(plane_zoom);
+            let xray_pos = XrayPos::new(plane_geo_loc, total_zoom);
 
             ws.render_floating(ctx.r(), xray_pos, focus_ring, push!());
 
@@ -2562,15 +2642,20 @@ impl<W: LayoutElement> Monitor<W> {
 
         let scale = self.scale.fractional_scale();
         let zoom = self.overview_zoom();
+        let plane_zoom = self.plane_switch_zoom();
+        let total_zoom = zoom * plane_zoom;
+        let plane_center = self.view_size.to_point().downscale(2.);
 
         for (ws, geo) in self.workspaces_with_render_geo() {
             ws.render_shadow(renderer, &mut |elem| {
                 let elem = elem.with_alpha(alpha);
                 let elem = MonitorInnerRenderElement::Shadow(elem);
-                let elem = RescaleRenderElement::from_element(elem, Point::from((0, 0)), zoom);
+                let elem =
+                    RescaleRenderElement::from_element(elem, Point::from((0, 0)), total_zoom);
+                let plane_geo_loc = plane_center + (geo.loc - plane_center).upscale(plane_zoom);
                 let elem = RelocateRenderElement::from_element(
                     elem,
-                    geo.loc.to_physical_precise_round(scale),
+                    plane_geo_loc.to_physical_precise_round(scale),
                     Relocate::Relative,
                 );
                 push(elem);
