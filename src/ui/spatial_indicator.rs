@@ -60,8 +60,8 @@ impl SpatialIndicator {
         output: &Output,
         position: SpatialPosition,
     ) -> Option<PrimaryGpuTextureRenderElement> {
-        let scale = output.current_scale().fractional_scale();
-        let scale = Scale::from(scale);
+        let scale_factor = output.current_scale().fractional_scale();
+        let scale = Scale::from(scale_factor);
 
         let mut buffers = self.buffers.borrow_mut();
         buffers.retain(|output, _| output.is_alive());
@@ -76,7 +76,7 @@ impl SpatialIndicator {
             let rendered = match render_indicator(
                 renderer.as_gles_renderer(),
                 position,
-                scale.fractional_scale(),
+                scale_factor,
             ) {
                 Ok(buffer) => Some(buffer),
                 Err(err) => {
