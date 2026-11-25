@@ -14,22 +14,21 @@ use crate::render_helpers::renderer::NiriRenderer;
 use crate::render_helpers::texture::{TextureBuffer, TextureRenderElement};
 use crate::utils::{output_size, to_physical_precise_round};
 
-const WIDTH: i32 = 184;
-const HEIGHT: i32 = 140;
+const WIDTH: i32 = 216;
+const HEIGHT: i32 = 88;
 const MARGIN: i32 = 20;
 const PADDING: i32 = 12;
-const MAX_VISIBLE_ITEMS: usize = 5;
-const GRID_SPACING: i32 = 12;
-const GRID_TOP: i32 = 70;
-const GRID_RADIUS: f64 = 2.2;
-const ACTIVE_RADIUS: f64 = 4.0;
+const MAX_VISIBLE_PLANES: usize = 7;
+const TRACK_MARGIN: i32 = 22;
+const TRACK_Y: i32 = 54;
+const TRACK_RADIUS: f64 = 3.0;
+const ACTIVE_RADIUS: f64 = 5.0;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SpatialPosition {
+    /// Zero-based plane index. Plane indices increase toward the front.
     pub plane_idx: usize,
     pub plane_count: usize,
-    pub workspace_idx: usize,
-    pub workspace_count: usize,
 }
 
 struct RenderedIndicator {
@@ -123,15 +122,15 @@ fn render_indicator(
     let width = to_physical_precise_round(scale_factor, WIDTH);
     let height = to_physical_precise_round(scale_factor, HEIGHT);
     let padding = to_physical_precise_round(scale_factor, PADDING);
-    let grid_spacing = to_physical_precise_round(scale_factor, GRID_SPACING);
-    let grid_top = to_physical_precise_round(scale_factor, GRID_TOP);
-    let grid_radius = GRID_RADIUS * scale_factor;
+    let track_margin = to_physical_precise_round(scale_factor, TRACK_MARGIN);
+    let track_y = to_physical_precise_round(scale_factor, TRACK_Y);
+    let track_radius = TRACK_RADIUS * scale_factor;
     let active_radius = ACTIVE_RADIUS * scale_factor;
 
     let surface = ImageSurface::create(cairo::Format::ARgb32, width, height)?;
     let cr = cairo::Context::new(&surface)?;
 
-    // Translucent panel and a quiet outline.
+    // Compact translucent panel shown only while the overview is open.
     cr.set_source_rgba(0.035, 0.045, 0.065, 0.88);
     cr.rectangle(0., 0., width.into(), height.into());
     cr.fill()?;
@@ -143,113 +142,109 @@ fn render_indicator(
 
     let mut title_font = FontDescription::from_string("sans Bold 11px");
     title_font.set_absolute_size(to_physical_precise_round(scale_factor, title_font.size()));
-    let mut body_font = FontDescription::from_string("monospace 10px");
-    body_font.set_absolute_size(to_physical_precise_round(scale_factor, body_font.size()));
+    let mut value_font = FontDescription::from_string("monospace 10px");
+    value_font.set_absolute_size(to_physical_precise_round(scale_factor, value_font.size()));
 
     let layout = pangocairo::functions::create_layout(&cr);
     layout.context().set_round_glyph_positions(false);
 
     cr.set_source_rgba(0.88, 0.93, 1.0, 0.96);
     layout.set_font_description(Some(&title_font));
-    layout.set_text("SPATIAL POSITION");
-    cr.move_to(padding.into(), (padding - to_physical_precise_round(scale_factor, 1)).into());
+    layout.set_text("DEPTH POSITION");
+    cr.move_to(padding.into(), padding.into());
     pangocairo::functions::show_layout(&cr, &layout);
 
-    layout.set_font_description(Some(&body_font));
-    cr.set_source_rgba(0.72, 0.79, 0.88, 0.92);
+    layout.set_font_description(Some(&value_font));
+    cr.set_source_rgba(0.72, 0.79, 0.88, 0.94);
     layout.set_text(&format!(
-        "Z  PLANE      {:02} / {:02}",
+        "PLANE  {:02} / {:02}",
         position.plane_idx + 1,
         position.plane_count
     ));
     cr.move_to(
+        (width - padding - layout.pixel_size().0).into(),
         padding.into(),
-        to_physical_precise_round(scale_factor, 34).into(),
     );
-    pangocairo::functions::show_layout(&cr, &layout);
+    pangocairo::functions.show_layout(&cr, &layout);
 
-    layout.set_text(&format!(
-        "Y  WORKSPACE  {:02} / {:02}",
-        position.workspace_idx + 1,
-        position.workspace_count
-    ));
-    cr.move_to(
-        padding.into(),
-        to_physical_precise_round(scale_factor, 51).into(),
-    );
-    pangocairo::functions::show_layout(&cr, &layout);
+    // A single front-to-back track. Higher plane indices are closer to the front.
+    let visible = visible_range(position.plane_idx, position.plane_count);
+    let visible_count = visible.end - visible.start;
+    let track_left = track_margin as f64;
+    let track_right = (width - track_margin) as f64;
+    let track_width = track_right - track_left;
+    let spacing = if visible_count > 1 {
+        track_width / (visible_count - 1) as f64
+    } else {
+        0.
+    };
 
-    // The map is a top-down projection: depth planes run horizontally (Z),
-    // and vertical workspaces run from top to bottom (Y).
-    let plane_range = visible_range(position.plane_idx, position.plane_count);
-    let workspace_range = visible_range(position.workspace_idx, position.workspace_count);
-    let plane_visible_count = plane_range.end - plane_range.start;
-    let workspace_visible_count = workspace_range.end - workspace_range.start;
+    cr.set_source_rgba(0.55, 0.66, 0.78, 0.35);
+    cr.set_line_width((scale_factor * 1.2).max(1.));
+    cr.move_to(track_left, track_y as f64);
+    cr.line_to(track_right, track_y as f64);
+    cr.stroke()?;
 
-    let map_width = plane_visible_count.saturating_sub(1) as i32 * grid_spacing;
-    let map_height = workspace_visible_count.saturating_sub(1) as i32 * grid_spacing;
-    let map_left = (width - map_width) / 2;
-    let map_top = grid_top + (to_physical_precise_round(scale_factor, 40) - map_height) / 2;
+    for plane_idx in visible.clone() {
+        let x = track_left + (plane_idx - visible.start) as f64 * spacing;
+        let distance_from_front = position
+            .plane_count
+            .saturating_sub(1)
+            .saturating_sub(plane_idx);
+        let alpha = (0.42 + 0.08 * (MAX_VISIBLE_PLANES - distance_from_front.min(MAX_VISIBLE_PLANES)) as f64)
+            .min(0.9);
 
-    for plane_idx in plane_range.clone() {
-        for workspace_idx in workspace_range.clone() {
-            let x = map_left + (plane_idx - plane_range.start) as i32 * grid_spacing;
-            let y = map_top + (workspace_idx - workspace_range.start) as i32 * grid_spacing;
-            let is_active =
-                plane_idx == position.plane_idx && workspace_idx == position.workspace_idx;
+        if plane_idx == position.plane_idx {
+            cr.set_source_rgba(0.34, 0.83, 1.0, 0.98);
+            cr.arc(
+                x,
+                track_y as f64,
+                active_radius,
+                0.,
+                std::f64::consts::TAU,
+            );
+            cr.fill()?;
 
-            if is_active {
-                cr.set_source_rgba(0.34, 0.83, 1.0, 0.98);
-                cr.arc(
-                    x.into(),
-                    y.into(),
-                    active_radius,
-                    0.,
-                    std::f64::consts::TAU,
-                );
-                cr.fill()?;
-
-                cr.set_source_rgba(0.34, 0.83, 1.0, 0.52);
-                cr.set_line_width((scale_factor).max(1.));
-                cr.arc(
-                    x.into(),
-                    y.into(),
-                    active_radius + to_physical_precise_round(scale_factor, 3) as f64,
-                    0.,
-                    std::f64::consts::TAU,
-                );
-                cr.stroke()?;
-            } else {
-                cr.set_source_rgba(0.64, 0.72, 0.83, 0.58);
-                cr.arc(
-                    x.into(),
-                    y.into(),
-                    grid_radius,
-                    0.,
-                    std::f64::consts::TAU,
-                );
-                cr.fill()?;
-            }
+            cr.set_source_rgba(0.34, 0.83, 1.0, 0.55);
+            cr.set_line_width((scale_factor).max(1.));
+            cr.arc(
+                x,
+                track_y as f64,
+                active_radius + to_physical_precise_round(scale_factor, 3) as f64,
+                0.,
+                std::f64::consts::TAU,
+            );
+            cr.stroke()?;
+        } else {
+            cr.set_source_rgba(0.64, 0.72, 0.83, alpha as f64);
+            cr.arc(
+                x,
+                track_y as f64,
+                track_radius,
+                0.,
+                std::f64::consts::TAU,
+            );
+            cr.fill()?;
         }
     }
 
-    // Axis hints make the map readable without taking much space.
     let mut hint_font = FontDescription::from_string("sans 8px");
     hint_font.set_absolute_size(to_physical_precise_round(scale_factor, hint_font.size()));
     layout.set_font_description(Some(&hint_font));
     cr.set_source_rgba(0.62, 0.7, 0.8, 0.78);
+
     layout.set_text("BACK");
     cr.move_to(
         padding.into(),
-        to_physical_precise_round(scale_factor, 126).into(),
+        to_physical_precise_round(scale_factor, 75).into(),
     );
     pangocairo::functions::show_layout(&cr, &layout);
 
-    layout.set_text("FRONT  ·  Y ↓");
+    layout.set_text("FRONT");
     let (hint_width, _) = layout.pixel_size();
     cr.move_to(
         (width - padding - hint_width).into(),
-        to_physical_precise_round(scale_factor, 126).into(),
+        to_physical_precise_round(scale_factor, 75).into(),
     );
     pangocairo::functions::show_layout(&cr, &layout);
 
@@ -257,7 +252,7 @@ fn render_indicator(
     drop(cr);
 
     let data = surface.take_data()?;
-    let buffer = TextureBuffer::from_memory(
+    TextureBuffer::from_memory(
         renderer,
         &data,
         Fourcc::Argb8888,
@@ -266,41 +261,38 @@ fn render_indicator(
         scale_factor,
         Transform::Normal,
         Vec::new(),
-    )?;
-
-    Ok(buffer)
+    )
 }
 
 fn visible_range(current: usize, total: usize) -> std::ops::Range<usize> {
-    if total <= MAX_VISIBLE_ITEMS {
+    if total <= MAX_VISIBLE_PLANES {
         return 0..total;
     }
 
     let start = current
-        .saturating_sub(MAX_VISIBLE_ITEMS / 2)
-        .min(total - MAX_VISIBLE_ITEMS);
-    start..start + MAX_VISIBLE_ITEMS
+        .saturating_sub(MAX_VISIBLE_PLANES / 2)
+        .min(total - MAX_VISIBLE_PLANES);
+    start..start + MAX_VISIBLE_PLANES
 }
-
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn visible_range_keeps_small_axes_whole() {
+    fn visible_range_keeps_small_depths_whole() {
         assert_eq!(visible_range(0, 1), 0..1);
         assert_eq!(visible_range(2, 4), 0..4);
     }
 
     #[test]
-    fn visible_range_centers_the_active_position_when_possible() {
-        assert_eq!(visible_range(5, 10), 3..8);
+    fn visible_range_centers_the_active_plane_when_possible() {
+        assert_eq!(visible_range(5, 10), 2..9);
     }
 
     #[test]
-    fn visible_range_stays_inside_axis_bounds() {
-        assert_eq!(visible_range(0, 10), 0..5);
-        assert_eq!(visible_range(9, 10), 5..10);
+    fn visible_range_stays_inside_depth_bounds() {
+        assert_eq!(visible_range(0, 10), 0..7);
+        assert_eq!(visible_range(9, 10), 3..10);
     }
 }
