@@ -137,7 +137,7 @@ fn render_indicator(
     cr.fill()?;
 
     cr.set_source_rgba(0.55, 0.66, 0.78, 0.32);
-    cr.set_line_width((scale_factor).max(1.));
+    cr.set_line_width(scale_factor.max(1.));
     cr.rectangle(0.5, 0.5, (width - 1) as f64, (height - 1) as f64);
     cr.stroke()?;
 
