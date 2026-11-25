@@ -62,9 +62,10 @@ impl SpatialIndicator {
         buffers.retain(|output, _| output.is_alive());
 
         let weak = output.downgrade();
-        let needs_render = buffers.get(&weak).map_or(true, |rendered| {
-            rendered.position != position || rendered.scale != scale
-        });
+        let needs_render = match buffers.get(&weak) {
+            Some(rendered) => rendered.position != position || rendered.scale != scale,
+            None => true,
+        };
 
         if needs_render {
             let rendered = render_indicator(renderer.as_gles_renderer(), position, scale)
