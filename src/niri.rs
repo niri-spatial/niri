@@ -4295,6 +4295,8 @@ impl Niri {
         // Get monitor elements.
         let mon = self.layout.monitor_for_output(output).unwrap();
         let zoom = mon.overview_zoom();
+        let plane_zoom = mon.plane_switch_zoom();
+        let total_zoom = zoom * plane_zoom;
 
         // Get layer-shell elements.
         let layer_map = layer_map_for_output(output);
@@ -4392,8 +4394,11 @@ impl Niri {
             // Macro instead of closure to avoid borrowing push().
             macro_rules! process {
                 ($geo:expr) => {{
+                    let render_geo = mon.transform_workspace_render_geo($geo);
                     &mut |elem| {
-                        if let Some(elem) = scale_relocate_crop(elem, output_scale, zoom, $geo) {
+                        if let Some(elem) =
+                            scale_relocate_crop(elem, output_scale, total_zoom, render_geo)
+                        {
                             push(elem.into());
                         }
                     }
@@ -4402,7 +4407,8 @@ impl Niri {
 
             for (ws, geo) in mon.workspaces_with_render_geo() {
                 let ns = Some(ws.id().get() as usize);
-                let xray_pos = XrayPos::new(geo.loc, zoom);
+                let render_geo = mon.transform_workspace_render_geo(geo);
+                let xray_pos = XrayPos::new(render_geo.loc, total_zoom);
                 push_popups_from_layer!(Layer::Bottom, ns, xray_pos, process!(geo));
                 push_popups_from_layer!(Layer::Background, ns, xray_pos, process!(geo));
             }
@@ -4419,7 +4425,8 @@ impl Niri {
                 // namespace on the frame at once. Id + namespace is used as the cache key in the
                 // damage tracker.
                 let ns = Some(ws.id().get() as usize);
-                let xray_pos = XrayPos::new(geo.loc, zoom);
+                let render_geo = mon.transform_workspace_render_geo(geo);
+                let xray_pos = XrayPos::new(render_geo.loc, total_zoom);
                 push_normal_from_layer!(Layer::Bottom, ns, xray_pos, process!(geo));
                 push_normal_from_layer!(Layer::Background, ns, xray_pos, process!(geo));
 
