@@ -3,12 +3,14 @@ use std::collections::HashMap;
 
 use pangocairo::cairo::{self, ImageSurface};
 use pangocairo::pango::FontDescription;
+use smithay::backend::allocator::Fourcc;
 use smithay::backend::renderer::element::Kind;
 use smithay::backend::renderer::gles::{GlesRenderer, GlesTexture};
 use smithay::output::{Output, WeakOutput};
-use smithay::reexports::gbm::Format as Fourcc;
-use smithay::utils::{Logical, Point, Scale, Transform};
+use smithay::utils::{Logical, Point, Scale, Size, Transform};
 
+use crate::layout::workspace::Workspace;
+use crate::layout::LayoutElement;
 use crate::render_helpers::primary_gpu_texture::PrimaryGpuTextureRenderElement;
 use crate::render_helpers::renderer::NiriRenderer;
 use crate::render_helpers::texture::{TextureBuffer, TextureRenderElement};
@@ -18,8 +20,12 @@ const WIDTH: i32 = 240;
 const HEIGHT: i32 = 96;
 const MARGIN: i32 = 20;
 const PADDING: i32 = 14;
+const MAP_MARGIN: i32 = 10;
+const MAP_WIDTH: i32 = WIDTH - PADDING * 2;
+const MAP_HEIGHT: i32 = 112;
+const PANEL_HEIGHT: i32 = HEIGHT + MAP_MARGIN + MAP_HEIGHT + PADDING;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SpatialPosition {
     /// One-based active column index. None when no tiling column is focused.
     pub x: Option<usize>,
@@ -27,8 +33,8 @@ pub struct SpatialPosition {
     pub y: usize,
     /// One-based active plane index, increasing from back to front.
     pub z: usize,
-    /// Workspace occupancy, ordered by plane (Z) and workspace (Y).
-    pub workspaces: Vec<Vec<bool>>,
+    /// Total number of depth planes on this monitor.
+    pub plane_count: usize,
 }
 
 struct RenderedIndicator {
@@ -54,63 +60,137 @@ impl SpatialIndicator {
         Self::default()
     }
 
-    pub fn render<R: NiriRenderer>(
+    pub fn render<R: NiriRenderer, W: LayoutElement>(
         &self,
         renderer: &mut R,
         output: &Output,
         position: SpatialPosition,
-    ) -> Option<PrimaryGpuTextureRenderElement> {
+        workspace: &Workspace<W>,
+    ) -> Option<Vec<PrimaryGpuTextureRenderElement>> {
         let scale_factor = output.current_scale().fractional_scale();
         let scale = Scale::from(scale_factor);
 
-        let mut buffers = self.buffers.borrow_mut();
-        buffers.retain(|output, _| output.is_alive());
-
         let weak = output.downgrade();
-        let needs_render = match buffers.get(&weak) {
-            Some(rendered) => rendered.position != position || rendered.scale != scale,
-            None => true,
+        let panel_buffer = {
+            let mut buffers = self.buffers.borrow_mut();
+            buffers.retain(|output, _| output.is_alive());
+
+            let needs_render = match buffers.get(&weak) {
+                Some(rendered) => rendered.position != position || rendered.scale != scale,
+                None => true,
+            };
+
+            if needs_render {
+                let rendered =
+                    match render_indicator(renderer.as_gles_renderer(), &position, scale_factor) {
+                        Ok(buffer) => Some(buffer),
+                        Err(err) => {
+                            warn!("failed to render spatial coordinates: {err:#}");
+                            None
+                        }
+                    };
+                buffers.insert(
+                    weak.clone(),
+                    RenderedIndicator {
+                        position,
+                        scale,
+                        buffer: rendered,
+                    },
+                );
+            }
+
+            buffers.get(&weak)?.buffer.as_ref()?.clone()
         };
 
-        if needs_render {
-            let rendered =
-                match render_indicator(renderer.as_gles_renderer(), &position, scale_factor) {
-                    Ok(buffer) => Some(buffer),
-                    Err(err) => {
-                        warn!("failed to render spatial coordinates: {err:#}");
-                        None
-                    }
-                };
-            buffers.insert(
-                weak.clone(),
-                RenderedIndicator {
-                    position,
-                    scale,
-                    buffer: rendered,
-                },
-            );
-        }
-
-        let buffer = buffers.get(&weak)?.buffer.as_ref()?;
-
-        let size = buffer.logical_size();
+        let panel_size = panel_buffer.logical_size();
         let output_size = output_size(output).to_f64();
-        let location: Point<f64, Logical> = Point::from((
-            (output_size.w - size.w - MARGIN as f64).max(0.),
+        let panel_location: Point<f64, Logical> = Point::from((
+            (output_size.w - panel_size.w - MARGIN as f64).max(0.),
             MARGIN as f64,
         ));
-        let location = location.to_physical_precise_round(scale).to_logical(scale);
+        let panel_location = panel_location
+            .to_physical_precise_round(scale)
+            .to_logical(scale);
 
-        let elem = TextureRenderElement::from_texture_buffer(
-            buffer.clone(),
-            location,
+        let panel_element = TextureRenderElement::from_texture_buffer(
+            panel_buffer,
+            panel_location,
             0.94,
             None,
             None,
             Kind::Unspecified,
         );
+        let mut elements = vec![PrimaryGpuTextureRenderElement(panel_element)];
 
-        Some(PrimaryGpuTextureRenderElement(elem))
+        let (content_size, viewport) = workspace.minimap_geometry();
+        if content_size.w <= 0. || content_size.h <= 0. {
+            return Some(elements);
+        }
+
+        let map_zoom = (MAP_WIDTH as f64 / content_size.w)
+            .min(MAP_HEIGHT as f64 / content_size.h);
+        if !map_zoom.is_finite() || map_zoom <= 0. {
+            return Some(elements);
+        }
+
+        let map_origin = Point::from((
+            (MAP_WIDTH as f64 - content_size.w * map_zoom) / 2.,
+            (MAP_HEIGHT as f64 - content_size.h * map_zoom) / 2.,
+        ));
+        let map_size = Size::from((
+            to_physical_precise_round(scale_factor, MAP_WIDTH),
+            to_physical_precise_round(scale_factor, MAP_HEIGHT),
+        ));
+
+        let map_buffer = match workspace.render_minimap_texture(
+            renderer.as_gles_renderer(),
+            scale,
+            map_size,
+            map_zoom,
+            map_origin,
+        ) {
+            Ok(buffer) => buffer,
+            Err(err) => {
+                warn!("failed to render workspace minimap: {err:#}");
+                return Some(elements);
+            }
+        };
+
+        let map_location = panel_location
+            + Point::from((PADDING as f64, (HEIGHT + MAP_MARGIN) as f64));
+        let map_element = TextureRenderElement::from_texture_buffer(
+            map_buffer,
+            map_location,
+            1.0,
+            None,
+            None,
+            Kind::Unspecified,
+        );
+        elements.push(PrimaryGpuTextureRenderElement(map_element));
+
+        match render_viewport_overlay(
+            renderer.as_gles_renderer(),
+            scale_factor,
+            viewport,
+            content_size,
+            map_zoom,
+            map_origin,
+        ) {
+            Ok(buffer) => {
+                let overlay = TextureRenderElement::from_texture_buffer(
+                    buffer,
+                    map_location,
+                    1.0,
+                    None,
+                    None,
+                    Kind::Unspecified,
+                );
+                elements.push(PrimaryGpuTextureRenderElement(overlay));
+            }
+            Err(err) => warn!("failed to render workspace minimap viewport: {err:#}"),
+        }
+
+        Some(elements)
     }
 }
 
@@ -120,47 +200,14 @@ fn render_indicator(
     scale_factor: f64,
 ) -> anyhow::Result<TextureBuffer<GlesTexture>> {
     let width: i32 = to_physical_precise_round(scale_factor, WIDTH);
-    let base_height: i32 = to_physical_precise_round(scale_factor, HEIGHT);
+    let height: i32 = to_physical_precise_round(scale_factor, PANEL_HEIGHT);
     let padding: i32 = to_physical_precise_round(scale_factor, PADDING);
-    let map_margin: i32 = to_physical_precise_round(scale_factor, 10);
-    let map_max_height: i32 = to_physical_precise_round(scale_factor, 144);
-    let map_gap: i32 = to_physical_precise_round(scale_factor, 3);
-    let max_cell_width: i32 = to_physical_precise_round(scale_factor, 48);
-    let max_cell_height: i32 = to_physical_precise_round(scale_factor, 14);
-
-    let plane_count = position.workspaces.len().max(1);
-    let workspace_row_count = position
-        .workspaces
-        .iter()
-        .map(Vec::len)
-        .max()
-        .unwrap_or(1)
-        .max(1);
-    let plane_count_i32 = plane_count.min(i32::MAX as usize) as i32;
-    let row_count_i32 = workspace_row_count.min(i32::MAX as usize) as i32;
-
-    let content_width = width - padding * 2;
-    let horizontal_gaps = map_gap * plane_count_i32.saturating_sub(1);
-    let available_cell_width = (content_width - horizontal_gaps).max(plane_count_i32);
-    let map_cell_width = (available_cell_width / plane_count_i32).min(max_cell_width).max(1);
-    let grid_width = map_cell_width * plane_count_i32 + horizontal_gaps;
-    let grid_start_x = (width - grid_width) / 2;
-
-    let vertical_gaps = map_gap * row_count_i32.saturating_sub(1);
-    let available_cell_height =
-        (map_max_height - padding * 2 - vertical_gaps).max(row_count_i32);
-    let cell_height = (available_cell_height / row_count_i32)
-        .min(max_cell_height)
-        .max(1);
-    let map_height = cell_height * row_count_i32 + vertical_gaps + padding * 2;
-    let map_top = base_height + map_margin;
-    let height = map_top + map_height;
 
     let surface = ImageSurface::create(cairo::Format::ARgb32, width, height)?;
     let cr = cairo::Context::new(&surface)?;
 
-    // A compact, translucent coordinates panel.
-    cr.set_source_rgba(0.035, 0.045, 0.065, 0.9);
+    // A compact, translucent panel containing coordinates and a live workspace preview.
+    cr.set_source_rgba(0.035, 0.045, 0.065, 0.92);
     cr.rectangle(0., 0., width.into(), height.into());
     cr.fill()?;
 
@@ -219,7 +266,7 @@ fn render_indicator(
         pangocairo::functions::show_layout(&cr, &layout);
     }
 
-    // Separate the coordinates from the depth-position track.
+    // The depth track uses the same back-to-front ordering as the Z coordinate.
     let divider_y: i32 = to_physical_precise_round(scale_factor, 61);
     cr.set_source_rgba(0.55, 0.66, 0.78, 0.24);
     cr.set_line_width(scale_factor.max(1.));
@@ -239,6 +286,7 @@ fn render_indicator(
     cr.line_to(track_end, track_y);
     cr.stroke()?;
 
+    let plane_count = position.plane_count.max(1);
     let active_plane = position.z.saturating_sub(1).min(plane_count - 1);
     let marker_count = plane_count.min(15);
     let active_marker = if marker_count <= 1 || plane_count <= marker_count {
@@ -273,58 +321,74 @@ fn render_indicator(
         cr.fill()?;
     }
 
-    // Draw the complete Y/Z workspace layout. Each column is a depth plane;
-    // each cell is one workspace, ordered from top to bottom.
-    let map_divider_y = base_height + map_margin / 2;
-    cr.set_source_rgba(0.55, 0.66, 0.78, 0.24);
+    // Backplate behind the live workspace thumbnail.
+    let map_left = padding as f64;
+    let map_top = to_physical_precise_round(scale_factor, HEIGHT + MAP_MARGIN) as f64;
+    let map_width = (width - padding * 2) as f64;
+    let map_height = to_physical_precise_round(scale_factor, MAP_HEIGHT) as f64;
+    cr.set_source_rgba(0.012, 0.018, 0.03, 0.98);
+    cr.rectangle(map_left, map_top, map_width, map_height);
+    cr.fill()?;
+    cr.set_source_rgba(0.55, 0.66, 0.78, 0.35);
     cr.set_line_width(scale_factor.max(1.));
-    cr.move_to(padding as f64, map_divider_y as f64);
-    cr.line_to((width - padding) as f64, map_divider_y as f64);
+    cr.rectangle(
+        map_left + 0.5,
+        map_top + 0.5,
+        map_width - 1.,
+        map_height - 1.,
+    );
     cr.stroke()?;
-
-    let active_plane_idx = position.z.saturating_sub(1);
-    let active_workspace_idx = position.y.saturating_sub(1);
-
-    for (plane_idx, workspaces) in position.workspaces.iter().enumerate() {
-        let plane_x = grid_start_x + plane_idx as i32 * (map_cell_width + map_gap);
-
-        for (workspace_idx, occupied) in workspaces.iter().enumerate() {
-            let workspace_y = map_top
-                + padding
-                + workspace_idx.min(i32::MAX as usize) as i32 * (cell_height + map_gap);
-            let is_active =
-                plane_idx == active_plane_idx && workspace_idx == active_workspace_idx;
-
-            let x = plane_x as f64;
-            let y = workspace_y as f64;
-            let w = map_cell_width as f64;
-            let h = cell_height as f64;
-
-            let (fill, border) = match (is_active, *occupied) {
-                (true, true) => ((0.16, 0.48, 0.74, 0.98), (0.55, 0.84, 1.0, 1.0)),
-                (true, false) => ((0.11, 0.29, 0.47, 0.98), (0.55, 0.84, 1.0, 1.0)),
-                (false, true) => ((0.29, 0.45, 0.61, 0.88), (0.55, 0.68, 0.82, 0.7)),
-                (false, false) => ((0.12, 0.16, 0.22, 0.72), (0.48, 0.57, 0.69, 0.42)),
-            };
-
-            cr.set_source_rgba(fill.0, fill.1, fill.2, fill.3);
-            cr.rectangle(x, y, w, h);
-            cr.fill()?;
-
-            cr.set_source_rgba(border.0, border.1, border.2, border.3);
-            cr.set_line_width(if is_active {
-                scale_factor.max(1.) * 1.8
-            } else {
-                scale_factor.max(1.)
-            });
-            cr.rectangle(x + 0.5, y + 0.5, (w - 1.).max(0.), (h - 1.).max(0.));
-            cr.stroke()?;
-        }
-    }
 
     drop(layout);
     drop(cr);
 
+    let data = surface.take_data()?;
+    Ok(TextureBuffer::from_memory(
+        renderer,
+        &data,
+        Fourcc::Argb8888,
+        (width, height),
+        false,
+        scale_factor,
+        Transform::Normal,
+        Vec::new(),
+    )?)
+}
+
+fn render_viewport_overlay(
+    renderer: &mut GlesRenderer,
+    scale_factor: f64,
+    viewport: smithay::utils::Rectangle<f64, Logical>,
+    content_size: Size<f64, Logical>,
+    map_zoom: f64,
+    map_origin: Point<f64, Logical>,
+) -> anyhow::Result<TextureBuffer<GlesTexture>> {
+    let width: i32 = to_physical_precise_round(scale_factor, MAP_WIDTH);
+    let height: i32 = to_physical_precise_round(scale_factor, MAP_HEIGHT);
+    let surface = ImageSurface::create(cairo::Format::ARgb32, width, height)?;
+    let cr = cairo::Context::new(&surface)?;
+
+    let viewport_left = viewport.loc.x.clamp(0., content_size.w);
+    let viewport_right = (viewport.loc.x + viewport.size.w).clamp(viewport_left, content_size.w);
+    let visible_width = viewport_right - viewport_left;
+    let visible_height = viewport.size.h.min(content_size.h);
+    if visible_width > 0. && visible_height > 0. {
+        let x = (map_origin.x + viewport_left * map_zoom) * scale_factor;
+        let y = (map_origin.y) * scale_factor;
+        let w = visible_width * map_zoom * scale_factor;
+        let h = visible_height * map_zoom * scale_factor;
+
+        cr.set_source_rgba(0.25, 0.64, 0.98, 0.10);
+        cr.rectangle(x, y, w, h);
+        cr.fill()?;
+
+        cr.set_source_rgba(0.62, 0.88, 1.0, 0.98);
+        cr.set_line_width(to_physical_precise_round(scale_factor, 1.5) as f64);
+        cr.rectangle(x + 0.5, y + 0.5, (w - 1.).max(0.), (h - 1.).max(0.));
+        cr.stroke()?;
+    }
+
+    drop(cr);
     let data = surface.take_data()?;
     Ok(TextureBuffer::from_memory(
         renderer,
