@@ -366,6 +366,10 @@ fn render_viewport_overlay(
     let height: i32 = to_physical_precise_round(scale_factor, MAP_HEIGHT);
     let surface = ImageSurface::create(cairo::Format::ARgb32, width, height)?;
     let cr = cairo::Context::new(&surface)?;
+    cr.set_operator(cairo::Operator::Source);
+    cr.set_source_rgba(0., 0., 0., 0.);
+    cr.paint()?;
+    cr.set_operator(cairo::Operator::Over);
 
     let viewport_left = viewport.loc.x.clamp(0., content_size.w);
     let viewport_right = (viewport.loc.x + viewport.size.w).clamp(viewport_left, content_size.w);
