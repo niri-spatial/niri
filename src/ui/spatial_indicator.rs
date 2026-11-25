@@ -42,11 +42,17 @@ pub struct SpatialIndicator {
     buffers: RefCell<HashMap<WeakOutput, RenderedIndicator>>,
 }
 
-impl SpatialIndicator {
-    pub fn new() -> Self {
+impl Default for SpatialIndicator {
+    fn default() -> Self {
         Self {
             buffers: RefCell::new(HashMap::new()),
         }
+    }
+}
+
+impl SpatialIndicator {
+    pub fn new() -> Self {
+        Self::default()
     }
 
     pub fn render<R: NiriRenderer>(
@@ -68,11 +74,14 @@ impl SpatialIndicator {
         };
 
         if needs_render {
-            let rendered = render_indicator(renderer.as_gles_renderer(), position, scale)
-                .unwrap_or_else(|err| {
+            let rendered = match render_indicator(renderer.as_gles_renderer(), position, scale)
+            {
+                Ok(buffer) => Some(buffer),
+                Err(err) => {
                     warn!("failed to render spatial indicator: {err:#}");
                     None
-                });
+                }
+            };
             buffers.insert(
                 weak.clone(),
                 RenderedIndicator {
@@ -108,7 +117,7 @@ fn render_indicator(
     renderer: &mut GlesRenderer,
     position: SpatialPosition,
     scale: Scale<f64>,
-) -> anyhow::Result<Option<TextureBuffer<GlesTexture>>> {
+) -> anyhow::Result<TextureBuffer<GlesTexture>> {
     let scale_factor = scale.fractional_scale();
     let width = to_physical_precise_round(scale_factor, WIDTH);
     let height = to_physical_precise_round(scale_factor, HEIGHT);
@@ -258,7 +267,7 @@ fn render_indicator(
         Vec::new(),
     )?;
 
-    Ok(Some(buffer))
+    Ok(buffer)
 }
 
 fn visible_range(current: usize, total: usize) -> std::ops::Range<usize> {
