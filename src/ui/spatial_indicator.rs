@@ -7,7 +7,7 @@ use smithay::backend::renderer::element::Kind;
 use smithay::backend::renderer::gles::{GlesRenderer, GlesTexture};
 use smithay::output::{Output, WeakOutput};
 use smithay::reexports::gbm::Format as Fourcc;
-use smithay::utils::{Point, Scale, Transform};
+use smithay::utils::{Logical, Point, Scale, Transform};
 
 use crate::render_helpers::primary_gpu_texture::PrimaryGpuTextureRenderElement;
 use crate::render_helpers::renderer::NiriRenderer;
@@ -95,7 +95,7 @@ impl SpatialIndicator {
 
         let size = buffer.logical_size();
         let output_size = output_size(output).to_f64();
-        let location = Point::from((
+        let location: Point<f64, Logical> = Point::from((
             (output_size.w - size.w - MARGIN as f64).max(0.),
             MARGIN as f64,
         ));
