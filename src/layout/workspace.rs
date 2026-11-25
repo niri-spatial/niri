@@ -480,6 +480,15 @@ impl<W: LayoutElement> Workspace<W> {
         }
     }
 
+    /// Returns the active scrolling column index, if a tiling column is focused.
+    pub fn active_column_idx(&self) -> Option<usize> {
+        if self.floating_is_active.get() {
+            return None;
+        }
+
+        self.scrolling.active_column_idx()
+    }
+
     pub fn active_window_mut(&mut self) -> Option<&mut W> {
         if self.floating_is_active.get() {
             self.floating.active_window_mut()
