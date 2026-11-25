@@ -249,7 +249,7 @@ fn render_indicator(
     let (hint_width, _) = layout.pixel_size();
     cr.move_to(
         (width - padding - hint_width).into(),
-        to_physical_precise_round(scale_factor, 113).into(),
+        to_physical_precise_round(scale_factor, 126).into(),
     );
     pangocairo::functions::show_layout(&cr, &layout);
 
@@ -280,4 +280,27 @@ fn visible_range(current: usize, total: usize) -> std::ops::Range<usize> {
         .saturating_sub(MAX_VISIBLE_ITEMS / 2)
         .min(total - MAX_VISIBLE_ITEMS);
     start..start + MAX_VISIBLE_ITEMS
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn visible_range_keeps_small_axes_whole() {
+        assert_eq!(visible_range(0, 1), 0..1);
+        assert_eq!(visible_range(2, 4), 0..4);
+    }
+
+    #[test]
+    fn visible_range_centers_the_active_position_when_possible() {
+        assert_eq!(visible_range(5, 10), 3..8);
+    }
+
+    #[test]
+    fn visible_range_stays_inside_axis_bounds() {
+        assert_eq!(visible_range(0, 10), 0..5);
+        assert_eq!(visible_range(9, 10), 5..10);
+    }
 }
