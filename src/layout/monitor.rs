@@ -46,8 +46,10 @@ const WORKSPACE_GESTURE_RUBBER_BAND: RubberBand = RubberBand {
 /// This constant is tied to the default dnd-edge-workspace-switch max-speed setting.
 const WORKSPACE_DND_EDGE_SCROLL_MOVEMENT: f64 = 1500.;
 
-/// Starting zoom for the lightweight depth-plane transition.
-const PLANE_SWITCH_START_ZOOM: f64 = 0.90;
+/// Starting zoom when moving toward the front (higher Z) plane.
+const PLANE_SWITCH_FORWARD_START_ZOOM: f64 = 0.90;
+/// Starting zoom when moving toward the back (lower Z) plane.
+const PLANE_SWITCH_BACKWARD_START_ZOOM: f64 = 1.10;
 
 #[derive(Debug)]
 pub struct Monitor<W: LayoutElement> {
@@ -613,13 +615,19 @@ impl<W: LayoutElement> Monitor<W> {
     ///
     /// All planes on this monitor share one active vertical workspace index.
     pub fn activate_plane(&mut self, index: usize) -> Result<(), PlaneError> {
-        if index != self.active_plane_idx() {
-            let from_zoom = self
-                .plane_switch
-                .as_ref()
-                .map_or(PLANE_SWITCH_START_ZOOM, |animation| {
-                    animation.value().clamp(PLANE_SWITCH_START_ZOOM, 1.)
-                });
+        let active_plane_idx = self.active_plane_idx();
+        if index != active_plane_idx {
+            let start_zoom = if index > active_plane_idx {
+                PLANE_SWITCH_FORWARD_START_ZOOM
+            } else {
+                PLANE_SWITCH_BACKWARD_START_ZOOM
+            };
+            let from_zoom = self.plane_switch.as_ref().map_or(start_zoom, |animation| {
+                animation.value().clamp(
+                    PLANE_SWITCH_FORWARD_START_ZOOM,
+                    PLANE_SWITCH_BACKWARD_START_ZOOM,
+                )
+            });
             let active_workspace_idx = self.active_workspace_idx();
             self.workspaces.activate_plane(index)?;
             self.set_active_workspace_idx(active_workspace_idx);
@@ -2344,7 +2352,10 @@ impl<W: LayoutElement> Monitor<W> {
         self.plane_switch
             .as_ref()
             .map_or(1., |animation| animation.value())
-            .clamp(PLANE_SWITCH_START_ZOOM, 1.)
+            .clamp(
+                PLANE_SWITCH_FORWARD_START_ZOOM,
+                PLANE_SWITCH_BACKWARD_START_ZOOM,
+            )
     }
 
     /// Transforms workspace geometry by the active plane's depth zoom.
