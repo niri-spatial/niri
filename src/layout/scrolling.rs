@@ -422,7 +422,7 @@ impl<W: LayoutElement> ScrollingSpace<W> {
     }
 
     /// Returns the active column index, if this space contains columns.
-    pub fn active_column_idx(&self) -> Option<usize> {
+    pub fn focused_column_index(&self) -> Option<usize> {
         (!self.columns.is_empty()).then_some(self.active_column_idx)
     }
 
