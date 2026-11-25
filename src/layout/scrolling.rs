@@ -421,6 +421,11 @@ impl<W: LayoutElement> ScrollingSpace<W> {
         self.columns.is_empty()
     }
 
+    /// Returns the active column index, if this space contains columns.
+    pub fn active_column_idx(&self) -> Option<usize> {
+        (!self.columns.is_empty()).then_some(self.active_column_idx)
+    }
+
     pub fn active_window(&self) -> Option<&W> {
         if self.columns.is_empty() {
             return None;
