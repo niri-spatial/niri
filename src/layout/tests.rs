@@ -5314,6 +5314,7 @@ fn plane_navigation_creates_planes_at_both_edges_and_shares_workspace_position()
     layout.focus_plane_forward();
     let front_plane_id = layout.active_monitor().unwrap().active_plane_id();
     assert_ne!(front_plane_id, first_plane_id);
+    assert!(layout.active_monitor().unwrap().plane_switch.is_some());
     assert_eq!(layout.active_monitor().unwrap().active_workspace_idx(), 1);
     assert_eq!(layout.active_monitor().unwrap().plane_count(), 2);
 
