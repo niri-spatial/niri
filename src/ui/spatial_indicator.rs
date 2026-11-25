@@ -73,17 +73,14 @@ impl SpatialIndicator {
         };
 
         if needs_render {
-            let rendered = match render_indicator(
-                renderer.as_gles_renderer(),
-                position,
-                scale_factor,
-            ) {
-                Ok(buffer) => Some(buffer),
-                Err(err) => {
-                    warn!("failed to render spatial coordinates: {err:#}");
-                    None
-                }
-            };
+            let rendered =
+                match render_indicator(renderer.as_gles_renderer(), position, scale_factor) {
+                    Ok(buffer) => Some(buffer),
+                    Err(err) => {
+                        warn!("failed to render spatial coordinates: {err:#}");
+                        None
+                    }
+                };
             buffers.insert(
                 weak.clone(),
                 RenderedIndicator {
