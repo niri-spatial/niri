@@ -73,7 +73,11 @@ impl SpatialIndicator {
         };
 
         if needs_render {
-            let rendered = match render_indicator(renderer.as_gles_renderer(), position, scale) {
+            let rendered = match render_indicator(
+                renderer.as_gles_renderer(),
+                position,
+                scale.fractional_scale(),
+            ) {
                 Ok(buffer) => Some(buffer),
                 Err(err) => {
                     warn!("failed to render spatial coordinates: {err:#}");
@@ -116,9 +120,8 @@ impl SpatialIndicator {
 fn render_indicator(
     renderer: &mut GlesRenderer,
     position: SpatialPosition,
-    scale: Scale<f64>,
+    scale_factor: f64,
 ) -> anyhow::Result<TextureBuffer<GlesTexture>> {
-    let scale_factor = scale.fractional_scale();
     let width = to_physical_precise_round(scale_factor, WIDTH);
     let height = to_physical_precise_round(scale_factor, HEIGHT);
     let padding = to_physical_precise_round(scale_factor, PADDING);
@@ -284,7 +287,7 @@ fn render_indicator(
     drop(cr);
 
     let data = surface.take_data()?;
-    TextureBuffer::from_memory(
+    Ok(TextureBuffer::from_memory(
         renderer,
         &data,
         Fourcc::Argb8888,
@@ -293,5 +296,5 @@ fn render_indicator(
         scale_factor,
         Transform::Normal,
         Vec::new(),
-    )
+    )?)
 }
