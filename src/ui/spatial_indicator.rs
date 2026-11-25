@@ -228,10 +228,7 @@ fn render_indicator(
 
     layout.set_text("FRONT");
     let (front_width, _) = layout.pixel_size();
-    cr.move_to(
-        (width - padding - front_width).into(),
-        depth_label_y.into(),
-    );
+    cr.move_to((width - padding - front_width).into(), depth_label_y.into());
     pangocairo::functions::show_layout(&cr, &layout);
 
     let track_start = padding as f64 + to_physical_precise_round(scale_factor, 2) as f64;
