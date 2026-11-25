@@ -7,13 +7,15 @@ use niri_config::{
     CenterFocusedColumn, CornerRadius, OutputName, PresetSize, Workspace as WorkspaceConfig,
 };
 use niri_ipc::{ColumnDisplay, PositionChange, SizeChange, WindowLayout};
+use smithay::backend::allocator::Fourcc;
+use smithay::backend::renderer::element::utils::{Relocate, RelocateRenderElement, RescaleRenderElement};
 use smithay::backend::renderer::element::Kind;
-use smithay::backend::renderer::gles::GlesRenderer;
+use smithay::backend::renderer::gles::{GlesRenderer, GlesTexture};
 use smithay::desktop::{layer_map_for_output, Window};
 use smithay::output::Output;
 use smithay::reexports::wayland_protocols::xdg::shell::server::xdg_toplevel;
 use smithay::reexports::wayland_server::protocol::wl_surface::WlSurface;
-use smithay::utils::{Logical, Point, Rectangle, Serial, Size, Transform};
+use smithay::utils::{Logical, Physical, Point, Rectangle, Scale, Serial, Size, Transform};
 use smithay::wayland::compositor::with_states;
 use smithay::wayland::shell::xdg::SurfaceCachedState;
 
@@ -32,8 +34,9 @@ use crate::niri_render_elements;
 use crate::render_helpers::renderer::NiriRenderer;
 use crate::render_helpers::shadow::ShadowRenderElement;
 use crate::render_helpers::solid_color::{SolidColorBuffer, SolidColorRenderElement};
+use crate::render_helpers::texture::TextureBuffer;
 use crate::render_helpers::xray::{Xray, XrayPos};
-use crate::render_helpers::RenderCtx;
+use crate::render_helpers::{render_to_texture, RenderCtx, RenderTarget};
 use crate::utils::id::IdCounter;
 use crate::utils::transaction::{Transaction, TransactionBlocker};
 use crate::utils::{
@@ -360,6 +363,76 @@ impl<W: LayoutElement> Workspace<W> {
 
     pub fn has_windows_or_name(&self) -> bool {
         self.has_windows() || self.name.is_some()
+    }
+
+    /// Returns the full spatial bounds of this workspace and the visible
+    /// output rectangle relative to those bounds.
+    pub fn minimap_geometry(&self) -> (Size<f64, Logical>, Rectangle<f64, Logical>) {
+        let (content_left, content_width, viewport_left) = self.scrolling.minimap_geometry();
+        let content_size = Size::from((content_width, self.view_size.h));
+        let viewport = Rectangle::new(Point::from((viewport_left, 0.)), self.view_size);
+        let _ = content_left;
+        (content_size, viewport)
+    }
+
+    /// Renders this workspace's actual window contents into a scaled texture.
+    ///
+    /// The scrolling layout is shifted into workspace coordinates, while
+    /// floating windows are placed over the viewport they occupy.
+    pub fn render_minimap_texture(
+        &self,
+        renderer: &mut GlesRenderer,
+        scale: Scale<f64>,
+        target_size: Size<i32, Physical>,
+        zoom: f64,
+        origin: Point<f64, Logical>,
+    ) -> anyhow::Result<TextureBuffer<GlesTexture>> {
+        let (_, _, viewport_left) = self.scrolling.minimap_geometry();
+
+        let mut elements = Vec::new();
+        {
+            let ctx = RenderCtx {
+                renderer,
+                target: RenderTarget::Output,
+                xray: None,
+            };
+            self.render_floating(
+                ctx.r(),
+                XrayPos::default(),
+                false,
+                &mut |elem| elements.push(elem),
+            );
+            self.render_scrolling(
+                ctx,
+                XrayPos::default(),
+                false,
+                &mut |elem| elements.push(elem),
+            );
+        }
+
+        let offset = Point::from((origin.x + viewport_left * zoom, origin.y))
+            .to_physical_precise_round(scale);
+        let elements = elements.into_iter().map(|elem| {
+            let elem = RescaleRenderElement::from_element(elem, Point::default(), zoom);
+            RelocateRenderElement::from_element(elem, offset, Relocate::Relative)
+        });
+
+        let (texture, _sync_point) = render_to_texture(
+            renderer,
+            target_size,
+            scale,
+            Transform::Normal,
+            Fourcc::Abgr8888,
+            elements,
+        )?;
+
+        Ok(TextureBuffer::from_texture(
+            renderer,
+            texture,
+            scale,
+            Transform::Normal,
+            Vec::new(),
+        ))
     }
 
     pub fn scale(&self) -> smithay::output::Scale {
