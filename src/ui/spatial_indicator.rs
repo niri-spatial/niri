@@ -120,17 +120,17 @@ impl SpatialIndicator {
             None,
             Kind::Unspecified,
         );
-        let mut elements = vec![PrimaryGpuTextureRenderElement(panel_element)];
+        let panel_element = PrimaryGpuTextureRenderElement(panel_element);
 
         let (content_size, viewport) = workspace.minimap_geometry();
         if content_size.w <= 0. || content_size.h <= 0. {
-            return Some(elements);
+            return Some(vec![panel_element]);
         }
 
         let map_zoom = (MAP_WIDTH as f64 / content_size.w)
             .min(MAP_HEIGHT as f64 / content_size.h);
         if !map_zoom.is_finite() || map_zoom <= 0. {
-            return Some(elements);
+            return Some(vec![panel_element]);
         }
 
         let map_origin = Point::from((
@@ -151,7 +151,7 @@ impl SpatialIndicator {
             Ok(buffer) => buffer,
             Err(err) => {
                 warn!("failed to render workspace minimap: {err:#}");
-                return Some(elements);
+                return Some(vec![panel_element]);
             }
         };
 
@@ -165,8 +165,9 @@ impl SpatialIndicator {
             None,
             Kind::Unspecified,
         );
-        elements.push(PrimaryGpuTextureRenderElement(map_element));
+        let map_element = PrimaryGpuTextureRenderElement(map_element);
 
+        let mut elements = Vec::with_capacity(3);
         match render_viewport_overlay(
             renderer.as_gles_renderer(),
             scale_factor,
@@ -184,10 +185,14 @@ impl SpatialIndicator {
                     None,
                     Kind::Unspecified,
                 );
+                // Output elements are stored top-to-bottom, so the viewport
+                // outline must precede the thumbnail and its background.
                 elements.push(PrimaryGpuTextureRenderElement(overlay));
             }
             Err(err) => warn!("failed to render workspace minimap viewport: {err:#}"),
         }
+        elements.push(map_element);
+        elements.push(panel_element);
 
         Some(elements)
     }
