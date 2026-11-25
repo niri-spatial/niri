@@ -2540,12 +2540,20 @@ impl<W: LayoutElement> Monitor<W> {
             return;
         };
 
+        let plane_zoom = self.plane_switch_zoom();
+        let plane_center = self.view_size.to_point().downscale(2.);
+        let plane_offset = plane_center.upscale(1. - plane_zoom);
+
         self.insert_hint_element
             .render(renderer, render_loc.location, &mut |elem| {
                 let elem = MonitorInnerRenderElement::UncroppedInsertHint(elem);
-                let elem = RescaleRenderElement::from_element(elem, Point::default(), 1.);
                 let elem =
-                    RelocateRenderElement::from_element(elem, Point::default(), Relocate::Relative);
+                    RescaleRenderElement::from_element(elem, Point::default(), plane_zoom);
+                let elem = RelocateRenderElement::from_element(
+                    elem,
+                    plane_offset.to_physical_precise_round(self.scale.fractional_scale()),
+                    Relocate::Relative,
+                );
                 push(elem);
             });
     }
