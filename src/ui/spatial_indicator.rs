@@ -169,7 +169,12 @@ fn render_indicator(
     }
 
     let coordinates = [
-        ("X", position.x.map_or_else(|| "—".to_owned(), |x| format!("{x:02}"))),
+        (
+            "X",
+            position
+                .x
+                .map_or_else(|| "—".to_owned(), |x| format!("{x:02}")),
+        ),
         ("Y", format!("{:02}", position.y)),
         ("Z", format!("{:02}", position.z)),
     ];
