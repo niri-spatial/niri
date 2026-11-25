@@ -19,7 +19,7 @@ const HEIGHT: i32 = 96;
 const MARGIN: i32 = 20;
 const PADDING: i32 = 14;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SpatialPosition {
     /// One-based active column index. None when no tiling column is focused.
     pub x: Option<usize>,
@@ -27,8 +27,8 @@ pub struct SpatialPosition {
     pub y: usize,
     /// One-based active plane index, increasing from back to front.
     pub z: usize,
-    /// Total number of depth planes on this monitor.
-    pub plane_count: usize,
+    /// Workspace occupancy, ordered by plane (Z) and workspace (Y).
+    pub workspaces: Vec<Vec<bool>>,
 }
 
 struct RenderedIndicator {
@@ -74,7 +74,7 @@ impl SpatialIndicator {
 
         if needs_render {
             let rendered =
-                match render_indicator(renderer.as_gles_renderer(), position, scale_factor) {
+                match render_indicator(renderer.as_gles_renderer(), &position, scale_factor) {
                     Ok(buffer) => Some(buffer),
                     Err(err) => {
                         warn!("failed to render spatial coordinates: {err:#}");
@@ -116,12 +116,45 @@ impl SpatialIndicator {
 
 fn render_indicator(
     renderer: &mut GlesRenderer,
-    position: SpatialPosition,
+    position: &SpatialPosition,
     scale_factor: f64,
 ) -> anyhow::Result<TextureBuffer<GlesTexture>> {
-    let width = to_physical_precise_round(scale_factor, WIDTH);
-    let height = to_physical_precise_round(scale_factor, HEIGHT);
+    let width: i32 = to_physical_precise_round(scale_factor, WIDTH);
+    let base_height: i32 = to_physical_precise_round(scale_factor, HEIGHT);
     let padding: i32 = to_physical_precise_round(scale_factor, PADDING);
+    let map_margin: i32 = to_physical_precise_round(scale_factor, 10);
+    let map_max_height: i32 = to_physical_precise_round(scale_factor, 144);
+    let map_gap: i32 = to_physical_precise_round(scale_factor, 3);
+    let max_cell_width: i32 = to_physical_precise_round(scale_factor, 48);
+    let max_cell_height: i32 = to_physical_precise_round(scale_factor, 14);
+
+    let plane_count = position.workspaces.len().max(1);
+    let workspace_row_count = position
+        .workspaces
+        .iter()
+        .map(Vec::len)
+        .max()
+        .unwrap_or(1)
+        .max(1);
+    let plane_count_i32 = plane_count.min(i32::MAX as usize) as i32;
+    let row_count_i32 = workspace_row_count.min(i32::MAX as usize) as i32;
+
+    let content_width = width - padding * 2;
+    let horizontal_gaps = map_gap * plane_count_i32.saturating_sub(1);
+    let available_cell_width = (content_width - horizontal_gaps).max(plane_count_i32);
+    let cell_width = (available_cell_width / plane_count_i32).min(max_cell_width).max(1);
+    let grid_width = cell_width * plane_count_i32 + horizontal_gaps;
+    let grid_start_x = (width - grid_width) / 2;
+
+    let vertical_gaps = map_gap * row_count_i32.saturating_sub(1);
+    let available_cell_height =
+        (map_max_height - padding * 2 - vertical_gaps).max(row_count_i32);
+    let cell_height = (available_cell_height / row_count_i32)
+        .min(max_cell_height)
+        .max(1);
+    let map_height = cell_height * row_count_i32 + vertical_gaps + padding * 2;
+    let map_top = base_height + map_margin;
+    let height = map_top + map_height;
 
     let surface = ImageSurface::create(cairo::Format::ARgb32, width, height)?;
     let cr = cairo::Context::new(&surface)?;
