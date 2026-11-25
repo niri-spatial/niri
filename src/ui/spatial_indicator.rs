@@ -95,8 +95,10 @@ impl SpatialIndicator {
 
         let size = buffer.logical_size();
         let output_size = output_size(output).to_f64();
-        let location =
-            Point::from((output_size.w - size.w - MARGIN as f64, MARGIN as f64));
+        let location = Point::from((
+            (output_size.w - size.w - MARGIN as f64).max(0.),
+            MARGIN as f64,
+        ));
         let location = location.to_physical_precise_round(scale).to_logical(scale);
 
         let elem = TextureRenderElement::from_texture_buffer(
