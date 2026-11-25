@@ -14,21 +14,19 @@ use crate::render_helpers::renderer::NiriRenderer;
 use crate::render_helpers::texture::{TextureBuffer, TextureRenderElement};
 use crate::utils::{output_size, to_physical_precise_round};
 
-const WIDTH: i32 = 216;
-const HEIGHT: i32 = 88;
+const WIDTH: i32 = 240;
+const HEIGHT: i32 = 104;
 const MARGIN: i32 = 20;
-const PADDING: i32 = 12;
-const MAX_VISIBLE_PLANES: usize = 7;
-const TRACK_MARGIN: i32 = 22;
-const TRACK_Y: i32 = 54;
-const TRACK_RADIUS: f64 = 3.0;
-const ACTIVE_RADIUS: f64 = 5.0;
+const PADDING: i32 = 14;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SpatialPosition {
-    /// Zero-based plane index. Plane indices increase toward the front.
-    pub plane_idx: usize,
-    pub plane_count: usize,
+    /// One-based active column index. None when no tiling column is focused.
+    pub x: Option<usize>,
+    /// One-based active workspace index.
+    pub y: usize,
+    /// One-based active plane index, increasing from back to front.
+    pub z: usize,
 }
 
 struct RenderedIndicator {
@@ -76,7 +74,7 @@ impl SpatialIndicator {
             let rendered = match render_indicator(renderer.as_gles_renderer(), position, scale) {
                 Ok(buffer) => Some(buffer),
                 Err(err) => {
-                    warn!("failed to render spatial indicator: {err:#}");
+                    warn!("failed to render spatial coordinates: {err:#}");
                     None
                 }
             };
@@ -122,119 +120,84 @@ fn render_indicator(
     let width = to_physical_precise_round(scale_factor, WIDTH);
     let height = to_physical_precise_round(scale_factor, HEIGHT);
     let padding = to_physical_precise_round(scale_factor, PADDING);
-    let track_margin = to_physical_precise_round(scale_factor, TRACK_MARGIN);
-    let track_y = to_physical_precise_round(scale_factor, TRACK_Y);
-    let track_radius = TRACK_RADIUS * scale_factor;
-    let active_radius = ACTIVE_RADIUS * scale_factor;
 
     let surface = ImageSurface::create(cairo::Format::ARgb32, width, height)?;
     let cr = cairo::Context::new(&surface)?;
 
-    // Compact translucent panel shown only while the overview is open.
-    cr.set_source_rgba(0.035, 0.045, 0.065, 0.88);
+    // A compact, translucent coordinates panel.
+    cr.set_source_rgba(0.035, 0.045, 0.065, 0.9);
     cr.rectangle(0., 0., width.into(), height.into());
     cr.fill()?;
 
-    cr.set_source_rgba(0.55, 0.66, 0.78, 0.32);
+    cr.set_source_rgba(0.55, 0.66, 0.78, 0.34);
     cr.set_line_width(scale_factor.max(1.));
     cr.rectangle(0.5, 0.5, (width - 1) as f64, (height - 1) as f64);
     cr.stroke()?;
 
-    let mut title_font = FontDescription::from_string("sans Bold 11px");
+    let mut title_font = FontDescription::from_string("sans Bold 10px");
     title_font.set_absolute_size(to_physical_precise_round(scale_factor, title_font.size()));
-    let mut value_font = FontDescription::from_string("monospace 10px");
+
+    let mut axis_font = FontDescription::from_string("sans Bold 9px");
+    axis_font.set_absolute_size(to_physical_precise_round(scale_factor, axis_font.size()));
+
+    let mut value_font = FontDescription::from_string("monospace Bold 22px");
     value_font.set_absolute_size(to_physical_precise_round(scale_factor, value_font.size()));
 
     let layout = pangocairo::functions::create_layout(&cr);
     layout.context().set_round_glyph_positions(false);
 
-    cr.set_source_rgba(0.88, 0.93, 1.0, 0.96);
+    cr.set_source_rgba(0.86, 0.92, 1.0, 0.94);
     layout.set_font_description(Some(&title_font));
-    layout.set_text("DEPTH POSITION");
+    layout.set_text("SPATIAL COORDINATES");
     cr.move_to(padding.into(), padding.into());
     pangocairo::functions::show_layout(&cr, &layout);
 
-    layout.set_font_description(Some(&value_font));
-    cr.set_source_rgba(0.72, 0.79, 0.88, 0.94);
-    layout.set_text(&format!(
-        "PLANE  {:02} / {:02}",
-        position.plane_idx + 1,
-        position.plane_count
-    ));
-    cr.move_to(
-        (width - padding - layout.pixel_size().0).into(),
-        padding.into(),
-    );
-    pangocairo::functions.show_layout(&cr, &layout);
+    let content_width = width - padding * 2;
+    let cell_width = content_width as f64 / 3.;
+    let label_y = to_physical_precise_round(scale_factor, 43);
+    let value_y = to_physical_precise_round(scale_factor, 51);
+    let separator_top = to_physical_precise_round(scale_factor, 34);
+    let separator_bottom = height - padding;
 
-    // A single front-to-back track. Higher plane indices are closer to the front.
-    let visible = visible_range(position.plane_idx, position.plane_count);
-    let visible_count = visible.end - visible.start;
-    let track_left = track_margin as f64;
-    let track_right = (width - track_margin) as f64;
-    let track_width = track_right - track_left;
-    let spacing = if visible_count > 1 {
-        track_width / (visible_count - 1) as f64
-    } else {
-        0.
-    };
-
-    cr.set_source_rgba(0.55, 0.66, 0.78, 0.35);
-    cr.set_line_width((scale_factor * 1.2).max(1.));
-    cr.move_to(track_left, track_y as f64);
-    cr.line_to(track_right, track_y as f64);
-    cr.stroke()?;
-
-    for plane_idx in visible.clone() {
-        let x = track_left + (plane_idx - visible.start) as f64 * spacing;
-        let distance_from_front = position
-            .plane_count
-            .saturating_sub(1)
-            .saturating_sub(plane_idx);
-        let depth = MAX_VISIBLE_PLANES.saturating_sub(distance_from_front.min(MAX_VISIBLE_PLANES));
-        let alpha = (0.42 + 0.08 * depth as f64).min(0.9);
-
-        if plane_idx == position.plane_idx {
-            cr.set_source_rgba(0.34, 0.83, 1.0, 0.98);
-            cr.arc(x, track_y as f64, active_radius, 0., std::f64::consts::TAU);
-            cr.fill()?;
-
-            cr.set_source_rgba(0.34, 0.83, 1.0, 0.55);
-            cr.set_line_width(scale_factor.max(1.));
-            cr.arc(
-                x,
-                track_y as f64,
-                active_radius + to_physical_precise_round(scale_factor, 3) as f64,
-                0.,
-                std::f64::consts::TAU,
-            );
-            cr.stroke()?;
-        } else {
-            cr.set_source_rgba(0.64, 0.72, 0.83, alpha);
-            cr.arc(x, track_y as f64, track_radius, 0., std::f64::consts::TAU);
-            cr.fill()?;
-        }
+    for separator in [1., 2.] {
+        let x = padding as f64 + cell_width * separator;
+        cr.set_source_rgba(0.55, 0.66, 0.78, 0.24);
+        cr.set_line_width(scale_factor.max(1.));
+        cr.move_to(x, separator_top as f64);
+        cr.line_to(x, separator_bottom as f64);
+        cr.stroke()?;
     }
 
-    let mut hint_font = FontDescription::from_string("sans 8px");
-    hint_font.set_absolute_size(to_physical_precise_round(scale_factor, hint_font.size()));
-    layout.set_font_description(Some(&hint_font));
-    cr.set_source_rgba(0.62, 0.7, 0.8, 0.78);
+    let coordinates = [
+        ("X", position.x.map_or_else(|| "—".to_owned(), |x| format!("{x:02}"))),
+        ("Y", format!("{:02}", position.y)),
+        ("Z", format!("{:02}", position.z)),
+    ];
 
-    layout.set_text("BACK");
-    cr.move_to(
-        padding.into(),
-        to_physical_precise_round(scale_factor, 75).into(),
-    );
-    pangocairo::functions::show_layout(&cr, &layout);
+    for (index, (axis, value)) in coordinates.iter().enumerate() {
+        let cell_left = padding as f64 + cell_width * index as f64;
+        let cell_center = cell_left + cell_width / 2.;
 
-    layout.set_text("FRONT");
-    let (hint_width, _) = layout.pixel_size();
-    cr.move_to(
-        (width - padding - hint_width).into(),
-        to_physical_precise_round(scale_factor, 75).into(),
-    );
-    pangocairo::functions::show_layout(&cr, &layout);
+        layout.set_font_description(Some(&axis_font));
+        layout.set_text(axis);
+        let (label_width, _) = layout.pixel_size();
+        cr.set_source_rgba(0.45, 0.76, 1.0, 0.92);
+        cr.move_to(
+            (cell_center - label_width as f64 / 2.).into(),
+            label_y.into(),
+        );
+        pangocairo::functions::show_layout(&cr, &layout);
+
+        layout.set_font_description(Some(&value_font));
+        layout.set_text(value);
+        let (value_width, _) = layout.pixel_size();
+        cr.set_source_rgba(0.92, 0.96, 1.0, 0.98);
+        cr.move_to(
+            (cell_center - value_width as f64 / 2.).into(),
+            value_y.into(),
+        );
+        pangocairo::functions::show_layout(&cr, &layout);
+    }
 
     drop(layout);
     drop(cr);
@@ -250,37 +213,4 @@ fn render_indicator(
         Transform::Normal,
         Vec::new(),
     )
-}
-
-fn visible_range(current: usize, total: usize) -> std::ops::Range<usize> {
-    if total <= MAX_VISIBLE_PLANES {
-        return 0..total;
-    }
-
-    let start = current
-        .saturating_sub(MAX_VISIBLE_PLANES / 2)
-        .min(total - MAX_VISIBLE_PLANES);
-    start..start + MAX_VISIBLE_PLANES
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn visible_range_keeps_small_depths_whole() {
-        assert_eq!(visible_range(0, 1), 0..1);
-        assert_eq!(visible_range(2, 4), 0..4);
-    }
-
-    #[test]
-    fn visible_range_centers_the_active_plane_when_possible() {
-        assert_eq!(visible_range(5, 10), 2..9);
-    }
-
-    #[test]
-    fn visible_range_stays_inside_depth_bounds() {
-        assert_eq!(visible_range(0, 10), 0..7);
-        assert_eq!(visible_range(9, 10), 3..10);
-    }
 }
