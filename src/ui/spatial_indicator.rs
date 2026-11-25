@@ -156,9 +156,9 @@ fn render_indicator(
 
     let content_width = width - padding * 2;
     let cell_width = content_width as f64 / 3.;
-    let label_y = to_physical_precise_round(scale_factor, 43);
-    let value_y = to_physical_precise_round(scale_factor, 51);
-    let separator_top = to_physical_precise_round(scale_factor, 34);
+    let label_y: i32 = to_physical_precise_round(scale_factor, 43);
+    let value_y: i32 = to_physical_precise_round(scale_factor, 51);
+    let separator_top: i32 = to_physical_precise_round(scale_factor, 34);
     let separator_bottom = to_physical_precise_round(scale_factor, 79);
 
     for separator in [1., 2.] {
@@ -208,7 +208,7 @@ fn render_indicator(
 
     // Show the depth direction explicitly: Z=1 is at the back, and larger
     // Z values move toward the front.
-    let divider_y = to_physical_precise_round(scale_factor, 84);
+    let divider_y: i32 = to_physical_precise_round(scale_factor, 84);
     cr.set_source_rgba(0.55, 0.66, 0.78, 0.24);
     cr.set_line_width(scale_factor.max(1.));
     cr.move_to(padding as f64, divider_y as f64);
