@@ -191,8 +191,8 @@ fn render_indicator(
             .plane_count
             .saturating_sub(1)
             .saturating_sub(plane_idx);
-        let alpha = (0.42 + 0.08 * (MAX_VISIBLE_PLANES - distance_from_front.min(MAX_VISIBLE_PLANES)) as f64)
-            .min(0.9);
+        let depth = MAX_VISIBLE_PLANES.saturating_sub(distance_from_front.min(MAX_VISIBLE_PLANES));
+        let alpha = (0.42 + 0.08 * depth as f64).min(0.9);
 
         if plane_idx == position.plane_idx {
             cr.set_source_rgba(0.34, 0.83, 1.0, 0.98);
@@ -206,7 +206,7 @@ fn render_indicator(
             cr.fill()?;
 
             cr.set_source_rgba(0.34, 0.83, 1.0, 0.55);
-            cr.set_line_width((scale_factor).max(1.));
+            cr.set_line_width(scale_factor.max(1.));
             cr.arc(
                 x,
                 track_y as f64,
@@ -216,7 +216,7 @@ fn render_indicator(
             );
             cr.stroke()?;
         } else {
-            cr.set_source_rgba(0.64, 0.72, 0.83, alpha as f64);
+            cr.set_source_rgba(0.64, 0.72, 0.83, alpha);
             cr.arc(
                 x,
                 track_y as f64,
