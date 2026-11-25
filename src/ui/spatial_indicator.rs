@@ -327,9 +327,11 @@ fn render_indicator(
 
     // Backplate behind the live workspace thumbnail.
     let map_left = padding as f64;
-    let map_top = to_physical_precise_round(scale_factor, HEIGHT + MAP_MARGIN) as f64;
+    let map_top: i32 = to_physical_precise_round(scale_factor, HEIGHT + MAP_MARGIN);
     let map_width = (width - padding * 2) as f64;
-    let map_height = to_physical_precise_round(scale_factor, MAP_HEIGHT) as f64;
+    let map_height: i32 = to_physical_precise_round(scale_factor, MAP_HEIGHT);
+    let map_top = map_top as f64;
+    let map_height = map_height as f64;
     cr.set_source_rgba(0.012, 0.018, 0.03, 0.98);
     cr.rectangle(map_left, map_top, map_width, map_height);
     cr.fill()?;
