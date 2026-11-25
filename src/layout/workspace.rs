@@ -413,7 +413,7 @@ impl<W: LayoutElement> Workspace<W> {
 
         let offset = Point::from((origin.x + viewport_left * zoom, origin.y))
             .to_physical_precise_round(scale);
-        let elements = elements.into_iter().map(|elem| {
+        let elements = elements.into_iter().rev().map(|elem| {
             let elem = RescaleRenderElement::from_element(elem, Point::from((0, 0)), zoom);
             RelocateRenderElement::from_element(elem, offset, Relocate::Relative)
         });
