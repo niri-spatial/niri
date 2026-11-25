@@ -368,10 +368,9 @@ impl<W: LayoutElement> Workspace<W> {
     /// Returns the full spatial bounds of this workspace and the visible
     /// output rectangle relative to those bounds.
     pub fn minimap_geometry(&self) -> (Size<f64, Logical>, Rectangle<f64, Logical>) {
-        let (content_left, content_width, viewport_left) = self.scrolling.minimap_geometry();
+        let (_, content_width, viewport_left) = self.scrolling.minimap_geometry();
         let content_size = Size::from((content_width, self.view_size.h));
         let viewport = Rectangle::new(Point::from((viewport_left, 0.)), self.view_size);
-        let _ = content_left;
         (content_size, viewport)
     }
 
@@ -413,7 +412,7 @@ impl<W: LayoutElement> Workspace<W> {
         let offset = Point::from((origin.x + viewport_left * zoom, origin.y))
             .to_physical_precise_round(scale);
         let elements = elements.into_iter().map(|elem| {
-            let elem = RescaleRenderElement::from_element(elem, Point::default(), zoom);
+            let elem = RescaleRenderElement::from_element(elem, Point::from((0, 0)), zoom);
             RelocateRenderElement::from_element(elem, offset, Relocate::Relative)
         });
 
