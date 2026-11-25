@@ -47,7 +47,7 @@ const WORKSPACE_GESTURE_RUBBER_BAND: RubberBand = RubberBand {
 const WORKSPACE_DND_EDGE_SCROLL_MOVEMENT: f64 = 1500.;
 
 /// Starting zoom for the lightweight depth-plane transition.
-const PLANE_SWITCH_START_ZOOM: f64 = 0.96;
+const PLANE_SWITCH_START_ZOOM: f64 = 0.90;
 
 #[derive(Debug)]
 pub struct Monitor<W: LayoutElement> {
@@ -2340,11 +2340,25 @@ impl<W: LayoutElement> Monitor<W> {
         })
     }
 
-    fn plane_switch_zoom(&self) -> f64 {
+    pub fn plane_switch_zoom(&self) -> f64 {
         self.plane_switch
             .as_ref()
             .map_or(1., |animation| animation.value())
             .clamp(PLANE_SWITCH_START_ZOOM, 1.)
+    }
+
+    /// Transforms workspace geometry by the active plane's depth zoom.
+    ///
+    /// This keeps workspace backgrounds and layer-shell surfaces aligned with
+    /// the window elements rendered by Monitor::render_workspaces().
+    pub fn transform_workspace_render_geo(
+        &self,
+        geo: Rectangle<f64, Logical>,
+    ) -> Rectangle<f64, Logical> {
+        let zoom = self.plane_switch_zoom();
+        let center = self.view_size.to_point().downscale(2.);
+        let loc = center + (geo.loc - center).upscale(zoom);
+        Rectangle::new(loc, geo.size.upscale(zoom))
     }
 
     fn plane_switch_untransform_pos(&self, pos: Point<f64, Logical>) -> Point<f64, Logical> {
