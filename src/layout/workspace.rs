@@ -8,7 +8,9 @@ use niri_config::{
 };
 use niri_ipc::{ColumnDisplay, PositionChange, SizeChange, WindowLayout};
 use smithay::backend::allocator::Fourcc;
-use smithay::backend::renderer::element::utils::{Relocate, RelocateRenderElement, RescaleRenderElement};
+use smithay::backend::renderer::element::utils::{
+    Relocate, RelocateRenderElement, RescaleRenderElement,
+};
 use smithay::backend::renderer::element::Kind;
 use smithay::backend::renderer::gles::{GlesRenderer, GlesTexture};
 use smithay::desktop::{layer_map_for_output, Window};
