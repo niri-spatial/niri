@@ -236,8 +236,8 @@ fn render_indicator(
     pangocairo::functions::show_layout(&cr, &layout);
 
     let track_start = padding as f64 + to_physical_precise_round(scale_factor, 2) as f64;
-    let track_end = width as f64 - padding as f64
-        - to_physical_precise_round(scale_factor, 2) as f64;
+    let track_end =
+        width as f64 - padding as f64 - to_physical_precise_round(scale_factor, 2) as f64;
     let track_y = to_physical_precise_round(scale_factor, 116) as f64;
 
     cr.set_source_rgba(0.55, 0.66, 0.78, 0.34);
@@ -252,8 +252,8 @@ fn render_indicator(
     let active_marker = if marker_count <= 1 || plane_count <= marker_count {
         active_plane
     } else {
-        ((active_plane as f64 / (plane_count - 1) as f64) * (marker_count - 1) as f64)
-            .round() as usize
+        ((active_plane as f64 / (plane_count - 1) as f64) * (marker_count - 1) as f64).round()
+            as usize
     };
 
     for marker in 0..marker_count {
@@ -264,10 +264,8 @@ fn render_indicator(
         };
         let x = track_start + (track_end - track_start) * fraction;
         let is_active = marker == active_marker;
-        let radius = to_physical_precise_round(
-            scale_factor,
-            if is_active { 4.5 } else { 2.5 },
-        ) as f64;
+        let radius =
+            to_physical_precise_round(scale_factor, if is_active { 4.5 } else { 2.5 }) as f64;
 
         if is_active {
             cr.set_source_rgba(0.35, 0.72, 1.0, 0.28);
