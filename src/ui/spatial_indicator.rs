@@ -231,10 +231,11 @@ fn render_indicator(
     cr.move_to((width - padding - front_width).into(), depth_label_y.into());
     pangocairo::functions::show_layout(&cr, &layout);
 
-    let track_start = padding as f64 + to_physical_precise_round(scale_factor, 2) as f64;
-    let track_end =
-        width as f64 - padding as f64 - to_physical_precise_round(scale_factor, 2) as f64;
-    let track_y = to_physical_precise_round(scale_factor, 116) as f64;
+    let track_inset: i32 = to_physical_precise_round(scale_factor, 2);
+    let track_start = padding as f64 + track_inset as f64;
+    let track_end = width as f64 - padding as f64 - track_inset as f64;
+    let track_y: i32 = to_physical_precise_round(scale_factor, 116);
+    let track_y = track_y as f64;
 
     cr.set_source_rgba(0.55, 0.66, 0.78, 0.34);
     cr.set_line_width(scale_factor.max(1.) * 1.5);
