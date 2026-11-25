@@ -1134,6 +1134,9 @@ impl<W: LayoutElement> Monitor<W> {
 
     pub fn clean_up_workspaces(&mut self) {
         assert!(self.workspace_switch.is_none());
+        if self.plane_switch.is_some() {
+            return;
+        }
         self.clean_up_plane_workspaces(self.workspaces.active_plane_idx());
     }
 
@@ -1198,7 +1201,7 @@ impl<W: LayoutElement> Monitor<W> {
             .expect("the workspace must exist");
         workspace.unname();
 
-        if self.workspace_switch.is_none() {
+        if self.workspace_switch.is_none() && self.plane_switch.is_none() {
             self.clean_up_plane_workspaces(plane_idx);
         }
 
@@ -1503,7 +1506,7 @@ impl<W: LayoutElement> Monitor<W> {
             removed.is_floating,
         );
 
-        if self.workspace_switch.is_none() {
+        if self.workspace_switch.is_none() && self.plane_switch.is_none() {
             self.clean_up_plane_workspaces(source_plane_idx);
         }
     }
@@ -1641,6 +1644,7 @@ impl<W: LayoutElement> Monitor<W> {
             if !activate {
                 self.activate_plane(source_plane_idx)
                     .expect("the source plane index must be valid");
+                self.plane_switch = None;
             }
             return;
         }
@@ -1750,6 +1754,7 @@ impl<W: LayoutElement> Monitor<W> {
         if !focus {
             self.activate_plane(source_plane_idx)
                 .expect("the source plane index must be valid");
+            self.plane_switch = None;
         }
     }
 
@@ -1879,6 +1884,9 @@ impl<W: LayoutElement> Monitor<W> {
 
         if self.plane_switch.as_ref().is_some_and(Animation::is_done) {
             self.plane_switch = None;
+            if self.workspace_switch.is_none() {
+                self.clean_up_workspaces();
+            }
         }
 
         for (_, _, ws) in self.workspaces.iter_workspaces_mut() {
@@ -2015,7 +2023,10 @@ impl<W: LayoutElement> Monitor<W> {
         {
             if options.layout.empty_workspace_above_first {
                 self.add_workspace_top();
-            } else if self.workspace_switch.is_none() && self.active_workspace_idx() != 0 {
+            } else if self.workspace_switch.is_none()
+                && self.plane_switch.is_none()
+                && self.active_workspace_idx() != 0
+            {
                 self.workspaces.remove(0);
                 self.set_active_workspace_idx(self.active_workspace_idx().saturating_sub(1));
             }
