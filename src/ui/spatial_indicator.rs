@@ -186,7 +186,7 @@ fn render_indicator(
     let separator_bottom: i32 = to_physical_precise_round(scale_factor, 54);
 
     for separator in [1., 2.] {
-        let x = padding as f64 + cell_width * separator;
+        let x = padding as f64 + coordinate_cell_width * separator;
         cr.set_source_rgba(0.55, 0.66, 0.78, 0.24);
         cr.set_line_width(scale_factor.max(1.));
         cr.move_to(x, separator_top as f64);
@@ -202,7 +202,7 @@ fn render_indicator(
 
     for (index, (axis, value)) in coordinates.iter().enumerate() {
         let cell_left = padding as f64 + coordinate_cell_width * index as f64;
-        let cell_center = cell_left + cell_width / 2.;
+        let cell_center = cell_left + coordinate_cell_width / 2.;
 
         layout.set_font_description(Some(&axis_font));
         layout.set_text(axis);
