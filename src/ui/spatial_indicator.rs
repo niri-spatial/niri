@@ -15,7 +15,7 @@ use crate::render_helpers::texture::{TextureBuffer, TextureRenderElement};
 use crate::utils::{output_size, to_physical_precise_round};
 
 const WIDTH: i32 = 240;
-const HEIGHT: i32 = 104;
+const HEIGHT: i32 = 132;
 const MARGIN: i32 = 20;
 const PADDING: i32 = 14;
 
@@ -27,6 +27,8 @@ pub struct SpatialPosition {
     pub y: usize,
     /// One-based active plane index, increasing from back to front.
     pub z: usize,
+    /// Total number of depth planes on this monitor.
+    pub plane_count: usize,
 }
 
 struct RenderedIndicator {
@@ -157,7 +159,7 @@ fn render_indicator(
     let label_y = to_physical_precise_round(scale_factor, 43);
     let value_y = to_physical_precise_round(scale_factor, 51);
     let separator_top = to_physical_precise_round(scale_factor, 34);
-    let separator_bottom = height - padding;
+    let separator_bottom = to_physical_precise_round(scale_factor, 79);
 
     for separator in [1., 2.] {
         let x = padding as f64 + cell_width * separator;
@@ -202,6 +204,82 @@ fn render_indicator(
             value_y.into(),
         );
         pangocairo::functions::show_layout(&cr, &layout);
+    }
+
+    // Show the depth direction explicitly: Z=1 is at the back, and larger
+    // Z values move toward the front.
+    let divider_y = to_physical_precise_round(scale_factor, 84);
+    cr.set_source_rgba(0.55, 0.66, 0.78, 0.24);
+    cr.set_line_width(scale_factor.max(1.));
+    cr.move_to(padding as f64, divider_y as f64);
+    cr.line_to((width - padding) as f64, divider_y as f64);
+    cr.stroke()?;
+
+    let mut depth_font = FontDescription::from_string("sans Bold 8px");
+    depth_font.set_absolute_size(to_physical_precise_round(scale_factor, depth_font.size()));
+    layout.set_font_description(Some(&depth_font));
+
+    cr.set_source_rgba(0.67, 0.75, 0.86, 0.82);
+    layout.set_text("BACK");
+    cr.move_to(
+        padding.into(),
+        to_physical_precise_round(scale_factor, 92).into(),
+    );
+    pangocairo::functions::show_layout(&cr, &layout);
+
+    layout.set_text("FRONT");
+    let (front_width, _) = layout.pixel_size();
+    cr.move_to(
+        (width - padding - front_width).into(),
+        to_physical_precise_round(scale_factor, 92).into(),
+    );
+    pangocairo::functions::show_layout(&cr, &layout);
+
+    let track_start = padding as f64 + to_physical_precise_round(scale_factor, 2) as f64;
+    let track_end = width as f64 - padding as f64
+        - to_physical_precise_round(scale_factor, 2) as f64;
+    let track_y = to_physical_precise_round(scale_factor, 116) as f64;
+
+    cr.set_source_rgba(0.55, 0.66, 0.78, 0.34);
+    cr.set_line_width(scale_factor.max(1.) * 1.5);
+    cr.move_to(track_start, track_y);
+    cr.line_to(track_end, track_y);
+    cr.stroke()?;
+
+    let plane_count = position.plane_count.max(1);
+    let active_plane = position.z.saturating_sub(1).min(plane_count - 1);
+    let marker_count = plane_count.min(15);
+    let active_marker = if marker_count <= 1 || plane_count <= marker_count {
+        active_plane
+    } else {
+        ((active_plane as f64 / (plane_count - 1) as f64) * (marker_count - 1) as f64)
+            .round() as usize
+    };
+
+    for marker in 0..marker_count {
+        let fraction = if marker_count <= 1 {
+            0.5
+        } else {
+            marker as f64 / (marker_count - 1) as f64
+        };
+        let x = track_start + (track_end - track_start) * fraction;
+        let is_active = marker == active_marker;
+        let radius = to_physical_precise_round(
+            scale_factor,
+            if is_active { 4.5 } else { 2.5 },
+        ) as f64;
+
+        if is_active {
+            cr.set_source_rgba(0.35, 0.72, 1.0, 0.28);
+            cr.arc(x, track_y, radius * 1.65, 0., std::f64::consts::PI * 2.);
+            cr.fill()?;
+            cr.set_source_rgba(0.52, 0.82, 1.0, 1.0);
+        } else {
+            cr.set_source_rgba(0.62, 0.70, 0.81, 0.48);
+        }
+
+        cr.arc(x, track_y, radius, 0., std::f64::consts::PI * 2.);
+        cr.fill()?;
     }
 
     drop(layout);
