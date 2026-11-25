@@ -142,8 +142,8 @@ fn render_indicator(
     let content_width = width - padding * 2;
     let horizontal_gaps = map_gap * plane_count_i32.saturating_sub(1);
     let available_cell_width = (content_width - horizontal_gaps).max(plane_count_i32);
-    let cell_width = (available_cell_width / plane_count_i32).min(max_cell_width).max(1);
-    let grid_width = cell_width * plane_count_i32 + horizontal_gaps;
+    let map_cell_width = (available_cell_width / plane_count_i32).min(max_cell_width).max(1);
+    let grid_width = map_cell_width * plane_count_i32 + horizontal_gaps;
     let grid_start_x = (width - grid_width) / 2;
 
     let vertical_gaps = map_gap * row_count_i32.saturating_sub(1);
@@ -179,7 +179,7 @@ fn render_indicator(
     layout.context().set_round_glyph_positions(false);
 
     let content_width = width - padding * 2;
-    let cell_width = content_width as f64 / 3.;
+    let coordinate_cell_width = content_width as f64 / 3.;
     let label_y: i32 = to_physical_precise_round(scale_factor, 12);
     let value_y: i32 = to_physical_precise_round(scale_factor, 28);
     let separator_top: i32 = to_physical_precise_round(scale_factor, 9);
@@ -201,7 +201,7 @@ fn render_indicator(
     ];
 
     for (index, (axis, value)) in coordinates.iter().enumerate() {
-        let cell_left = padding as f64 + cell_width * index as f64;
+        let cell_left = padding as f64 + coordinate_cell_width * index as f64;
         let cell_center = cell_left + cell_width / 2.;
 
         layout.set_font_description(Some(&axis_font));
@@ -239,7 +239,6 @@ fn render_indicator(
     cr.line_to(track_end, track_y);
     cr.stroke()?;
 
-    let plane_count = position.workspaces.len().max(1);
     let active_plane = position.z.saturating_sub(1).min(plane_count - 1);
     let marker_count = plane_count.min(15);
     let active_marker = if marker_count <= 1 || plane_count <= marker_count {
@@ -287,7 +286,7 @@ fn render_indicator(
     let active_workspace_idx = position.y.saturating_sub(1);
 
     for (plane_idx, workspaces) in position.workspaces.iter().enumerate() {
-        let plane_x = grid_start_x + plane_idx as i32 * (cell_width + map_gap);
+        let plane_x = grid_start_x + plane_idx as i32 * (map_cell_width + map_gap);
 
         for (workspace_idx, occupied) in workspaces.iter().enumerate() {
             let workspace_y = map_top
@@ -298,10 +297,10 @@ fn render_indicator(
 
             let x = plane_x as f64;
             let y = workspace_y as f64;
-            let w = cell_width as f64;
+            let w = map_cell_width as f64;
             let h = cell_height as f64;
 
-            let (fill, border) = match (is_active, occupied) {
+            let (fill, border) = match (is_active, *occupied) {
                 (true, true) => ((0.16, 0.48, 0.74, 0.98), (0.55, 0.84, 1.0, 1.0)),
                 (true, false) => ((0.11, 0.29, 0.47, 0.98), (0.55, 0.84, 1.0, 1.0)),
                 (false, true) => ((0.29, 0.45, 0.61, 0.88), (0.55, 0.68, 0.82, 0.7)),
