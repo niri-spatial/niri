@@ -4303,8 +4303,9 @@ impl Niri {
                 ctx.renderer,
                 output,
                 SpatialPosition {
-                    plane_idx: mon.active_plane_idx(),
-                    plane_count: mon.plane_count(),
+                    x: mon.active_workspace_ref().active_column_idx().map(|idx| idx + 1),
+                    y: mon.active_workspace_idx() + 1,
+                    z: mon.active_plane_idx() + 1,
                 },
             ) {
                 push(element.into());
