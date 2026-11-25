@@ -121,7 +121,7 @@ fn render_indicator(
 ) -> anyhow::Result<TextureBuffer<GlesTexture>> {
     let width = to_physical_precise_round(scale_factor, WIDTH);
     let height = to_physical_precise_round(scale_factor, HEIGHT);
-    let padding = to_physical_precise_round(scale_factor, PADDING);
+    let padding: i32 = to_physical_precise_round(scale_factor, PADDING);
 
     let surface = ImageSurface::create(cairo::Format::ARgb32, width, height)?;
     let cr = cairo::Context::new(&surface)?;
