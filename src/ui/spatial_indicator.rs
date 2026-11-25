@@ -196,13 +196,7 @@ fn render_indicator(
 
         if plane_idx == position.plane_idx {
             cr.set_source_rgba(0.34, 0.83, 1.0, 0.98);
-            cr.arc(
-                x,
-                track_y as f64,
-                active_radius,
-                0.,
-                std::f64::consts::TAU,
-            );
+            cr.arc(x, track_y as f64, active_radius, 0., std::f64::consts::TAU);
             cr.fill()?;
 
             cr.set_source_rgba(0.34, 0.83, 1.0, 0.55);
@@ -217,13 +211,7 @@ fn render_indicator(
             cr.stroke()?;
         } else {
             cr.set_source_rgba(0.64, 0.72, 0.83, alpha);
-            cr.arc(
-                x,
-                track_y as f64,
-                track_radius,
-                0.,
-                std::f64::consts::TAU,
-            );
+            cr.arc(x, track_y as f64, track_radius, 0., std::f64::consts::TAU);
             cr.fill()?;
         }
     }
