@@ -4394,11 +4394,13 @@ impl Niri {
             // Macro instead of closure to avoid borrowing push().
             macro_rules! process {
                 ($geo:expr) => {{
-                    let render_geo = mon.transform_workspace_render_geo($geo);
                     &mut |elem| {
-                        if let Some(elem) =
-                            scale_relocate_crop(elem, output_scale, total_zoom, render_geo)
-                        {
+                        if let Some(elem) = scale_relocate_crop(
+                            elem,
+                            output_scale,
+                            total_zoom,
+                            mon.transform_workspace_render_geo($geo),
+                        ) {
                             push(elem.into());
                         }
                     }
