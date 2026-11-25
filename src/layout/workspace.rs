@@ -391,7 +391,7 @@ impl<W: LayoutElement> Workspace<W> {
         let mut elements = Vec::new();
         {
             let mut ctx = RenderCtx {
-                renderer,
+                renderer: &mut *renderer,
                 target: RenderTarget::Output,
                 xray: None,
             };
@@ -402,7 +402,7 @@ impl<W: LayoutElement> Workspace<W> {
                 &mut |elem| elements.push(elem),
             );
             self.render_scrolling(
-                ctx,
+                ctx.r(),
                 XrayPos::default(),
                 false,
                 &mut |elem| elements.push(elem),
