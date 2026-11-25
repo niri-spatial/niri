@@ -529,24 +529,6 @@ impl<W: LayoutElement> Monitor<W> {
         self.set_active_workspace_idx(active_workspace_idx);
     }
 
-    /// Returns a depth-by-workspace map of whether each workspace has content.
-    ///
-    /// The outer vector is ordered from back to front (Z), and each inner
-    /// vector is ordered from top to bottom (Y). Empty boundary workspaces
-    /// are included so the map reflects the full spatial layout.
-    pub fn spatial_workspace_map(&self) -> Vec<Vec<bool>> {
-        self.workspaces
-            .iter_planes()
-            .map(|plane| {
-                plane
-                    .workspaces()
-                    .iter()
-                    .map(|workspace| workspace.has_windows_or_name())
-                    .collect()
-            })
-            .collect()
-    }
-
     /// Returns the number of depth planes on this monitor.
     pub fn plane_count(&self) -> usize {
         self.workspaces.plane_count()
