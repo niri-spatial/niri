@@ -15,7 +15,7 @@ use crate::render_helpers::texture::{TextureBuffer, TextureRenderElement};
 use crate::utils::{output_size, to_physical_precise_round};
 
 const WIDTH: i32 = 240;
-const HEIGHT: i32 = 132;
+const HEIGHT: i32 = 96;
 const MARGIN: i32 = 20;
 const PADDING: i32 = 14;
 
@@ -136,9 +136,6 @@ fn render_indicator(
     cr.rectangle(0.5, 0.5, (width - 1) as f64, (height - 1) as f64);
     cr.stroke()?;
 
-    let mut title_font = FontDescription::from_string("sans Bold 10px");
-    title_font.set_absolute_size(to_physical_precise_round(scale_factor, title_font.size()));
-
     let mut axis_font = FontDescription::from_string("sans Bold 9px");
     axis_font.set_absolute_size(to_physical_precise_round(scale_factor, axis_font.size()));
 
@@ -148,18 +145,12 @@ fn render_indicator(
     let layout = pangocairo::functions::create_layout(&cr);
     layout.context().set_round_glyph_positions(false);
 
-    cr.set_source_rgba(0.86, 0.92, 1.0, 0.94);
-    layout.set_font_description(Some(&title_font));
-    layout.set_text("SPATIAL COORDINATES");
-    cr.move_to(padding.into(), padding.into());
-    pangocairo::functions::show_layout(&cr, &layout);
-
     let content_width = width - padding * 2;
     let cell_width = content_width as f64 / 3.;
-    let label_y: i32 = to_physical_precise_round(scale_factor, 43);
-    let value_y: i32 = to_physical_precise_round(scale_factor, 51);
-    let separator_top: i32 = to_physical_precise_round(scale_factor, 34);
-    let separator_bottom: i32 = to_physical_precise_round(scale_factor, 79);
+    let label_y: i32 = to_physical_precise_round(scale_factor, 12);
+    let value_y: i32 = to_physical_precise_round(scale_factor, 28);
+    let separator_top: i32 = to_physical_precise_round(scale_factor, 9);
+    let separator_bottom: i32 = to_physical_precise_round(scale_factor, 54);
 
     for separator in [1., 2.] {
         let x = padding as f64 + cell_width * separator;
@@ -171,14 +162,9 @@ fn render_indicator(
     }
 
     let coordinates = [
-        (
-            "X",
-            position
-                .x
-                .map_or_else(|| "—".to_owned(), |x| format!("{x:02}")),
-        ),
-        ("Y", format!("{:02}", position.y)),
-        ("Z", format!("{:02}", position.z)),
+        ("X", position.x.map_or_else(|| "—".to_owned(), |x| x.to_string())),
+        ("Y", position.y.to_string()),
+        ("Z", position.z.to_string()),
     ];
 
     for (index, (axis, value)) in coordinates.iter().enumerate() {
@@ -200,35 +186,18 @@ fn render_indicator(
         pangocairo::functions::show_layout(&cr, &layout);
     }
 
-    // Show the depth direction explicitly: Z=1 is at the back, and larger
-    // Z values move toward the front.
-    let divider_y: i32 = to_physical_precise_round(scale_factor, 84);
+    // Separate the coordinates from the depth-position track.
+    let divider_y: i32 = to_physical_precise_round(scale_factor, 61);
     cr.set_source_rgba(0.55, 0.66, 0.78, 0.24);
     cr.set_line_width(scale_factor.max(1.));
     cr.move_to(padding as f64, divider_y as f64);
     cr.line_to((width - padding) as f64, divider_y as f64);
     cr.stroke()?;
 
-    let mut depth_font = FontDescription::from_string("sans Bold 8px");
-    depth_font.set_absolute_size(to_physical_precise_round(scale_factor, depth_font.size()));
-    layout.set_font_description(Some(&depth_font));
-
-    let depth_label_y: i32 = to_physical_precise_round(scale_factor, 92);
-
-    cr.set_source_rgba(0.67, 0.75, 0.86, 0.82);
-    layout.set_text("BACK");
-    cr.move_to(padding.into(), depth_label_y.into());
-    pangocairo::functions::show_layout(&cr, &layout);
-
-    layout.set_text("FRONT");
-    let (front_width, _) = layout.pixel_size();
-    cr.move_to((width - padding - front_width).into(), depth_label_y.into());
-    pangocairo::functions::show_layout(&cr, &layout);
-
     let track_inset: i32 = to_physical_precise_round(scale_factor, 2);
     let track_start = padding as f64 + track_inset as f64;
     let track_end = width as f64 - padding as f64 - track_inset as f64;
-    let track_y: i32 = to_physical_precise_round(scale_factor, 116);
+    let track_y: i32 = to_physical_precise_round(scale_factor, 80);
     let track_y = track_y as f64;
 
     cr.set_source_rgba(0.55, 0.66, 0.78, 0.34);
