@@ -793,6 +793,7 @@ impl<W: LayoutElement> Layout<W> {
                     // affected if the removed workspace is invisible. But this is good enough
                     // for now.
                     primary.workspace_switch = None;
+                    primary.plane_switch = None;
                     primary.clean_up_workspaces();
                 }
 
@@ -1191,7 +1192,8 @@ impl<W: LayoutElement> Layout<W> {
                     };
 
                     let is_active_plane = mon.active_plane_id() == plane_id;
-                    let can_clean_up = !is_active_plane || mon.workspace_switch.is_none();
+                    let can_clean_up = !is_active_plane
+                        || (mon.workspace_switch.is_none() && mon.plane_switch.is_none());
 
                     // Clean up empty workspaces that are not active and not last
                     // within their own plane.
@@ -3618,7 +3620,7 @@ impl<W: LayoutElement> Layout<W> {
             }
 
             let mon = &mut monitors[mon_idx];
-            if mon.workspace_switch.is_none() {
+            if mon.workspace_switch.is_none() && mon.plane_switch.is_none() {
                 mon.clean_up_plane_workspaces(source_plane_idx);
             }
         }
