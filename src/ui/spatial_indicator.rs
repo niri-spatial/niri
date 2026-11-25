@@ -261,8 +261,9 @@ fn render_indicator(
         };
         let x = track_start + (track_end - track_start) * fraction;
         let is_active = marker == active_marker;
-        let radius =
-            to_physical_precise_round(scale_factor, if is_active { 4.5 } else { 2.5 }) as f64;
+        let radius_px: i32 =
+            to_physical_precise_round(scale_factor, if is_active { 4.5 } else { 2.5 });
+        let radius = radius_px as f64;
 
         if is_active {
             cr.set_source_rgba(0.35, 0.72, 1.0, 0.28);
