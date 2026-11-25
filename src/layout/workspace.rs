@@ -390,7 +390,7 @@ impl<W: LayoutElement> Workspace<W> {
 
         let mut elements = Vec::new();
         {
-            let ctx = RenderCtx {
+            let mut ctx = RenderCtx {
                 renderer,
                 target: RenderTarget::Output,
                 xray: None,
