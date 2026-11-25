@@ -623,13 +623,14 @@ impl<W: LayoutElement> Monitor<W> {
             self.set_active_workspace_idx(active_workspace_idx);
             self.workspace_switch = None;
             self.previous_workspace_id = None;
-            self.plane_switch = Some(Animation::new(
+            let animation = Animation::new(
                 self.clock.clone(),
                 from_zoom,
                 1.,
                 0.,
                 self.options.animations.workspace_switch.0,
-            ));
+            );
+            self.plane_switch = (!animation.is_done()).then_some(animation);
         }
 
         Ok(())
@@ -2344,10 +2345,7 @@ impl<W: LayoutElement> Monitor<W> {
             .clamp(PLANE_SWITCH_START_ZOOM, 1.)
     }
 
-    fn plane_switch_untransform_pos(
-        &self,
-        pos: Point<f64, Logical>,
-    ) -> Point<f64, Logical> {
+    fn plane_switch_untransform_pos(&self, pos: Point<f64, Logical>) -> Point<f64, Logical> {
         let zoom = self.plane_switch_zoom();
         if zoom == 1. {
             return pos;
@@ -2364,10 +2362,7 @@ impl<W: LayoutElement> Monitor<W> {
         }
 
         let center = self.view_size.to_point().downscale(2.);
-        Rectangle::new(
-            center - center.downscale(zoom),
-            self.view_size.downscale(zoom),
-        )
+        Rectangle::new(center - center.downscale(zoom), self.view_size.downscale(zoom))
     }
 
     pub fn workspaces_with_render_geo(
@@ -2547,8 +2542,7 @@ impl<W: LayoutElement> Monitor<W> {
         self.insert_hint_element
             .render(renderer, render_loc.location, &mut |elem| {
                 let elem = MonitorInnerRenderElement::UncroppedInsertHint(elem);
-                let elem =
-                    RescaleRenderElement::from_element(elem, Point::default(), plane_zoom);
+                let elem = RescaleRenderElement::from_element(elem, Point::default(), plane_zoom);
                 let elem = RelocateRenderElement::from_element(
                     elem,
                     plane_offset.to_physical_precise_round(self.scale.fractional_scale()),
@@ -2605,8 +2599,7 @@ impl<W: LayoutElement> Monitor<W> {
             .filter(|_| !self.options.layout.insert_hint.off);
 
         let scale_relocate = move |geo: Rectangle<f64, Logical>, elem| {
-            let elem =
-                RescaleRenderElement::from_element(elem, Point::from((0, 0)), total_zoom);
+            let elem = RescaleRenderElement::from_element(elem, Point::from((0, 0)), total_zoom);
             let plane_geo_loc = plane_center + (geo.loc - plane_center).upscale(plane_zoom);
             RelocateRenderElement::from_element(
                 elem,
@@ -2669,8 +2662,7 @@ impl<W: LayoutElement> Monitor<W> {
             ws.render_shadow(renderer, &mut |elem| {
                 let elem = elem.with_alpha(alpha);
                 let elem = MonitorInnerRenderElement::Shadow(elem);
-                let elem =
-                    RescaleRenderElement::from_element(elem, Point::from((0, 0)), total_zoom);
+                let elem = RescaleRenderElement::from_element(elem, Point::from((0, 0)), total_zoom);
                 let plane_geo_loc = plane_center + (geo.loc - plane_center).upscale(plane_zoom);
                 let elem = RelocateRenderElement::from_element(
                     elem,
