@@ -15,12 +15,12 @@ use crate::render_helpers::texture::{TextureBuffer, TextureRenderElement};
 use crate::utils::{output_size, to_physical_precise_round};
 
 const WIDTH: i32 = 184;
-const HEIGHT: i32 = 128;
+const HEIGHT: i32 = 140;
 const MARGIN: i32 = 20;
 const PADDING: i32 = 12;
 const MAX_VISIBLE_ITEMS: usize = 5;
 const GRID_SPACING: i32 = 12;
-const GRID_TOP: i32 = 72;
+const GRID_TOP: i32 = 70;
 const GRID_RADIUS: f64 = 2.2;
 const ACTIVE_RADIUS: f64 = 4.0;
 
@@ -73,7 +73,7 @@ impl SpatialIndicator {
                     None
                 });
             buffers.insert(
-                weak,
+                weak.clone(),
                 RenderedIndicator {
                     position,
                     scale,
@@ -82,11 +82,7 @@ impl SpatialIndicator {
             );
         }
 
-        let buffer = buffers.values().find_map(|rendered| {
-            (rendered.position == position && rendered.scale == scale)
-                .then_some(rendered.buffer.as_ref())
-                .flatten()
-        })?;
+        let buffer = buffers.get(&weak)?.buffer.as_ref()?;
 
         let size = buffer.logical_size();
         let output_size = output_size(output).to_f64();
@@ -245,11 +241,11 @@ fn render_indicator(
     layout.set_text("BACK");
     cr.move_to(
         padding.into(),
-        to_physical_precise_round(scale_factor, 113).into(),
+        to_physical_precise_round(scale_factor, 126).into(),
     );
     pangocairo::functions::show_layout(&cr, &layout);
 
-    layout.set_text("FRONT  ·  TOP ↑   BOTTOM ↓");
+    layout.set_text("FRONT  ·  Y ↓");
     let (hint_width, _) = layout.pixel_size();
     cr.move_to(
         (width - padding - hint_width).into(),
@@ -276,7 +272,12 @@ fn render_indicator(
 }
 
 fn visible_range(current: usize, total: usize) -> std::ops::Range<usize> {
-    let end = total.min(current.saturating_add(MAX_VISIBLE_ITEMS / 2 + 1));
-    let start = end.saturating_sub(MAX_VISIBLE_ITEMS).min(current);
-    start..end
+    if total <= MAX_VISIBLE_ITEMS {
+        return 0..total;
+    }
+
+    let start = current
+        .saturating_sub(MAX_VISIBLE_ITEMS / 2)
+        .min(total - MAX_VISIBLE_ITEMS);
+    start..start + MAX_VISIBLE_ITEMS
 }
