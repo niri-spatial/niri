@@ -405,33 +405,28 @@ impl<W: LayoutElement> Workspace<W> {
                 ))
                 .to_physical_precise_round(scale);
 
+                let mut workspace_elements = Vec::new();
                 workspace.render_floating(
                     ctx.r(),
                     XrayPos::default(),
                     false,
-                    &mut |elem| elements.push(elem),
+                    &mut |elem| workspace_elements.push(elem),
                 );
                 workspace.render_scrolling(
                     ctx.r(),
                     XrayPos::default(),
                     false,
-                    &mut |elem| elements.push(elem),
+                    &mut |elem| workspace_elements.push(elem),
                 );
 
-                // Relocation is applied after scaling so the rows align with
-                // the vertical workspace positions in the overview.
-                let _ = offset;
+                let workspace_elements = workspace_elements.into_iter().rev().map(|elem| {
+                    let elem =
+                        RescaleRenderElement::from_element(elem, Point::from((0, 0)), zoom);
+                    RelocateRenderElement::from_element(elem, offset, Relocate::Relative)
+                });
+                elements.extend(workspace_elements);
             }
         }
-
-        let elements = elements.into_iter().rev().map(|elem| {
-            let elem = RescaleRenderElement::from_element(elem, Point::from((0, 0)), zoom);
-            RelocateRenderElement::from_element(
-                elem,
-                Point::from((0, 0)),
-                Relocate::Relative,
-            )
-        });
 
         let (texture, _sync_point) = render_to_texture(
             renderer,
