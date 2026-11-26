@@ -4309,7 +4309,7 @@ impl Niri {
                     z: mon.active_plane_idx() + 1,
                     plane_count: mon.plane_count(),
                 },
-                workspace,
+                mon,
             ) {
                 for element in elements {
                     push(element.into());
