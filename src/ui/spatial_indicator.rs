@@ -414,10 +414,13 @@ fn render_viewport_overlay(
     let viewport_left = viewport.loc.x.clamp(0., content_size.w);
     let viewport_right = (viewport.loc.x + viewport.size.w).clamp(viewport_left, content_size.w);
     let visible_width = viewport_right - viewport_left;
-    let visible_height = viewport.size.h.min(content_size.h);
+    let visible_height = viewport
+        .size
+        .h
+        .min((content_size.h - viewport.loc.y).max(0.));
     if visible_width > 0. && visible_height > 0. {
         let x = (map_origin.x + viewport_left * map_zoom) * scale_factor;
-        let y = map_origin.y * scale_factor;
+        let y = (map_origin.y + viewport.loc.y * map_zoom) * scale_factor;
         let w = visible_width * map_zoom * scale_factor;
         let h = visible_height * map_zoom * scale_factor;
 
