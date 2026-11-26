@@ -773,6 +773,11 @@ impl<W: LayoutElement> Monitor<W> {
         &self.workspaces[self.active_workspace_idx()]
     }
 
+    /// Returns all workspaces in the active depth plane, as shown in the overview.
+    pub fn active_plane_workspaces(&self) -> &[Workspace<W>] {
+        self.workspaces.as_slice()
+    }
+
     pub fn find_named_workspace(&self, workspace_name: &str) -> Option<&Workspace<W>> {
         self.workspaces.iter_workspaces().find_map(|(_, _, ws)| {
             ws.name
