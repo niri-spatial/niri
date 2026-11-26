@@ -130,7 +130,7 @@ impl SpatialIndicator {
 
         let workspace_geometries = workspaces
             .iter()
-            .map(Workspace::minimap_geometry)
+            .map(Workspace::<W>::minimap_geometry)
             .collect::<Vec<_>>();
         let content_width = workspace_geometries
             .iter()
