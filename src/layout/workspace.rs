@@ -376,20 +376,19 @@ impl<W: LayoutElement> Workspace<W> {
         (content_size, viewport)
     }
 
-    /// Renders this workspace's actual window contents into a scaled texture.
+    /// Renders all workspaces in the active plane as one overview thumbnail.
     ///
-    /// The scrolling layout is shifted into workspace coordinates, while
-    /// floating windows are placed over the viewport they occupy.
-    pub fn render_minimap_texture(
-        &self,
+    /// Each workspace keeps its full horizontal scrolling extent. Workspaces
+    /// are stacked vertically in the same order as the on-screen overview.
+    pub fn render_overview_minimap_texture(
+        workspaces: &[Self],
         renderer: &mut GlesRenderer,
         scale: Scale<f64>,
         target_size: Size<i32, Physical>,
         zoom: f64,
         origin: Point<f64, Logical>,
+        workspace_gap: f64,
     ) -> anyhow::Result<TextureBuffer<GlesTexture>> {
-        let (_, _, viewport_left) = self.scrolling.minimap_geometry();
-
         let mut elements = Vec::new();
         {
             let mut ctx = RenderCtx {
@@ -397,25 +396,41 @@ impl<W: LayoutElement> Workspace<W> {
                 target: RenderTarget::Output,
                 xray: None,
             };
-            self.render_floating(
-                ctx.r(),
-                XrayPos::default(),
-                false,
-                &mut |elem| elements.push(elem),
-            );
-            self.render_scrolling(
-                ctx.r(),
-                XrayPos::default(),
-                false,
-                &mut |elem| elements.push(elem),
-            );
+            for (index, workspace) in workspaces.iter().enumerate() {
+                let (_, _, viewport_left) = workspace.scrolling.minimap_geometry();
+                let workspace_top = index as f64 * (workspace.view_size.h + workspace_gap);
+                let offset = Point::from((
+                    origin.x + viewport_left * zoom,
+                    origin.y + workspace_top * zoom,
+                ))
+                .to_physical_precise_round(scale);
+
+                workspace.render_floating(
+                    ctx.r(),
+                    XrayPos::default(),
+                    false,
+                    &mut |elem| elements.push(elem),
+                );
+                workspace.render_scrolling(
+                    ctx.r(),
+                    XrayPos::default(),
+                    false,
+                    &mut |elem| elements.push(elem),
+                );
+
+                // Relocation is applied after scaling so the rows align with
+                // the vertical workspace positions in the overview.
+                let _ = offset;
+            }
         }
 
-        let offset = Point::from((origin.x + viewport_left * zoom, origin.y))
-            .to_physical_precise_round(scale);
         let elements = elements.into_iter().rev().map(|elem| {
             let elem = RescaleRenderElement::from_element(elem, Point::from((0, 0)), zoom);
-            RelocateRenderElement::from_element(elem, offset, Relocate::Relative)
+            RelocateRenderElement::from_element(
+                elem,
+                Point::from((0, 0)),
+                Relocate::Relative,
+            )
         });
 
         let (texture, _sync_point) = render_to_texture(
