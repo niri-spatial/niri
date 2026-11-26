@@ -206,6 +206,8 @@ impl SpatialIndicator {
             scale_factor,
             active_viewport,
             content_size,
+            &workspace_geometries,
+            workspace_gap,
             map_zoom,
             map_origin,
         ) {
@@ -397,8 +399,10 @@ fn render_indicator(
 fn render_viewport_overlay(
     renderer: &mut GlesRenderer,
     scale_factor: f64,
-    viewport: smithay::utils::Rectangle<f64, Logical>,
+    viewport: Rectangle<f64, Logical>,
     content_size: Size<f64, Logical>,
+    workspace_geometries: &[(Size<f64, Logical>, Rectangle<f64, Logical>)],
+    workspace_gap: f64,
     map_zoom: f64,
     map_origin: Point<f64, Logical>,
 ) -> anyhow::Result<TextureBuffer<GlesTexture>> {
@@ -410,6 +414,21 @@ fn render_viewport_overlay(
     cr.set_source_rgba(0., 0., 0., 0.);
     cr.paint()?;
     cr.set_operator(cairo::Operator::Over);
+
+    // Subtle outlines keep empty workspaces visible and separate the stacked rows.
+    let border_width: i32 = to_physical_precise_round(scale_factor, 1.);
+    cr.set_line_width(border_width.max(1) as f64);
+    let mut workspace_top = 0.;
+    for (workspace_size, _) in workspace_geometries {
+        let x = map_origin.x * scale_factor;
+        let y = (map_origin.y + workspace_top * map_zoom) * scale_factor;
+        let w = workspace_size.w * map_zoom * scale_factor;
+        let h = workspace_size.h * map_zoom * scale_factor;
+        cr.set_source_rgba(0.55, 0.66, 0.78, 0.24);
+        cr.rectangle(x + 0.5, y + 0.5, (w - 1.).max(0.), (h - 1.).max(0.));
+        cr.stroke()?;
+        workspace_top += workspace_size.h + workspace_gap;
+    }
 
     let viewport_left = viewport.loc.x.clamp(0., content_size.w);
     let viewport_right = (viewport.loc.x + viewport.size.w).clamp(viewport_left, content_size.w);
