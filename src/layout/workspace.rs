@@ -434,7 +434,7 @@ impl<W: LayoutElement> Workspace<W> {
             scale,
             Transform::Normal,
             Fourcc::Abgr8888,
-            elements,
+            elements.into_iter(),
         )?;
 
         Ok(TextureBuffer::from_texture(
