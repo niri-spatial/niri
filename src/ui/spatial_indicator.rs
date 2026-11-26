@@ -7,8 +7,9 @@ use smithay::backend::allocator::Fourcc;
 use smithay::backend::renderer::element::Kind;
 use smithay::backend::renderer::gles::{GlesRenderer, GlesTexture};
 use smithay::output::{Output, WeakOutput};
-use smithay::utils::{Logical, Point, Scale, Size, Transform};
+use smithay::utils::{Logical, Point, Rectangle, Scale, Size, Transform};
 
+use crate::layout::monitor::Monitor;
 use crate::layout::workspace::Workspace;
 use crate::layout::LayoutElement;
 use crate::render_helpers::primary_gpu_texture::PrimaryGpuTextureRenderElement;
@@ -65,7 +66,7 @@ impl SpatialIndicator {
         renderer: &mut R,
         output: &Output,
         position: SpatialPosition,
-        workspace: &Workspace<W>,
+        monitor: &Monitor<W>,
     ) -> Option<Vec<PrimaryGpuTextureRenderElement>> {
         let scale_factor = output.current_scale().fractional_scale();
         let scale = Scale::from(scale_factor);
@@ -122,11 +123,31 @@ impl SpatialIndicator {
         );
         let panel_element = PrimaryGpuTextureRenderElement(panel_element);
 
-        let (content_size, viewport) = workspace.minimap_geometry();
+        let workspaces = monitor.active_plane_workspaces();
+        if workspaces.is_empty() {
+            return Some(vec![panel_element]);
+        }
+
+        let workspace_geometries = workspaces
+            .iter()
+            .map(Workspace::minimap_geometry)
+            .collect::<Vec<_>>();
+        let content_width = workspace_geometries
+            .iter()
+            .map(|(size, _)| size.w)
+            .fold(0., f64::max);
+        let workspace_gap = workspace_geometries[0].0.h * 0.1;
+        let content_height = workspace_geometries
+            .iter()
+            .map(|(size, _)| size.h)
+            .sum::<f64>()
+            + workspace_gap * workspaces.len().saturating_sub(1) as f64;
+        let content_size = Size::from((content_width, content_height));
         if content_size.w <= 0. || content_size.h <= 0. {
             return Some(vec![panel_element]);
         }
 
+        // Fit the complete active-plane overview, not only the selected workspace.
         let map_zoom = (MAP_WIDTH as f64 / content_size.w)
             .min(MAP_HEIGHT as f64 / content_size.h);
         if !map_zoom.is_finite() || map_zoom <= 0. {
@@ -141,19 +162,31 @@ impl SpatialIndicator {
         let map_height_px: i32 = to_physical_precise_round(scale_factor, MAP_HEIGHT);
         let map_size = Size::from((map_width_px, map_height_px));
 
-        let map_buffer = match workspace.render_minimap_texture(
+        let map_buffer = match Workspace::<W>::render_overview_minimap_texture(
+            workspaces,
             renderer.as_gles_renderer(),
             scale,
             map_size,
             map_zoom,
             map_origin,
+            workspace_gap,
         ) {
             Ok(buffer) => buffer,
             Err(err) => {
-                warn!("failed to render workspace minimap: {err:#}");
+                warn!("failed to render overview minimap: {err:#}");
                 return Some(vec![panel_element]);
             }
         };
+
+        let active_index = monitor.active_workspace_idx().min(workspaces.len() - 1);
+        let active_top = workspace_geometries[..active_index]
+            .iter()
+            .map(|(size, _)| size.h + workspace_gap)
+            .sum::<f64>();
+        let active_viewport = Rectangle::new(
+            Point::from((workspace_geometries[active_index].1.loc.x, active_top)),
+            workspace_geometries[active_index].1.size,
+        );
 
         let map_location = panel_location
             + Point::from((PADDING as f64, (HEIGHT + MAP_MARGIN) as f64));
@@ -171,7 +204,7 @@ impl SpatialIndicator {
         match render_viewport_overlay(
             renderer.as_gles_renderer(),
             scale_factor,
-            viewport,
+            active_viewport,
             content_size,
             map_zoom,
             map_origin,
@@ -185,11 +218,11 @@ impl SpatialIndicator {
                     None,
                     Kind::Unspecified,
                 );
-                // Output elements are stored top-to-bottom, so the viewport
-                // outline must precede the thumbnail and its background.
+                // Output elements are stored top-to-bottom, so the active
+                // workspace viewport outline must precede the thumbnail.
                 elements.push(PrimaryGpuTextureRenderElement(overlay));
             }
-            Err(err) => warn!("failed to render workspace minimap viewport: {err:#}"),
+            Err(err) => warn!("failed to render overview minimap viewport: {err:#}"),
         }
         elements.push(map_element);
         elements.push(panel_element);
