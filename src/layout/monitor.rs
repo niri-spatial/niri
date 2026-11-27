@@ -5,10 +5,10 @@ use std::rc::Rc;
 use std::time::Duration;
 
 use niri_config::{CornerRadius, LayoutPart};
-use smithay::backend::renderer::element::Kind;
 use smithay::backend::renderer::element::utils::{
     CropRenderElement, Relocate, RelocateRenderElement, RescaleRenderElement,
 };
+use smithay::backend::renderer::element::Kind;
 use smithay::output::Output;
 use smithay::utils::{Logical, Point, Rectangle, Size};
 
@@ -2506,10 +2506,7 @@ impl<W: LayoutElement> Monitor<W> {
 
         let inner_height = (content_geo.size.h - border * 2.).max(0.);
         let bar_geometries = [
-            Rectangle::new(
-                content_geo.loc,
-                Size::from((content_geo.size.w, border)),
-            ),
+            Rectangle::new(content_geo.loc, Size::from((content_geo.size.w, border))),
             Rectangle::new(
                 Point::from((
                     content_geo.loc.x,
@@ -2534,12 +2531,7 @@ impl<W: LayoutElement> Monitor<W> {
         Some(std::array::from_fn(|idx| {
             let geometry = bar_geometries[idx];
             buffers[idx].resize(geometry.size);
-            SolidColorRenderElement::from_buffer(
-                &buffers[idx],
-                geometry.loc,
-                1.,
-                Kind::Unspecified,
-            )
+            SolidColorRenderElement::from_buffer(&buffers[idx], geometry.loc, 1., Kind::Unspecified)
         }))
     }
 
