@@ -2347,7 +2347,9 @@ impl<W: LayoutElement> Monitor<W> {
         }
     }
 
-    pub fn workspaces_render_geo(&self) -> impl Iterator<Item = Rectangle<f64, Logical>> {
+    pub fn workspaces_render_geo(
+        &self,
+    ) -> impl Iterator<Item = Rectangle<f64, Logical>> + use<'_, W> {
         let scale = self.scale.fractional_scale();
         let zoom = self.overview_zoom();
 
