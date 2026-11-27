@@ -444,7 +444,14 @@ impl<W: LayoutElement> Monitor<W> {
             options,
             layout_config,
         };
-        monitor.clean_up_empty_planes();
+
+        // Create an initial empty plane on each side of the main plane once.
+        // Subsequent navigation uses the ordinary dynamic plane lifecycle.
+        if needs_initial_workspace {
+            monitor.insert_empty_plane_at(0);
+            monitor.insert_empty_plane_at(monitor.plane_count());
+        }
+
         monitor
     }
 
@@ -546,6 +553,15 @@ impl<W: LayoutElement> Monitor<W> {
         self.workspaces.active_plane().id()
     }
 
+    /// Returns whether the active plane contains no windows and no named workspaces.
+    fn active_plane_is_empty(&self) -> bool {
+        self.workspaces
+            .active_plane()
+            .workspaces()
+            .iter()
+            .all(|workspace| !workspace.has_windows_or_name())
+    }
+
     /// Inserts an existing plane into this monitor.
     ///
     /// Workspaces are updated to use this monitor's output and current options.
@@ -600,19 +616,6 @@ impl<W: LayoutElement> Monitor<W> {
             .expect("a newly generated plane ID must be unique");
 
         plane_id
-    }
-
-    /// Ensures the active plane is never on the outer edge of the Z sequence.
-    ///
-    /// This is called immediately when activating or moving an edge plane so
-    /// the new empty boundary is present during the transition itself.
-    fn ensure_active_plane_boundaries(&mut self) {
-        if self.active_plane_idx() == 0 {
-            self.insert_empty_plane_at(0);
-        }
-        if self.active_plane_idx() + 1 == self.plane_count() {
-            self.insert_empty_plane_at(self.plane_count());
-        }
     }
 
     /// Creates and activates an empty plane at the requested depth-order index.
@@ -680,41 +683,40 @@ impl<W: LayoutElement> Monitor<W> {
             self.plane_switch = (!animation.is_done()).then_some(animation);
         }
 
-        self.ensure_active_plane_boundaries();
-
-        if self.workspace_switch.is_none() && self.plane_switch.is_none() {
-            self.clean_up_empty_planes();
-        }
-
         Ok(())
     }
 
     /// Focuses the adjacent plane farther back in depth order.
     ///
-    /// Plane indices increase toward the front. One empty boundary plane is
-    /// kept before the active plane so the Z position remains stable.
+    /// Plane indices increase toward the front. Moving past the back edge
+    /// creates a new plane when the current active boundary plane has content.
+    /// Empty planes are removed once they become inactive.
     pub fn focus_plane_backward(&mut self) {
         let index = self.active_plane_idx();
         if index == 0 {
-            self.insert_empty_plane_at(0);
+            // Reuse the active empty boundary plane until it receives content.
+            if !self.active_plane_is_empty() {
+                self.add_plane_at(0);
+            }
+        } else {
+            self.activate_plane(index - 1)
+                .expect("the previous plane index must be valid");
         }
-
-        let target_index = self.active_plane_idx() - 1;
-        self.activate_plane(target_index)
-            .expect("the previous plane index must be valid");
     }
 
     /// Focuses the adjacent plane closer to the front in depth order.
     ///
-    /// One empty boundary plane is kept after the active plane so the Z
-    /// position remains stable.
+    /// Moving past the front edge creates a new plane when the current active
+    /// boundary plane has content. Empty planes are removed once they become inactive.
     pub fn focus_plane_forward(&mut self) {
-        let target_index = self.active_plane_idx() + 1;
-        if target_index == self.plane_count() {
-            self.insert_empty_plane_at(target_index);
+        let index = self.active_plane_idx() + 1;
+        if index < self.plane_count() {
+            self.activate_plane(index)
+                .expect("the next plane index must be valid");
+        } else if !self.active_plane_is_empty() {
+            // Reuse the active empty boundary plane until it receives content.
+            self.add_plane();
         }
-        self.activate_plane(target_index)
-            .expect("the next plane index must be valid");
     }
 
     /// Moves the active plane one step farther back in depth order.
@@ -727,12 +729,7 @@ impl<W: LayoutElement> Monitor<W> {
             return false;
         }
 
-        let moved = self.workspaces.move_plane(index, index - 1).is_ok();
-        if moved {
-            self.ensure_active_plane_boundaries();
-            self.clean_up_empty_planes();
-        }
-        moved
+        self.workspaces.move_plane(index, index - 1).is_ok()
     }
 
     /// Moves the active plane one step closer to the front in depth order.
@@ -746,12 +743,7 @@ impl<W: LayoutElement> Monitor<W> {
             return false;
         }
 
-        let moved = self.workspaces.move_plane(index, next_index).is_ok();
-        if moved {
-            self.ensure_active_plane_boundaries();
-            self.clean_up_empty_planes();
-        }
-        moved
+        self.workspaces.move_plane(index, next_index).is_ok()
     }
 
     /// Removes a plane and returns it with all of its workspaces.
@@ -774,8 +766,6 @@ impl<W: LayoutElement> Monitor<W> {
         }
 
         self.set_active_workspace_idx(active_workspace_idx);
-        self.ensure_active_plane_boundaries();
-        self.clean_up_empty_planes();
         Ok(removed)
     }
 
@@ -1248,31 +1238,28 @@ impl<W: LayoutElement> Monitor<W> {
         self.clean_up_empty_planes();
     }
 
-    /// Keeps one empty boundary plane at each end of the Z sequence.
+    /// Removes empty planes other than the currently active one.
     ///
-    /// The active plane is retained even when empty. Empty inactive planes
-    /// between populated planes are removed, while the two outer empty planes
-    /// remain as stable navigation buffers.
+    /// The active plane is retained even when empty, matching the active
+    /// workspace invariant. Empty inactive planes are removed from both depth
+    /// edges and from between populated planes.
     pub(super) fn clean_up_empty_planes(&mut self) {
         if self.workspace_switch.is_some() || self.plane_switch.is_some() {
             return;
         }
 
         let active_plane_id = self.active_plane_id();
-        let plane_count = self.plane_count();
         let empty_indices = self
             .workspaces
             .iter_planes()
             .enumerate()
             .filter_map(|(index, plane)| {
-                let is_empty = plane
-                    .workspaces()
-                    .iter()
-                    .all(|workspace| !workspace.has_windows_or_name());
-                let is_outer_boundary = index == 0 || index + 1 == plane_count;
-
-                (plane.id() != active_plane_id && is_empty && !is_outer_boundary)
-                    .then_some(index)
+                (plane.id() != active_plane_id
+                    && plane
+                        .workspaces()
+                        .iter()
+                        .all(|workspace| !workspace.has_windows_or_name()))
+                .then_some(index)
             })
             .collect::<Vec<_>>();
 
@@ -1280,35 +1267,6 @@ impl<W: LayoutElement> Monitor<W> {
             self.workspaces
                 .remove_plane(index)
                 .expect("an inactive empty plane can be removed");
-        }
-
-        let first_is_empty_boundary = self
-            .workspaces
-            .plane(0)
-            .is_some_and(|plane| {
-                plane.id() != self.active_plane_id()
-                    && plane
-                        .workspaces()
-                        .iter()
-                        .all(|workspace| !workspace.has_windows_or_name())
-            });
-        if !first_is_empty_boundary {
-            self.insert_empty_plane_at(0);
-        }
-
-        let last_index = self.plane_count() - 1;
-        let last_is_empty_boundary = self
-            .workspaces
-            .plane(last_index)
-            .is_some_and(|plane| {
-                plane.id() != self.active_plane_id()
-                    && plane
-                        .workspaces()
-                        .iter()
-                        .all(|workspace| !workspace.has_windows_or_name())
-            });
-        if !last_is_empty_boundary {
-            self.insert_empty_plane_at(self.plane_count());
         }
     }
 
@@ -3120,22 +3078,6 @@ impl<W: LayoutElement> Monitor<W> {
         let shared_active_workspace_idx = self.active_workspace_idx();
         assert!(shared_active_workspace_idx < self.workspaces.len());
 
-        if self.workspace_switch.is_none() && self.plane_switch.is_none() {
-            let plane_count = self.plane_count();
-            assert!(plane_count >= 3, "monitor must keep two empty Z boundary planes");
-            assert!(self.active_plane_idx() > 0);
-            assert!(self.active_plane_idx() + 1 < plane_count);
-            for boundary_idx in [0, plane_count - 1] {
-                let boundary = self.workspaces.plane(boundary_idx).unwrap();
-                assert!(
-                    boundary
-                        .workspaces()
-                        .iter()
-                        .all(|workspace| !workspace.has_windows_or_name()),
-                    "outer Z boundary planes must remain empty"
-                );
-            }
-        }
         for plane in self.workspaces.iter_planes() {
             assert!(
                 shared_active_workspace_idx < plane.workspace_count(),
