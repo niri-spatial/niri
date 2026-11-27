@@ -4450,6 +4450,36 @@ fn moving_window_to_missing_back_plane_creates_and_activates_it() {
 }
 
 #[test]
+fn moving_window_to_missing_back_plane_without_focus_keeps_source_active() {
+    let ops = [
+        Op::AddOutput(1),
+        Op::AddWindow {
+            params: TestWindowParams::new(2),
+        },
+    ];
+    let mut layout = check_ops(ops);
+    let source_plane_id = layout.active_monitor().unwrap().active_plane_id();
+
+    layout.move_active_window_to_plane_backward(false);
+
+    let monitor = layout.active_monitor().unwrap();
+    assert_eq!(monitor.plane_count(), 2);
+    assert_eq!(monitor.active_plane_id(), source_plane_id);
+    assert!(!monitor.active_workspace_ref().has_window(&2));
+
+    let target_plane = monitor
+        .workspaces
+        .iter_planes()
+        .find(|plane| plane.id() != source_plane_id)
+        .unwrap();
+    assert!(target_plane
+        .workspaces()
+        .iter()
+        .any(|workspace| workspace.has_window(&2)));
+    layout.verify_invariants();
+}
+
+#[test]
 fn moving_window_to_missing_front_plane_creates_and_activates_it() {
     let ops = [
         Op::AddOutput(1),
@@ -4674,6 +4704,37 @@ fn moving_column_to_missing_back_plane_creates_and_activates_it() {
         .workspaces
         .plane_by_id(source_plane_id)
         .unwrap()
+        .workspaces()
+        .iter()
+        .any(|workspace| workspace.has_window(&2)));
+    layout.verify_invariants();
+}
+
+#[test]
+fn moving_floating_column_to_missing_back_plane_without_focus_keeps_source_active() {
+    let ops = [
+        Op::AddOutput(1),
+        Op::AddWindow {
+            params: TestWindowParams::new(2),
+        },
+        Op::ToggleWindowFloating { id: None },
+    ];
+    let mut layout = check_ops(ops);
+    let source_plane_id = layout.active_monitor().unwrap().active_plane_id();
+
+    layout.move_active_column_to_plane_backward(false);
+
+    let monitor = layout.active_monitor().unwrap();
+    assert_eq!(monitor.plane_count(), 2);
+    assert_eq!(monitor.active_plane_id(), source_plane_id);
+    assert!(!monitor.active_workspace_ref().has_window(&2));
+
+    let target_plane = monitor
+        .workspaces
+        .iter_planes()
+        .find(|plane| plane.id() != source_plane_id)
+        .unwrap();
+    assert!(target_plane
         .workspaces()
         .iter()
         .any(|workspace| workspace.has_window(&2)));
