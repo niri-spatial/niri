@@ -18,7 +18,7 @@ use super::workspace::{
     compute_working_area, OutputId, Workspace, WorkspaceAddWindowTarget, WorkspaceId,
     WorkspaceRenderElement,
 };
-use super::{compute_overview_zoom, ActivateWindow, HitType, LayoutElement, Options};
+use super::{ActivateWindow, HitType, LayoutElement, Options};
 use crate::animation::{Animation, Clock};
 use crate::input::swipe_tracker::SwipeTracker;
 use crate::niri_render_elements;
@@ -2221,12 +2221,8 @@ impl<W: LayoutElement> Monitor<W> {
         self.workspace_size(zoom) + Size::from((0., gap))
     }
 
-    /// Computes a zoom that fits the complete active-plane overview on the output.
-    ///
-    /// The configured zoom remains an upper bound. When the workspace stack or
-    /// its horizontally scrolling contents are larger than the output, the
-    /// overview zooms out far enough to show the complete arrangement.
-    pub fn overview_zoom(&self) -> f64 {
+    /// Computes the zoom that fits the complete active-plane overview on the output.
+    fn overview_zoom_at(&self, progress: f64) -> f64 {
         let configured_zoom = self.options.overview.zoom.clamp(0.0001, 0.75);
         let workspace_count = self.workspaces.len().max(1);
         let max_content_width = self
@@ -2246,11 +2242,13 @@ impl<W: LayoutElement> Monitor<W> {
             .max(0.0001);
         let target_zoom = configured_zoom.min(fit_zoom);
 
-        if let Some(progress) = self.overview_progress.as_ref().map(|p| p.value()) {
-            (1. - progress.clamp(0., 1.) * (1. - target_zoom)).max(0.0001)
-        } else {
-            1.
-        }
+        (1. - progress.clamp(0., 1.) * (1. - target_zoom)).max(0.0001)
+    }
+
+    pub fn overview_zoom(&self) -> f64 {
+        self.overview_progress
+            .as_ref()
+            .map_or(1., |progress| self.overview_zoom_at(progress.value()))
     }
 
     pub(super) fn set_overview_progress(&mut self, progress: Option<&super::OverviewProgress>) {
@@ -2329,7 +2327,7 @@ impl<W: LayoutElement> Monitor<W> {
                 // - first_y = to * from_height - switch_anim.value() * from_height - to * current_height
                 // - first_y = -switch_anim.value() * from_height + to * (from_height - current_height)
                 let from = progress_anim.from();
-                let from_zoom = compute_overview_zoom(&self.options, Some(from));
+                let from_zoom = self.overview_zoom_at(from);
                 let from_ws_height_with_gap = self.workspace_size_with_gap(from_zoom).h;
 
                 let zoom = self.overview_zoom();
