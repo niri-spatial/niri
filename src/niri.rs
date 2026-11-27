@@ -4433,12 +4433,7 @@ impl Niri {
                 let ns = Some(ws.id().get() as usize);
                 let xray_pos = XrayPos::new(geo.loc, zoom);
                 push_popups_from_layer!(Layer::Bottom, ns, xray_pos, process!(geo));
-                push_popups_from_layer!(
-                    Layer::Background,
-                    ns,
-                    xray_pos,
-                    process!(geo)
-                );
+                push_popups_from_layer!(Layer::Background, ns, xray_pos, process!(geo));
             }
 
             mon.render_workspaces(ctx.r(), focus_ring, &mut |elem| push(elem.into()));
@@ -4454,23 +4449,12 @@ impl Niri {
                 // damage tracker.
                 let ns = Some(ws.id().get() as usize);
                 let layer_xray_pos = XrayPos::new(geo.loc, zoom);
-                push_normal_from_layer!(
-                    Layer::Bottom,
-                    ns,
-                    layer_xray_pos,
-                    process!(geo)
-                );
-                push_normal_from_layer!(
-                    Layer::Background,
-                    ns,
-                    layer_xray_pos,
-                    process!(geo)
-                );
+                push_normal_from_layer!(Layer::Bottom, ns, layer_xray_pos, process!(geo));
+                push_normal_from_layer!(Layer::Background, ns, layer_xray_pos, process!(geo));
 
                 // Workspace backgrounds still follow the Z-plane transition.
                 process!(geo)(ws.render_background());
             }
-
         }
 
         mon.render_workspace_shadows(ctx.renderer, &mut |elem| push(elem.into()));
@@ -4598,8 +4582,7 @@ impl Niri {
         for_backdrop: bool,
         push: &mut dyn FnMut(LayerSurfaceRenderElement<R>),
     ) {
-        for (mapped, geo) in self.layers_in_render_order(layer_map, layer, for_backdrop)
-        {
+        for (mapped, geo) in self.layers_in_render_order(layer_map, layer, for_backdrop) {
             let loc = geo.loc.to_f64();
             let xray_pos = xray_pos.offset(loc);
             mapped.render_normal(ctx.r(), ns, loc, xray_pos, push);
@@ -4617,8 +4600,7 @@ impl Niri {
         for_backdrop: bool,
         push: &mut dyn FnMut(LayerSurfaceRenderElement<R>),
     ) {
-        for (mapped, geo) in self.layers_in_render_order(layer_map, layer, for_backdrop)
-        {
+        for (mapped, geo) in self.layers_in_render_order(layer_map, layer, for_backdrop) {
             let loc = geo.loc.to_f64();
             let xray_pos = xray_pos.offset(loc);
             mapped.render_popups(ctx.r(), ns, loc, xray_pos, push);
