@@ -5,7 +5,7 @@ use smithay::backend::renderer::element::Kind;
 use smithay::desktop::{LayerSurface, PopupKind, PopupManager};
 use smithay::utils::{Logical, Point, Rectangle, Scale, Size};
 use smithay::wayland::compositor::{remove_pre_commit_hook, HookId};
-use smithay::wayland::shell::wlr_layer::{ExclusiveZone, Layer};
+use smithay::wayland::shell::wlr_layer::Layer;
 
 use super::ResolvedLayerRules;
 use crate::animation::Clock;
@@ -155,14 +155,6 @@ impl MappedLayer {
 
     pub fn take_recompute_rules_on_commit(&mut self) -> bool {
         std::mem::take(&mut self.recompute_rules_on_commit)
-    }
-
-    /// Whether this layer surface reserves space for an exclusive panel.
-    ///
-    /// Exclusive surfaces such as panels should stay anchored to the output,
-    /// rather than following the workspace that happens to be visible.
-    pub fn has_exclusive_zone(&self) -> bool {
-        self.surface.cached_state().exclusive_zone != ExclusiveZone::DontCare
     }
 
     pub fn place_within_backdrop(&self) -> bool {
