@@ -2499,7 +2499,10 @@ impl<W: LayoutElement> Monitor<W> {
 
         let inner_height = (highlight_geo.size.h - border * 2.).max(0.);
         let bar_geometries = [
-            Rectangle::new(highlight_geo.loc, Size::from((highlight_geo.size.w, border))),
+            Rectangle::new(
+                highlight_geo.loc,
+                Size::from((highlight_geo.size.w, border)),
+            ),
             Rectangle::new(
                 Point::from((
                     highlight_geo.loc.x,
