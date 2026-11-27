@@ -1226,6 +1226,10 @@ impl<W: LayoutElement> Layout<W> {
                         }
                     }
 
+                    if can_clean_up {
+                        mon.clean_up_empty_planes();
+                    }
+
                     return Some(removed);
                 }
             }
