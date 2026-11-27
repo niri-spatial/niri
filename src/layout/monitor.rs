@@ -2365,7 +2365,7 @@ impl<W: LayoutElement> Monitor<W> {
                 // - first_y = to * from_height - switch_anim.value() * from_height - to * current_height
                 // - first_y = -switch_anim.value() * from_height + to * (from_height - current_height)
                 let from = progress_anim.from();
-                let from_zoom = self.overview_zoom_at(from);
+                let from_zoom = compute_overview_zoom(&self.options, Some(from));
                 let from_ws_height_with_gap = self.workspace_size_with_gap(from_zoom).h;
 
                 let zoom = self.overview_zoom();
@@ -2509,7 +2509,7 @@ impl<W: LayoutElement> Monitor<W> {
         pos_within_output: Point<f64, Logical>,
     ) -> Option<(&Workspace<W>, Rectangle<f64, Logical>)> {
         self.workspaces_with_render_geo()
-            .find_map(|(ws, geo)| geo.contains(pos_within_output).then_some((ws, geo)))?
+            .find_map(|(ws, geo)| geo.contains(pos_within_output).then_some((ws, geo)))
     }
 
     pub fn workspace_under_narrow(
