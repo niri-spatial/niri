@@ -4911,6 +4911,14 @@ fn unname_workspace_on_inactive_plane() {
     layout.focus_plane_backward();
     let active_plane_id = layout.active_monitor().unwrap().active_plane_id();
 
+    // Complete the plane transition so inactive-plane cleanup can run.
+    {
+        let MonitorSet::Normal { monitors, .. } = &mut layout.monitor_set else {
+            unreachable!()
+        };
+        monitors[0].plane_switch = None;
+    }
+
     layout.unname_workspace("named-target");
 
     assert!(layout.find_workspace_by_name("named-target").is_none());
