@@ -2221,9 +2221,36 @@ impl<W: LayoutElement> Monitor<W> {
         self.workspace_size(zoom) + Size::from((0., gap))
     }
 
+    /// Computes a zoom that fits the complete active-plane overview on the output.
+    ///
+    /// The configured zoom remains an upper bound. When the workspace stack or
+    /// its horizontally scrolling contents are larger than the output, the
+    /// overview zooms out far enough to show the complete arrangement.
     pub fn overview_zoom(&self) -> f64 {
-        let progress = self.overview_progress.as_ref().map(|p| p.value());
-        compute_overview_zoom(&self.options, progress)
+        let configured_zoom = self.options.overview.zoom.clamp(0.0001, 0.75);
+        let workspace_count = self.workspaces.len().max(1);
+        let max_content_width = self
+            .workspaces
+            .iter()
+            .map(|workspace| workspace.minimap_geometry().0.w)
+            .fold(self.view_size.w, f64::max);
+        let workspace_gap = self.view_size.h * 0.1;
+        let full_height = self.view_size.h * workspace_count as f64
+            + workspace_gap * workspace_count.saturating_sub(1) as f64;
+
+        // Leave a small border around the complete overview.
+        let available_width = self.view_size.w * 0.9;
+        let available_height = self.view_size.h * 0.9;
+        let fit_zoom = (available_width / max_content_width)
+            .min(available_height / full_height)
+            .max(0.0001);
+        let target_zoom = configured_zoom.min(fit_zoom);
+
+        if let Some(progress) = self.overview_progress.as_ref().map(|p| p.value()) {
+            (1. - progress.clamp(0., 1.) * (1. - target_zoom)).max(0.0001)
+        } else {
+            1.
+        }
     }
 
     pub(super) fn set_overview_progress(&mut self, progress: Option<&super::OverviewProgress>) {
@@ -2328,29 +2355,49 @@ impl<W: LayoutElement> Monitor<W> {
 
         let ws_size = self.workspace_size(zoom);
         let gap = self.workspace_gap(zoom);
-        let ws_height_with_gap = ws_size.h + gap;
-
+        let workspace_step = ws_size.h + gap;
         let static_offset = (self.view_size.to_point() - ws_size.to_point()).downscale(2.);
         let static_offset = static_offset
             .to_physical_precise_round(scale)
             .to_logical(scale);
 
-        let first_ws_y = -self.workspace_render_idx() * ws_height_with_gap;
-        let first_ws_y = round_logical_in_physical(scale, first_ws_y);
+        let overview_progress = self
+            .overview_progress
+            .as_ref()
+            .map_or(0., |progress| progress.clamped_value())
+            .clamp(0., 1.);
+        let render_idx = self.workspace_render_idx();
+        let from_first_y = -render_idx * workspace_step + static_offset.y;
 
-        // Return position for one-past-last workspace too.
-        (0..=self.workspaces.len()).map(move |idx| {
-            let y = first_ws_y + idx as f64 * ws_height_with_gap;
-            let loc = Point::from((0., y)) + static_offset;
+        let workspace_count = self.workspaces.len();
+        let full_stack_height = workspace_count as f64 * ws_size.h
+            + workspace_count.saturating_sub(1) as f64 * gap;
+        let to_first_y = (self.view_size.h - full_stack_height) / 2.;
 
-            // Even though all components that go into loc are rounded to physical pixels, the
-            // floating point addition may lose precision. This can result for example in the
-            // current workspace having y = 0.0000000000002 and thus missing pointer hits at the
-            // monitor edge with y = 0. So, post-round the location too.
-            let loc = loc.to_physical_precise_round(scale).to_logical(scale);
+        self.workspaces
+            .iter()
+            .enumerate()
+            .map(move |(index, workspace)| {
+                let (content_size, viewport) = workspace.minimap_geometry();
 
-            Rectangle::new(loc, ws_size)
-        })
+                // Move the viewport origin into the full horizontally-scrolling
+                // workspace, so columns outside the current viewport are visible.
+                let from_x = static_offset.x;
+                let to_x = (self.view_size.w - content_size.w * zoom) / 2.
+                    + viewport.loc.x * zoom;
+                let x = from_x + (to_x - from_x) * overview_progress;
+
+                // Transition from centering the selected workspace to centering
+                // the complete vertical stack.
+                let from_y = from_first_y + index as f64 * workspace_step;
+                let to_y = to_first_y + index as f64 * workspace_step;
+                let y = from_y + (to_y - from_y) * overview_progress;
+
+                // Keep the hit-test rectangle viewport-sized. Rendering itself
+                // is no longer clipped to it while the overview is open.
+                let loc = Point::from((x, y)).to_physical_precise_round(scale).to_logical(scale);
+                Rectangle::new(loc, ws_size)
+            })
     }
 
     pub fn plane_switch_zoom(&self) -> f64 {
