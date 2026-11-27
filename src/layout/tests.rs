@@ -3648,7 +3648,7 @@ fn moving_active_plane_preserves_workspace_and_replenishes_boundaries() {
         assert_eq!(monitor.plane_count(), 5);
         assert!(monitor
             .workspaces
-            .plane(5)
+            .plane(4)
             .unwrap()
             .workspaces()
             .iter()
