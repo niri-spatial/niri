@@ -2300,30 +2300,6 @@ impl<W: LayoutElement> ScrollingSpace<W> {
         self.column_x(self.active_column_idx) + self.view_offset.current()
     }
 
-    /// Returns the horizontal bounds of the complete scrolling layout and the
-    /// current viewport's left edge within those bounds.
-    ///
-    /// The first value is the layout's left edge in scrolling coordinates,
-    /// the second is its full width, and the third is the viewport's X offset
-    /// relative to that left edge.
-    pub fn minimap_geometry(&self) -> (f64, f64, f64) {
-        let view_pos = self.view_pos();
-        let content_right = self
-            .data
-            .last()
-            .map_or(view_pos + self.view_size.w, |last| {
-                self.column_x(self.data.len() - 1) + last.width
-            });
-        let content_left = view_pos.min(0.);
-        let content_right = content_right.max(view_pos + self.view_size.w);
-
-        (
-            content_left,
-            content_right - content_left,
-            view_pos - content_left,
-        )
-    }
-
     pub fn target_view_pos(&self) -> f64 {
         self.column_x(self.active_column_idx) + self.view_offset.target()
     }
