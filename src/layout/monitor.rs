@@ -1,4 +1,3 @@
-use std::cell::RefCell;
 use std::cmp::min;
 use std::iter::zip;
 use std::rc::Rc;
@@ -8,7 +7,6 @@ use niri_config::{CornerRadius, LayoutPart};
 use smithay::backend::renderer::element::utils::{
     CropRenderElement, Relocate, RelocateRenderElement, RescaleRenderElement,
 };
-use smithay::backend::renderer::element::Kind;
 use smithay::output::Output;
 use smithay::utils::{Logical, Point, Rectangle, Size};
 
@@ -20,13 +18,13 @@ use super::workspace::{
     compute_working_area, OutputId, Workspace, WorkspaceAddWindowTarget, WorkspaceId,
     WorkspaceRenderElement,
 };
-use super::{ActivateWindow, HitType, LayoutElement, Options};
+use super::{compute_overview_zoom, ActivateWindow, HitType, LayoutElement, Options};
 use crate::animation::{Animation, Clock};
 use crate::input::swipe_tracker::SwipeTracker;
 use crate::niri_render_elements;
 use crate::render_helpers::renderer::NiriRenderer;
 use crate::render_helpers::shadow::ShadowRenderElement;
-use crate::render_helpers::solid_color::{SolidColorBuffer, SolidColorRenderElement};
+use crate::render_helpers::solid_color::SolidColorRenderElement;
 use crate::render_helpers::xray::XrayPos;
 use crate::render_helpers::RenderCtx;
 use crate::rubber_band::RubberBand;
@@ -85,8 +83,6 @@ pub struct Monitor<W: LayoutElement> {
     insert_hint_element: InsertHintElement,
     /// Location to render the insert hint element.
     insert_hint_render_loc: Option<InsertHintRenderLoc>,
-    /// Reusable buffers for the active-workspace outline in the overview.
-    overview_highlight_buffers: RefCell<[SolidColorBuffer; 4]>,
     /// Whether the overview is open.
     pub(super) overview_open: bool,
     /// Progress of the overview zoom animation, 1 is fully in overview.
@@ -439,9 +435,6 @@ impl<W: LayoutElement> Monitor<W> {
             insert_hint: None,
             insert_hint_element: InsertHintElement::new(options.layout.insert_hint),
             insert_hint_render_loc: None,
-            overview_highlight_buffers: RefCell::new(std::array::from_fn(|_| {
-                SolidColorBuffer::new((1., 1.), [0.25, 0.68, 1.0, 0.96])
-            })),
             overview_open: false,
             overview_progress: None,
             workspace_switch: None,
@@ -2291,34 +2284,9 @@ impl<W: LayoutElement> Monitor<W> {
         self.workspace_size(zoom) + Size::from((0., gap))
     }
 
-    /// Computes the zoom that fits the complete active-plane overview on the output.
-    fn overview_zoom_at(&self, progress: f64) -> f64 {
-        let configured_zoom = self.options.overview.zoom.clamp(0.0001, 0.75);
-        let workspace_count = self.workspaces.len().max(1);
-        let max_content_width = self
-            .workspaces
-            .iter()
-            .map(|workspace| workspace.minimap_geometry().0.w)
-            .fold(self.view_size.w, f64::max);
-        let workspace_gap = self.view_size.h * 0.1;
-        let full_height = self.view_size.h * workspace_count as f64
-            + workspace_gap * workspace_count.saturating_sub(1) as f64;
-
-        // Leave a small border around the complete overview.
-        let available_width = self.view_size.w * 0.9;
-        let available_height = self.view_size.h * 0.9;
-        let fit_zoom = (available_width / max_content_width)
-            .min(available_height / full_height)
-            .max(0.0001);
-        let target_zoom = configured_zoom.min(fit_zoom);
-
-        (1. - progress.clamp(0., 1.) * (1. - target_zoom)).max(0.0001)
-    }
-
     pub fn overview_zoom(&self) -> f64 {
-        self.overview_progress
-            .as_ref()
-            .map_or(1., |progress| self.overview_zoom_at(progress.value()))
+        let progress = self.overview_progress.as_ref().map(|p| p.value());
+        compute_overview_zoom(&self.options, progress)
     }
 
     pub(super) fn set_overview_progress(&mut self, progress: Option<&super::OverviewProgress>) {
@@ -2417,118 +2385,35 @@ impl<W: LayoutElement> Monitor<W> {
         }
     }
 
-    pub fn workspaces_render_geo(&self) -> std::vec::IntoIter<Rectangle<f64, Logical>> {
+    pub fn workspaces_render_geo(&self) -> impl Iterator<Item = Rectangle<f64, Logical>> {
         let scale = self.scale.fractional_scale();
         let zoom = self.overview_zoom();
 
         let ws_size = self.workspace_size(zoom);
         let gap = self.workspace_gap(zoom);
-        let workspace_step = ws_size.h + gap;
+        let ws_height_with_gap = ws_size.h + gap;
+
         let static_offset = (self.view_size.to_point() - ws_size.to_point()).downscale(2.);
         let static_offset = static_offset
             .to_physical_precise_round(scale)
             .to_logical(scale);
 
-        let overview_progress = self
-            .overview_progress
-            .as_ref()
-            .map_or(0., |progress| progress.clamped_value())
-            .clamp(0., 1.);
-        let render_idx = self.workspace_render_idx();
-        let from_first_y = -render_idx * workspace_step + static_offset.y;
+        let first_ws_y = -self.workspace_render_idx() * ws_height_with_gap;
+        let first_ws_y = round_logical_in_physical(scale, first_ws_y);
 
-        let workspace_count = self.workspaces.len();
-        let full_stack_height =
-            workspace_count as f64 * ws_size.h + workspace_count.saturating_sub(1) as f64 * gap;
-        let to_first_y = (self.view_size.h - full_stack_height) / 2.;
+        // Return position for one-past-last workspace too.
+        (0..=self.workspaces.len()).map(move |idx| {
+            let y = first_ws_y + idx as f64 * ws_height_with_gap;
+            let loc = Point::from((0., y)) + static_offset;
 
-        self.workspaces
-            .iter()
-            .enumerate()
-            .map(move |(index, workspace)| {
-                let (content_size, viewport) = workspace.minimap_geometry();
+            // Even though all components that go into loc are rounded to physical pixels, the
+            // floating point addition may lose precision. This can result for example in the
+            // current workspace having y = 0.0000000000002 and thus missing pointer hits at the
+            // monitor edge with y = 0. So, post-round the location too.
+            let loc = loc.to_physical_precise_round(scale).to_logical(scale);
 
-                // Move the viewport origin into the full horizontally-scrolling
-                // workspace, so columns outside the current viewport are visible.
-                let from_x = static_offset.x;
-                let to_x = (self.view_size.w - content_size.w * zoom) / 2. + viewport.loc.x * zoom;
-                let x = from_x + (to_x - from_x) * overview_progress;
-
-                // Transition from centering the selected workspace to centering
-                // the complete vertical stack.
-                let from_y = from_first_y + index as f64 * workspace_step;
-                let to_y = to_first_y + index as f64 * workspace_step;
-                let y = from_y + (to_y - from_y) * overview_progress;
-
-                // Keep the hit-test rectangle viewport-sized. Rendering itself
-                // is no longer clipped to it while the overview is open.
-                let loc = Point::from((x, y))
-                    .to_physical_precise_round(scale)
-                    .to_logical(scale);
-                Rectangle::new(loc, ws_size)
-            })
-            .collect::<Vec<_>>()
-            .into_iter()
-    }
-
-    /// Returns a blue outline around the active workspace when the overview is fully open.
-    ///
-    /// The outline follows the workspace's overview viewport, not its full scrollable width.
-    pub fn render_overview_active_workspace_highlight(
-        &self,
-    ) -> Option<[SolidColorRenderElement; 4]> {
-        let progress = self.overview_progress.as_ref()?.clamped_value();
-        if progress < 0.98 {
-            return None;
-        }
-
-        let active_idx = self.active_workspace_idx();
-        let geo = self.workspaces_render_geo().nth(active_idx)?;
-
-        // Keep the outline around the workspace's overview viewport. The full
-        // horizontally-scrolling contents remain visible, but do not expand
-        // the selection frame across the entire row.
-        let highlight_geo = self.transform_workspace_render_geo(geo);
-
-        let border = 3.0_f64
-            .min(highlight_geo.size.w / 4.)
-            .min(highlight_geo.size.h / 4.);
-        if border <= 0. {
-            return None;
-        }
-
-        let inner_height = (highlight_geo.size.h - border * 2.).max(0.);
-        let bar_geometries = [
-            Rectangle::new(
-                highlight_geo.loc,
-                Size::from((highlight_geo.size.w, border)),
-            ),
-            Rectangle::new(
-                Point::from((
-                    highlight_geo.loc.x,
-                    highlight_geo.loc.y + highlight_geo.size.h - border,
-                )),
-                Size::from((highlight_geo.size.w, border)),
-            ),
-            Rectangle::new(
-                Point::from((highlight_geo.loc.x, highlight_geo.loc.y + border)),
-                Size::from((border, inner_height)),
-            ),
-            Rectangle::new(
-                Point::from((
-                    highlight_geo.loc.x + highlight_geo.size.w - border,
-                    highlight_geo.loc.y + border,
-                )),
-                Size::from((border, inner_height)),
-            ),
-        ];
-
-        let mut buffers = self.overview_highlight_buffers.borrow_mut();
-        Some(std::array::from_fn(|idx| {
-            let geometry = bar_geometries[idx];
-            buffers[idx].resize(geometry.size);
-            SolidColorRenderElement::from_buffer(&buffers[idx], geometry.loc, 1., Kind::Unspecified)
-        }))
+            Rectangle::new(loc, ws_size)
+        })
     }
 
     pub fn plane_switch_zoom(&self) -> f64 {
@@ -2623,15 +2508,8 @@ impl<W: LayoutElement> Monitor<W> {
         &self,
         pos_within_output: Point<f64, Logical>,
     ) -> Option<(&Workspace<W>, Rectangle<f64, Logical>)> {
-        let (ws, geo) = self.workspaces_with_render_geo().find_map(|(ws, geo)| {
-            // Extend width to entire output.
-            let loc = Point::from((0., geo.loc.y));
-            let size = Size::from((self.view_size.w, geo.size.h));
-            let bounds = Rectangle::new(loc, size);
-
-            bounds.contains(pos_within_output).then_some((ws, geo))
-        })?;
-        Some((ws, geo))
+        self.workspaces_with_render_geo()
+            .find_map(|(ws, geo)| geo.contains(pos_within_output).then_some((ws, geo)))?
     }
 
     pub fn workspace_under_narrow(
