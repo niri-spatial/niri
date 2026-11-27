@@ -4628,7 +4628,7 @@ impl Niri {
         let layer_map = layer_map_for_output(output);
         for for_backdrop in [false, true] {
             for (mapped, _geo) in
-                self.layers_in_render_order(&layer_map, Layer::Background, for_backdrop)
+                self.layers_in_render_order(&layer_map, Layer::Background, for_backdrop, None)
             {
                 if mapped.rules().block_out_from.is_some() {
                     return true;
