@@ -2523,7 +2523,7 @@ impl<W: LayoutElement> Layout<W> {
         if let Some(InteractiveMoveState::Moving(move_)) = &self.interactive_move {
             if move_.output == *output {
                 if self.overview_progress.is_some() {
-                    let zoom = self.overview_zoom();
+                    let zoom = self.overview_zoom_for_output(output);
                     let tile_pos = move_.tile_render_location(zoom);
                     let pos_within_tile = (pos_within_output - tile_pos).downscale(zoom);
                     // During the overview animation, we cannot do input hits because we cannot
@@ -2586,6 +2586,11 @@ impl<W: LayoutElement> Layout<W> {
     pub fn overview_zoom(&self) -> f64 {
         let progress = self.overview_progress.as_ref().map(|p| p.value());
         compute_overview_zoom(&self.options, progress)
+    }
+
+    fn overview_zoom_for_output(&self, output: &Output) -> f64 {
+        self.monitor_for_output(output)
+            .map_or_else(|| self.overview_zoom(), |monitor| monitor.overview_zoom())
     }
 
     #[cfg(test)]
@@ -2992,7 +2997,16 @@ impl<W: LayoutElement> Layout<W> {
 
         self.update_render_elements_time = self.clock.now();
 
-        let zoom = self.overview_zoom();
+        let zoom = self
+            .interactive_move
+            .as_ref()
+            .and_then(|state| match state {
+                InteractiveMoveState::Moving(move_) => {
+                    Some(self.overview_zoom_for_output(&move_.output))
+                }
+                InteractiveMoveState::Starting { .. } => None,
+            })
+            .unwrap_or_else(|| self.overview_zoom());
         if let Some(InteractiveMoveState::Moving(move_)) = &mut self.interactive_move {
             if output.is_none_or(|output| move_.output == *output) {
                 let pos_within_output = move_.tile_render_location(zoom);
@@ -3930,15 +3944,13 @@ impl<W: LayoutElement> Layout<W> {
         timestamp: Duration,
         is_touchpad: bool,
     ) -> Option<Option<Output>> {
-        let zoom = self.overview_zoom();
-        let delta_x = delta_x / zoom;
-
         let monitors = match &mut self.monitor_set {
             MonitorSet::Normal { monitors, .. } => monitors,
             MonitorSet::NoOutputs { .. } => return None,
         };
 
         for monitor in monitors {
+            let delta_x = delta_x / monitor.overview_zoom();
             for ws in &mut monitor.workspaces {
                 if let Some(refresh) =
                     ws.view_offset_gesture_update(delta_x, timestamp, is_touchpad)
@@ -4130,7 +4142,7 @@ impl<W: LayoutElement> Layout<W> {
                     return false;
                 }
 
-                let zoom = self.overview_zoom();
+                let zoom = self.overview_zoom_for_output(&output);
                 let delta = delta.downscale(zoom);
 
                 pointer_delta += delta;
@@ -4927,7 +4939,15 @@ impl<W: LayoutElement> Layout<W> {
     ) {
         let _span = tracy_client::span!("Layout::store_unmap_snapshot");
 
-        let zoom = self.overview_zoom();
+        let zoom = match &self.interactive_move {
+            Some(InteractiveMoveState::Moving(move_)) => {
+                self.overview_zoom_for_output(&move_.output)
+            }
+            _ => self
+                .monitors()
+                .find(|monitor| monitor.workspaces.iter().any(|ws| ws.has_window(window)))
+                .map_or_else(|| self.overview_zoom(), |monitor| monitor.overview_zoom()),
+        };
 
         if let Some(InteractiveMoveState::Moving(move_)) = &mut self.interactive_move {
             if move_.tile.window().id() == window {
@@ -5021,7 +5041,15 @@ impl<W: LayoutElement> Layout<W> {
     ) {
         let _span = tracy_client::span!("Layout::start_close_animation_for_window");
 
-        let zoom = self.overview_zoom();
+        let zoom = match &self.interactive_move {
+            Some(InteractiveMoveState::Moving(move_)) if move_.tile.window().id() == window => {
+                self.overview_zoom_for_output(&move_.output)
+            }
+            _ => self
+                .monitors()
+                .find(|monitor| monitor.workspaces.iter().any(|ws| ws.has_window(window)))
+                .map_or_else(|| self.overview_zoom(), |monitor| monitor.overview_zoom()),
+        };
 
         if let Some(InteractiveMoveState::Moving(move_)) = &mut self.interactive_move {
             if move_.tile.window().id() == window {
@@ -5093,7 +5121,7 @@ impl<W: LayoutElement> Layout<W> {
         }
 
         let scale = Scale::from(move_.output.current_scale().fractional_scale());
-        let zoom = self.overview_zoom();
+        let zoom = self.overview_zoom_for_output(output);
         let pos_in_backdrop = move_.tile_render_location(zoom);
         let xray_pos = XrayPos::new(pos_in_backdrop, zoom);
 
