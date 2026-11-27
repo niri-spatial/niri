@@ -5017,6 +5017,12 @@ fn remove_window_from_inactive_plane() {
 
     // The window to remove is now on an inactive plane.
     layout.focus_plane_backward();
+    {
+        let MonitorSet::Normal { monitors, .. } = &mut layout.monitor_set else {
+            unreachable!()
+        };
+        monitors[0].plane_switch = None;
+    }
     assert!(layout.windows().any(|(_, window)| window.id() == &2));
 
     let removed = layout.remove_window(&2, Transaction::new());
