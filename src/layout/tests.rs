@@ -3513,13 +3513,12 @@ fn remove_active_empty_first_plane_keeps_next_plane_selection() {
     let (empty_plane_id, next_plane_id, next_workspace_id) = {
         let monitor = layout.active_monitor().unwrap();
         (
-            monitor.workspaces.plane(0).unwrap().id(),
+            monitor.workspaces.plane(1).unwrap().id(),
             monitor.active_plane_id(),
             monitor.active_workspace_ref().id(),
         )
     };
 
-    layout.focus_plane_backward();
     layout.focus_plane_backward();
     assert_eq!(
         layout.active_monitor().unwrap().active_plane_id(),
@@ -3530,7 +3529,7 @@ fn remove_active_empty_first_plane_keeps_next_plane_selection() {
 
     let monitor = layout.active_monitor().unwrap();
     assert_eq!(monitor.plane_count(), 3);
-    assert_eq!(monitor.active_plane_idx(), 0);
+    assert_eq!(monitor.active_plane_idx(), 1);
     assert_eq!(monitor.active_plane_id(), next_plane_id);
     assert_eq!(monitor.active_workspace_ref().id(), next_workspace_id);
 
@@ -3646,7 +3645,7 @@ fn moving_active_plane_preserves_workspace_and_replenishes_boundaries() {
         let monitor = layout.active_monitor().unwrap();
         assert_eq!(monitor.active_plane_id(), front_plane_id);
         assert_eq!(monitor.active_workspace_ref().id(), front_workspace_id);
-        assert_eq!(monitor.plane_count(), 6);
+        assert_eq!(monitor.plane_count(), 5);
         assert!(monitor
             .workspaces
             .plane(5)
@@ -3667,16 +3666,16 @@ fn moving_active_plane_preserves_workspace_and_replenishes_boundaries() {
     );
 
     // Moving the first populated plane to the back boundary creates a new
-    // empty plane outside it as well.
-    assert!(layout
-        .activate_plane_by_id(layout.active_output().unwrap(), first_plane_id)
-        .is_some());
+    // empty plane outside it as well, while the displaced empty plane is
+    // removed from the interior.
+    let output = layout.active_output().unwrap().clone();
+    assert!(layout.activate_plane_by_id(&output, first_plane_id).is_some());
     assert!(layout.move_active_plane_backward());
 
     let monitor = layout.active_monitor().unwrap();
     assert_eq!(monitor.active_plane_id(), first_plane_id);
     assert_eq!(monitor.active_workspace_ref().name().map(String::as_str), Some("back-plane"));
-    assert_eq!(monitor.plane_count(), 7);
+    assert_eq!(monitor.plane_count(), 5);
     assert!(monitor
         .workspaces
         .plane(0)
@@ -4452,7 +4451,7 @@ fn moving_window_to_missing_back_plane_creates_and_activates_it() {
     layout.move_active_window_to_plane_backward(true);
 
     let monitor = layout.active_monitor().unwrap();
-    assert_eq!(monitor.plane_count(), 4);
+    assert_eq!(monitor.plane_count(), 3);
     assert_ne!(monitor.active_plane_id(), source_plane_id);
     assert!(monitor.active_workspace_ref().has_window(&2));
     assert!(!monitor
@@ -4510,7 +4509,7 @@ fn moving_window_to_missing_front_plane_creates_and_activates_it() {
     layout.move_active_window_to_plane_forward(true);
 
     let monitor = layout.active_monitor().unwrap();
-    assert_eq!(monitor.plane_count(), 4);
+    assert_eq!(monitor.plane_count(), 3);
     assert_ne!(monitor.active_plane_id(), source_plane_id);
     assert!(monitor.active_workspace_ref().has_window(&2));
     assert!(!monitor
@@ -4714,7 +4713,7 @@ fn moving_column_to_missing_back_plane_creates_and_activates_it() {
     layout.move_active_column_to_plane_backward(true);
 
     let monitor = layout.active_monitor().unwrap();
-    assert_eq!(monitor.plane_count(), 4);
+    assert_eq!(monitor.plane_count(), 3);
     assert_ne!(monitor.active_plane_id(), source_plane_id);
     assert!(monitor.active_workspace_ref().has_window(&2));
     assert!(!monitor
