@@ -148,8 +148,7 @@ impl SpatialIndicator {
         }
 
         // Fit the complete active-plane overview, not only the selected workspace.
-        let map_zoom = (MAP_WIDTH as f64 / content_size.w)
-            .min(MAP_HEIGHT as f64 / content_size.h);
+        let map_zoom = (MAP_WIDTH as f64 / content_size.w).min(MAP_HEIGHT as f64 / content_size.h);
         if !map_zoom.is_finite() || map_zoom <= 0. {
             return Some(vec![panel_element]);
         }
@@ -188,8 +187,8 @@ impl SpatialIndicator {
             workspace_geometries[active_index].1.size,
         );
 
-        let map_location = panel_location
-            + Point::from((PADDING as f64, (HEIGHT + MAP_MARGIN) as f64));
+        let map_location =
+            panel_location + Point::from((PADDING as f64, (HEIGHT + MAP_MARGIN) as f64));
         let map_element = TextureRenderElement::from_texture_buffer(
             map_buffer,
             map_location,
@@ -281,7 +280,10 @@ fn render_indicator(
     }
 
     let coordinates = [
-        ("X", position.x.map_or_else(|| "—".to_owned(), |x| x.to_string())),
+        (
+            "X",
+            position.x.map_or_else(|| "—".to_owned(), |x| x.to_string()),
+        ),
         ("Y", position.y.to_string()),
         ("Z", position.z.to_string()),
     ];
