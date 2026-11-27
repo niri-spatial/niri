@@ -2483,7 +2483,7 @@ impl<W: LayoutElement> Monitor<W> {
         }
 
         let active_idx = self.active_workspace_idx();
-        let workspace = self.workspaces.iter().nth(active_idx)?;
+        let workspace = self.workspaces.get(active_idx)?;
         let (content_size, viewport) = workspace.minimap_geometry();
         let geo = self.workspaces_render_geo().nth(active_idx)?;
         let zoom = self.overview_zoom();
