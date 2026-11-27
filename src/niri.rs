@@ -4487,13 +4487,6 @@ impl Niri {
 
             mon.render_workspaces(ctx.r(), focus_ring, &mut |elem| push(elem.into()));
 
-            // Keep the active workspace identifiable without covering its windows.
-            if let Some(elements) = mon.render_overview_active_workspace_highlight() {
-                for element in elements {
-                    push(element.into());
-                }
-            }
-
             for (ws, geo) in mon.workspaces_with_render_geo() {
                 // The render element namespace. This will be set to the workspace index for
                 // elements duplicated across workspaces (i.e. background and bottom layers) in
