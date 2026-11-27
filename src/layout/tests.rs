@@ -3471,7 +3471,7 @@ fn monitor_plane_management_preserves_shared_workspace_position() {
     layout.verify_invariants();
 }
 #[test]
-fn remove_active_empty_plane_keeps_previous_plane_selection() {
+fn remove_active_empty_plane_selects_the_next_plane() {
     let mut layout = check_ops([Op::AddOutput(1)]);
     layout.set_workspace_name("preserved-workspace".into(), None);
 
@@ -3487,19 +3487,59 @@ fn remove_active_empty_plane_keeps_previous_plane_selection() {
     let empty_plane_id = layout.active_monitor().unwrap().active_plane_id();
     assert_ne!(empty_plane_id, original_plane_id);
 
-    // Remove the front boundary so the created empty plane is last, matching
-    // the "remove active last plane selects the previous plane" behavior.
-    layout.active_monitor().unwrap().remove_plane(3).unwrap();
+    let front_boundary_id = layout.active_monitor().unwrap().workspaces.plane(3).unwrap().id();
     assert!(layout.remove_active_plane());
 
     let monitor = layout.active_monitor().unwrap();
-    assert_eq!(monitor.plane_count(), 2);
-    assert_eq!(monitor.active_plane_id(), original_plane_id);
+    assert_eq!(monitor.plane_count(), 3);
+    assert_eq!(monitor.active_plane_id(), front_boundary_id);
     assert_eq!(monitor.active_workspace_ref().id(), original_workspace_id);
     assert_eq!(
         monitor.active_workspace_ref().name().map(String::as_str),
         Some("preserved-workspace")
     );
+
+    layout.verify_invariants();
+}
+
+#[test]
+fn removing_either_empty_boundary_plane_replaces_it() {
+    let mut layout = check_ops([Op::AddOutput(1)]);
+
+    let (original_back_id, main_plane_id, original_front_id) = {
+        let monitor = layout.active_monitor().unwrap();
+        (
+            monitor.workspaces.plane(0).unwrap().id(),
+            monitor.workspaces.plane(1).unwrap().id(),
+            monitor.workspaces.plane(2).unwrap().id(),
+        )
+    };
+
+    layout.focus_plane_backward();
+    assert!(layout.remove_active_plane());
+
+    {
+        let monitor = layout.active_monitor().unwrap();
+        assert_eq!(monitor.plane_count(), 3);
+        assert_eq!(monitor.active_plane_id(), main_plane_id);
+        assert_ne!(monitor.workspaces.plane(0).unwrap().id(), original_back_id);
+        assert!(monitor.workspaces.plane(0).unwrap().workspaces()
+            .iter()
+            .all(|workspace| !workspace.has_windows_or_name()));
+        assert_eq!(monitor.workspaces.plane(2).unwrap().id(), original_front_id);
+    }
+
+    layout.focus_plane_forward();
+    assert_eq!(layout.active_monitor().unwrap().active_plane_id(), original_front_id);
+    assert!(layout.remove_active_plane());
+
+    let monitor = layout.active_monitor().unwrap();
+    assert_eq!(monitor.plane_count(), 3);
+    assert_eq!(monitor.active_plane_id(), main_plane_id);
+    assert_ne!(monitor.workspaces.plane(2).unwrap().id(), original_front_id);
+    assert!(monitor.workspaces.plane(2).unwrap().workspaces()
+        .iter()
+        .all(|workspace| !workspace.has_windows_or_name()));
 
     layout.verify_invariants();
 }
@@ -3588,8 +3628,8 @@ fn remove_active_plane_rejects_last_plane() {
 
     {
         let monitor = layout.active_monitor().unwrap();
-        monitor.remove_plane(2).unwrap();
-        monitor.remove_plane(0).unwrap();
+        monitor.workspaces.remove_plane(2).unwrap();
+        monitor.workspaces.remove_plane(0).unwrap();
         assert_eq!(monitor.plane_count(), 1);
         assert_eq!(monitor.active_plane_id(), plane_id);
     }
