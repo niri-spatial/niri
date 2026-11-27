@@ -788,8 +788,9 @@ impl<W: LayoutElement> Monitor<W> {
         &mut self,
         index: usize,
     ) -> Result<WorkspacePlane<Workspace<W>>, PlaneError> {
+        let last_plane_idx = self.plane_count() - 1;
         let was_back_boundary = index == 0;
-        let was_front_boundary = index + 1 == self.plane_count();
+        let was_front_boundary = index == last_plane_idx;
         let active_plane_id = self.active_plane_id();
         let active_workspace_idx = self.active_workspace_idx();
         let removed = self.workspaces.remove_plane(index)?;
