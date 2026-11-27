@@ -788,6 +788,8 @@ impl<W: LayoutElement> Monitor<W> {
         &mut self,
         index: usize,
     ) -> Result<WorkspacePlane<Workspace<W>>, PlaneError> {
+        let was_back_boundary = index == 0;
+        let was_front_boundary = index + 1 == self.plane_count();
         let active_plane_id = self.active_plane_id();
         let active_workspace_idx = self.active_workspace_idx();
         let removed = self.workspaces.remove_plane(index)?;
@@ -799,6 +801,16 @@ impl<W: LayoutElement> Monitor<W> {
         }
 
         self.set_active_workspace_idx(active_workspace_idx);
+
+        // Removing an outer plane is like removing the trailing/leading empty
+        // workspace in Niri: replace that boundary instead of losing it.
+        if was_back_boundary {
+            self.insert_empty_plane_at(0);
+        }
+        if was_front_boundary {
+            self.insert_empty_plane_at(self.plane_count());
+        }
+
         Ok(removed)
     }
 
