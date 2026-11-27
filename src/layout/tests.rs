@@ -4422,7 +4422,7 @@ fn move_floating_window_to_adjacent_plane() {
 }
 
 #[test]
-fn moving_window_to_plane_at_depth_boundary_is_noop() {
+fn moving_window_to_missing_back_plane_creates_and_activates_it() {
     let ops = [
         Op::AddOutput(1),
         Op::AddWindow {
@@ -4430,13 +4430,50 @@ fn moving_window_to_plane_at_depth_boundary_is_noop() {
         },
     ];
     let mut layout = check_ops(ops);
-    let plane_id = layout.active_monitor().unwrap().active_plane_id();
+    let source_plane_id = layout.active_monitor().unwrap().active_plane_id();
 
     layout.move_active_window_to_plane_backward(true);
 
     let monitor = layout.active_monitor().unwrap();
-    assert_eq!(monitor.active_plane_id(), plane_id);
+    assert_eq!(monitor.plane_count(), 2);
+    assert_ne!(monitor.active_plane_id(), source_plane_id);
     assert!(monitor.active_workspace_ref().has_window(&2));
+    assert!(!monitor
+        .workspaces
+        .plane_by_id(source_plane_id)
+        .unwrap()
+        .workspaces()
+        .iter()
+        .any(|workspace| workspace.has_window(&2)));
+    assert!(layout.focus().is_some_and(|window| window.id() == &2));
+    layout.verify_invariants();
+}
+
+#[test]
+fn moving_window_to_missing_front_plane_creates_and_activates_it() {
+    let ops = [
+        Op::AddOutput(1),
+        Op::AddWindow {
+            params: TestWindowParams::new(2),
+        },
+    ];
+    let mut layout = check_ops(ops);
+    let source_plane_id = layout.active_monitor().unwrap().active_plane_id();
+
+    layout.move_active_window_to_plane_forward(true);
+
+    let monitor = layout.active_monitor().unwrap();
+    assert_eq!(monitor.plane_count(), 2);
+    assert_ne!(monitor.active_plane_id(), source_plane_id);
+    assert!(monitor.active_workspace_ref().has_window(&2));
+    assert!(!monitor
+        .workspaces
+        .plane_by_id(source_plane_id)
+        .unwrap()
+        .workspaces()
+        .iter()
+        .any(|workspace| workspace.has_window(&2)));
+    assert!(layout.focus().is_some_and(|window| window.id() == &2));
     layout.verify_invariants();
 }
 
@@ -4617,7 +4654,7 @@ fn move_floating_window_to_adjacent_plane_with_column_action() {
 }
 
 #[test]
-fn moving_column_to_plane_at_depth_boundary_is_noop() {
+fn moving_column_to_missing_back_plane_creates_and_activates_it() {
     let ops = [
         Op::AddOutput(1),
         Op::AddWindow {
@@ -4625,13 +4662,21 @@ fn moving_column_to_plane_at_depth_boundary_is_noop() {
         },
     ];
     let mut layout = check_ops(ops);
-    let plane_id = layout.active_monitor().unwrap().active_plane_id();
+    let source_plane_id = layout.active_monitor().unwrap().active_plane_id();
 
     layout.move_active_column_to_plane_backward(true);
 
     let monitor = layout.active_monitor().unwrap();
-    assert_eq!(monitor.active_plane_id(), plane_id);
+    assert_eq!(monitor.plane_count(), 2);
+    assert_ne!(monitor.active_plane_id(), source_plane_id);
     assert!(monitor.active_workspace_ref().has_window(&2));
+    assert!(!monitor
+        .workspaces
+        .plane_by_id(source_plane_id)
+        .unwrap()
+        .workspaces()
+        .iter()
+        .any(|workspace| workspace.has_window(&2)));
     layout.verify_invariants();
 }
 
@@ -4818,6 +4863,45 @@ fn adding_activated_window_to_named_workspace_activates_its_plane() {
 }
 
 #[test]
+fn switching_away_from_an_empty_plane_removes_it() {
+    let mut layout = check_ops([
+        Op::AddOutput(1),
+        Op::AddWindow {
+            params: TestWindowParams::new(1),
+        },
+    ]);
+    let populated_plane_id = layout.active_monitor().unwrap().active_plane_id();
+
+    layout.create_plane();
+    let empty_plane_id = layout.active_monitor().unwrap().active_plane_id();
+    assert_ne!(empty_plane_id, populated_plane_id);
+
+    // Simulate the end of the plane transition before navigating away.
+    {
+        let MonitorSet::Normal { monitors, .. } = &mut layout.monitor_set else {
+            unreachable!()
+        };
+        monitors[0].plane_switch = None;
+    }
+
+    layout.focus_plane_backward();
+    {
+        let MonitorSet::Normal { monitors, .. } = &mut layout.monitor_set else {
+            unreachable!()
+        };
+        let monitor = &mut monitors[0];
+        monitor.plane_switch = None;
+        monitor.clean_up_workspaces();
+    }
+
+    let monitor = layout.active_monitor().unwrap();
+    assert_eq!(monitor.active_plane_id(), populated_plane_id);
+    assert!(monitor.workspaces.plane_by_id(empty_plane_id).is_none());
+    assert_eq!(monitor.plane_count(), 1);
+    layout.verify_invariants();
+}
+
+#[test]
 fn unname_workspace_on_inactive_plane() {
     let mut layout = check_ops([Op::AddOutput(1)]);
     layout.create_plane();
@@ -4832,7 +4916,8 @@ fn unname_workspace_on_inactive_plane() {
     assert!(layout.find_workspace_by_name("named-target").is_none());
     let monitor = layout.active_monitor().unwrap();
     assert_eq!(monitor.active_plane_id(), active_plane_id);
-    assert!(monitor.workspaces.plane_by_id(target_plane_id).is_some());
+    assert!(monitor.workspaces.plane_by_id(target_plane_id).is_none());
+    assert_eq!(monitor.plane_count(), 1);
     layout.verify_invariants();
 }
 
@@ -4930,6 +5015,11 @@ fn remove_window_from_inactive_plane() {
 
     assert!(removed.is_some());
     assert!(!layout.windows().any(|(_, window)| window.id() == &2));
+    assert_eq!(
+        layout.active_monitor().unwrap().plane_count(),
+        1,
+        "the inactive plane should disappear when its last window is removed"
+    );
     layout.verify_invariants();
 }
 
