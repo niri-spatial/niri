@@ -2473,7 +2473,7 @@ impl<W: LayoutElement> Monitor<W> {
 
     /// Returns a blue outline around the active workspace when the overview is fully open.
     ///
-    /// The outline follows the workspace's full horizontal extent, including off-screen columns.
+    /// The outline follows the workspace's overview viewport, not its full scrollable width.
     pub fn render_overview_active_workspace_highlight(
         &self,
     ) -> Option<[SolidColorRenderElement; 4]> {
