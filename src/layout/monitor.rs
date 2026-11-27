@@ -755,6 +755,7 @@ impl<W: LayoutElement> Monitor<W> {
         let moved = self.workspaces.move_plane(index, index - 1).is_ok();
         if moved {
             self.ensure_empty_plane_boundaries();
+            self.clean_up_empty_planes();
         }
         moved
     }
@@ -773,6 +774,7 @@ impl<W: LayoutElement> Monitor<W> {
         let moved = self.workspaces.move_plane(index, next_index).is_ok();
         if moved {
             self.ensure_empty_plane_boundaries();
+            self.clean_up_empty_planes();
         }
         moved
     }
