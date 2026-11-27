@@ -717,7 +717,7 @@ impl<W: LayoutElement> Monitor<W> {
             // With animations disabled, there is no later animation-completion
             // callback to clean up the plane we just left.
             if self.plane_switch.is_none() && self.workspace_switch.is_none() {
-                self.clean_up_empty_planes();
+                self.clean_up_workspaces();
             }
         }
 
