@@ -2349,7 +2349,7 @@ impl<W: LayoutElement> Monitor<W> {
 
     pub fn workspaces_render_geo(
         &self,
-    ) -> impl Iterator<Item = Rectangle<f64, Logical>> + use<'_, W> {
+    ) -> std::vec::IntoIter<Rectangle<f64, Logical>> {
         let scale = self.scale.fractional_scale();
         let zoom = self.overview_zoom();
 
@@ -2398,6 +2398,8 @@ impl<W: LayoutElement> Monitor<W> {
                 let loc = Point::from((x, y)).to_physical_precise_round(scale).to_logical(scale);
                 Rectangle::new(loc, ws_size)
             })
+            .collect::<Vec<_>>()
+            .into_iter()
     }
 
     pub fn plane_switch_zoom(&self) -> f64 {
