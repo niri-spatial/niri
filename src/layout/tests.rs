@@ -3431,6 +3431,7 @@ fn monitor_plane_management_preserves_shared_workspace_position() {
     }
 
     layout.create_plane();
+    layout.set_workspace_name("preserved-depth-plane".into(), None);
     layout.verify_invariants();
 
     let (new_plane_id, back_boundary_id, front_boundary_id) = {
@@ -3503,6 +3504,7 @@ fn remove_active_empty_plane_selects_the_next_plane() {
 #[test]
 fn removing_either_empty_boundary_plane_replaces_it() {
     let mut layout = check_ops([Op::AddOutput(1)]);
+    layout.set_workspace_name("preserved-main-plane".into(), None);
 
     let (original_back_id, main_plane_id, original_front_id) = {
         let monitor = layout.active_monitor().unwrap();
