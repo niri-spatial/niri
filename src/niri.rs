@@ -4339,17 +4339,27 @@ impl Niri {
                 );
             }};
             ($layer:expr, true) => {{
-                push_popups_from_layer!($layer, None, XrayPos::default(), true, None, &mut |elem| {
-                    push(elem.into())
-                });
+                push_popups_from_layer!(
+                    $layer,
+                    None,
+                    XrayPos::default(),
+                    true,
+                    None,
+                    &mut |elem| { push(elem.into()) }
+                );
             }};
             ($layer:expr, $ns:expr, $xray_pos:expr, $push:expr) => {{
                 push_popups_from_layer!($layer, $ns, $xray_pos, false, Some(false), $push);
             }};
             ($layer:expr) => {{
-                push_popups_from_layer!($layer, None, XrayPos::default(), false, None, &mut |elem| {
-                    push(elem.into())
-                });
+                push_popups_from_layer!(
+                    $layer,
+                    None,
+                    XrayPos::default(),
+                    false,
+                    None,
+                    &mut |elem| { push(elem.into()) }
+                );
             }};
         }
         macro_rules! push_normal_from_layer {
@@ -4366,17 +4376,27 @@ impl Niri {
                 );
             }};
             ($layer:expr, true) => {{
-                push_normal_from_layer!($layer, None, XrayPos::default(), true, None, &mut |elem| {
-                    push(elem.into())
-                });
+                push_normal_from_layer!(
+                    $layer,
+                    None,
+                    XrayPos::default(),
+                    true,
+                    None,
+                    &mut |elem| { push(elem.into()) }
+                );
             }};
             ($layer:expr, $ns:expr, $xray_pos:expr, $push:expr) => {{
                 push_normal_from_layer!($layer, $ns, $xray_pos, false, Some(false), $push);
             }};
             ($layer:expr) => {{
-                push_normal_from_layer!($layer, None, XrayPos::default(), false, None, &mut |elem| {
-                    push(elem.into())
-                });
+                push_normal_from_layer!(
+                    $layer,
+                    None,
+                    XrayPos::default(),
+                    false,
+                    None,
+                    &mut |elem| { push(elem.into()) }
+                );
             }};
         }
         macro_rules! push_exclusive_popups_from_layer {
@@ -4654,7 +4674,8 @@ impl Niri {
         exclusive: Option<bool>,
         push: &mut dyn FnMut(LayerSurfaceRenderElement<R>),
     ) {
-        for (mapped, geo) in self.layers_in_render_order(layer_map, layer, for_backdrop, exclusive) {
+        for (mapped, geo) in self.layers_in_render_order(layer_map, layer, for_backdrop, exclusive)
+        {
             let loc = geo.loc.to_f64();
             let xray_pos = xray_pos.offset(loc);
             mapped.render_normal(ctx.r(), ns, loc, xray_pos, push);
@@ -4673,7 +4694,8 @@ impl Niri {
         exclusive: Option<bool>,
         push: &mut dyn FnMut(LayerSurfaceRenderElement<R>),
     ) {
-        for (mapped, geo) in self.layers_in_render_order(layer_map, layer, for_backdrop, exclusive) {
+        for (mapped, geo) in self.layers_in_render_order(layer_map, layer, for_backdrop, exclusive)
+        {
             let loc = geo.loc.to_f64();
             let xray_pos = xray_pos.offset(loc);
             mapped.render_popups(ctx.r(), ns, loc, xray_pos, push);
