@@ -584,11 +584,11 @@ impl<W: LayoutElement> Monitor<W> {
         self.add_plane_at(self.active_plane_idx() + 1)
     }
 
-    /// Creates and activates an empty plane at the requested depth-order index.
+    /// Inserts an empty plane at the requested depth-order index without changing focus.
     ///
     /// Its workspace sequence and current vertical selection match the monitor's
     /// current workspace position, so a new plane starts at the same Y coordinate.
-    fn add_plane_at(&mut self, index: usize) -> PlaneId {
+    fn insert_empty_plane_at(&mut self, index: usize) -> PlaneId {
         let active_workspace_idx = self.active_workspace_idx();
         // Only materialize the rows needed to reach the shared Y position,
         // plus one trailing empty workspace. Rows before the selected index
@@ -612,10 +612,41 @@ impl<W: LayoutElement> Monitor<W> {
 
         self.insert_plane(index, plane)
             .expect("a newly generated plane ID must be unique");
-        self.activate_plane(index)
-            .expect("the inserted plane index must be valid");
 
         plane_id
+    }
+
+    /// Creates and activates an empty plane at the requested depth-order index.
+    fn add_plane_at(&mut self, index: usize) -> PlaneId {
+        let plane_id = self.insert_empty_plane_at(index);
+        self.activate_plane(index)
+            .expect("the inserted plane index must be valid");
+        plane_id
+    }
+
+    /// Returns the neighboring plane in the requested direction, creating it
+    /// when the current plane is already at that depth boundary.
+    fn adjacent_plane_id_or_create(&mut self, backward: bool) -> PlaneId {
+        let active_idx = self.active_plane_idx();
+        let target_idx = if backward {
+            if active_idx == 0 {
+                self.insert_empty_plane_at(0);
+                0
+            } else {
+                active_idx - 1
+            }
+        } else {
+            let next_idx = active_idx + 1;
+            if next_idx == self.plane_count() {
+                self.insert_empty_plane_at(next_idx);
+            }
+            next_idx
+        };
+
+        self.workspaces
+            .plane(target_idx)
+            .expect("the adjacent plane must exist")
+            .id()
     }
 
     /// Activates a plane by its depth-order index.
@@ -1203,6 +1234,39 @@ impl<W: LayoutElement> Monitor<W> {
         // monitor-wide Y coordinate so switching planes never changes location.
         let active_workspace_idx = self.active_workspace_idx();
         self.set_active_workspace_idx(active_workspace_idx);
+        self.clean_up_empty_planes();
+    }
+
+    /// Removes empty planes other than the currently active one.
+    ///
+    /// The active plane is retained even when empty, matching the active
+    /// workspace invariant. Empty inactive planes are removed from both depth
+    /// edges and from between populated planes.
+    pub(super) fn clean_up_empty_planes(&mut self) {
+        if self.workspace_switch.is_some() || self.plane_switch.is_some() {
+            return;
+        }
+
+        let active_plane_id = self.active_plane_id();
+        let empty_indices = self
+            .workspaces
+            .iter_planes()
+            .enumerate()
+            .filter_map(|(index, plane)| {
+                (plane.id() != active_plane_id
+                    && plane
+                        .workspaces()
+                        .iter()
+                        .all(|workspace| !workspace.has_windows_or_name()))
+                .then_some(index)
+            })
+            .collect::<Vec<_>>();
+
+        for index in empty_indices.into_iter().rev() {
+            self.workspaces
+                .remove_plane(index)
+                .expect("an inactive empty plane can be removed");
+        }
     }
 
     pub fn unname_workspace(&mut self, id: WorkspaceId) -> bool {
@@ -1613,6 +1677,7 @@ impl<W: LayoutElement> Monitor<W> {
         idx: usize,
         activate: bool,
     ) {
+        let source_plane_id = self.active_plane_id();
         let source_plane_idx = self.active_plane_idx();
         let source_workspace_idx = self.active_workspace_idx();
         let target_plane_idx = match target_plane_id {
@@ -1665,10 +1730,15 @@ impl<W: LayoutElement> Monitor<W> {
             );
 
             if !activate {
+                let source_plane_idx = self
+                    .workspaces
+                    .index_of(source_plane_id)
+                    .expect("the source plane must still exist");
                 self.activate_plane(source_plane_idx)
                     .expect("the source plane index must be valid");
                 self.plane_switch = None;
             }
+            self.clean_up_empty_planes();
             return;
         }
 
@@ -1685,6 +1755,7 @@ impl<W: LayoutElement> Monitor<W> {
         };
 
         self.add_column_to_plane(target_plane_idx, new_idx, column, activate);
+        self.clean_up_empty_planes();
     }
 
     /// Moves the active column to the active workspace on an adjacent plane.
@@ -1710,32 +1781,26 @@ impl<W: LayoutElement> Monitor<W> {
     }
 
     /// Moves the active column to the adjacent plane farther back.
+    ///
+    /// A plane is created at the back boundary when there is no existing neighbor.
     pub fn move_active_column_to_plane_backward(&mut self, focus: bool) {
-        let Some(target_plane_idx) = self.active_plane_idx().checked_sub(1) else {
+        if self.active_window().is_none() {
             return;
-        };
-        let Some(target_plane_id) = self
-            .workspaces
-            .plane(target_plane_idx)
-            .map(|plane| plane.id())
-        else {
-            return;
-        };
+        }
 
+        let target_plane_id = self.adjacent_plane_id_or_create(true);
         self.move_active_column_to_plane(target_plane_id, focus);
     }
 
     /// Moves the active column to the adjacent plane closer to the front.
+    ///
+    /// A plane is created at the front boundary when there is no existing neighbor.
     pub fn move_active_column_to_plane_forward(&mut self, focus: bool) {
-        let target_plane_idx = self.active_plane_idx() + 1;
-        let Some(target_plane_id) = self
-            .workspaces
-            .plane(target_plane_idx)
-            .map(|plane| plane.id())
-        else {
+        if self.active_window().is_none() {
             return;
-        };
+        }
 
+        let target_plane_id = self.adjacent_plane_id_or_create(false);
         self.move_active_column_to_plane(target_plane_id, focus);
     }
 
@@ -1748,11 +1813,11 @@ impl<W: LayoutElement> Monitor<W> {
             return;
         };
 
-        let source_plane_idx = self.active_plane_idx();
+        let source_plane_id = self.active_plane_id();
         let Some(target_plane_idx) = self.workspaces.index_of(target_plane_id) else {
             return;
         };
-        if source_plane_idx == target_plane_idx {
+        if source_plane_id == target_plane_id {
             return;
         }
 
@@ -1775,39 +1840,38 @@ impl<W: LayoutElement> Monitor<W> {
         );
 
         if !focus {
+            let source_plane_idx = self
+                .workspaces
+                .index_of(source_plane_id)
+                .expect("the source plane must still exist");
             self.activate_plane(source_plane_idx)
                 .expect("the source plane index must be valid");
             self.plane_switch = None;
         }
+        self.clean_up_empty_planes();
     }
 
     /// Moves the active window to the adjacent plane farther back.
+    ///
+    /// A plane is created at the back boundary when there is no existing neighbor.
     pub fn move_active_window_to_plane_backward(&mut self, focus: bool) {
-        let Some(target_plane_idx) = self.active_plane_idx().checked_sub(1) else {
+        if self.active_window().is_none() {
             return;
-        };
-        let Some(target_plane_id) = self
-            .workspaces
-            .plane(target_plane_idx)
-            .map(|plane| plane.id())
-        else {
-            return;
-        };
+        }
 
+        let target_plane_id = self.adjacent_plane_id_or_create(true);
         self.move_active_window_to_plane(target_plane_id, focus);
     }
 
     /// Moves the active window to the adjacent plane closer to the front.
+    ///
+    /// A plane is created at the front boundary when there is no existing neighbor.
     pub fn move_active_window_to_plane_forward(&mut self, focus: bool) {
-        let target_plane_idx = self.active_plane_idx() + 1;
-        let Some(target_plane_id) = self
-            .workspaces
-            .plane(target_plane_idx)
-            .map(|plane| plane.id())
-        else {
+        if self.active_window().is_none() {
             return;
-        };
+        }
 
+        let target_plane_id = self.adjacent_plane_id_or_create(false);
         self.move_active_window_to_plane(target_plane_id, focus);
     }
 
