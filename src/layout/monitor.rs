@@ -2483,45 +2483,38 @@ impl<W: LayoutElement> Monitor<W> {
         }
 
         let active_idx = self.active_workspace_idx();
-        let workspace = self.workspaces.get(active_idx)?;
-        let (content_size, viewport) = workspace.minimap_geometry();
         let geo = self.workspaces_render_geo().nth(active_idx)?;
-        let zoom = self.overview_zoom();
 
-        // The workspace geometry tracks the visible viewport. Move back to the
-        // full-content origin so the outline surrounds every horizontally
-        // scrolling column in the overview.
-        let content_geo = Rectangle::new(
-            Point::from((geo.loc.x - viewport.loc.x * zoom, geo.loc.y)),
-            content_size.upscale(zoom),
-        );
-        let content_geo = self.transform_workspace_render_geo(content_geo);
+        // Keep the outline around the workspace's overview viewport. The full
+        // horizontally-scrolling contents remain visible, but do not expand
+        // the selection frame across the entire row.
+        let highlight_geo = self.transform_workspace_render_geo(geo);
 
         let border = 3.0_f64
-            .min(content_geo.size.w / 4.)
-            .min(content_geo.size.h / 4.);
+            .min(highlight_geo.size.w / 4.)
+            .min(highlight_geo.size.h / 4.);
         if border <= 0. {
             return None;
         }
 
-        let inner_height = (content_geo.size.h - border * 2.).max(0.);
+        let inner_height = (highlight_geo.size.h - border * 2.).max(0.);
         let bar_geometries = [
-            Rectangle::new(content_geo.loc, Size::from((content_geo.size.w, border))),
+            Rectangle::new(highlight_geo.loc, Size::from((highlight_geo.size.w, border))),
             Rectangle::new(
                 Point::from((
-                    content_geo.loc.x,
-                    content_geo.loc.y + content_geo.size.h - border,
+                    highlight_geo.loc.x,
+                    highlight_geo.loc.y + highlight_geo.size.h - border,
                 )),
-                Size::from((content_geo.size.w, border)),
+                Size::from((highlight_geo.size.w, border)),
             ),
             Rectangle::new(
-                Point::from((content_geo.loc.x, content_geo.loc.y + border)),
+                Point::from((highlight_geo.loc.x, highlight_geo.loc.y + border)),
                 Size::from((border, inner_height)),
             ),
             Rectangle::new(
                 Point::from((
-                    content_geo.loc.x + content_geo.size.w - border,
-                    content_geo.loc.y + border,
+                    highlight_geo.loc.x + highlight_geo.size.w - border,
+                    highlight_geo.loc.y + border,
                 )),
                 Size::from((border, inner_height)),
             ),
