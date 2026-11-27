@@ -2308,10 +2308,12 @@ impl<W: LayoutElement> ScrollingSpace<W> {
     /// relative to that left edge.
     pub fn minimap_geometry(&self) -> (f64, f64, f64) {
         let view_pos = self.view_pos();
-        let content_right = self.data.last().map_or(
-            view_pos + self.view_size.w,
-            |last| self.column_x(self.data.len() - 1) + last.width,
-        );
+        let content_right = self
+            .data
+            .last()
+            .map_or(view_pos + self.view_size.w, |last| {
+                self.column_x(self.data.len() - 1) + last.width
+            });
         let content_left = view_pos.min(0.);
         let content_right = content_right.max(view_pos + self.view_size.w);
 
