@@ -675,6 +675,10 @@ impl<W: LayoutElement> Monitor<W> {
             self.insert_empty_plane_at(self.plane_count());
         }
 
+        if self.workspace_switch.is_none() && self.plane_switch.is_none() {
+            self.clean_up_empty_planes();
+        }
+
         Ok(())
     }
 
@@ -3097,19 +3101,21 @@ impl<W: LayoutElement> Monitor<W> {
         let shared_active_workspace_idx = self.active_workspace_idx();
         assert!(shared_active_workspace_idx < self.workspaces.len());
 
-        let plane_count = self.plane_count();
-        assert!(plane_count >= 3, "monitor must keep two empty Z boundary planes");
-        assert!(self.active_plane_idx() > 0);
-        assert!(self.active_plane_idx() + 1 < plane_count);
-        for boundary_idx in [0, plane_count - 1] {
-            let boundary = self.workspaces.plane(boundary_idx).unwrap();
-            assert!(
-                boundary
-                    .workspaces()
-                    .iter()
-                    .all(|workspace| !workspace.has_windows_or_name()),
-                "outer Z boundary planes must remain empty"
-            );
+        if self.workspace_switch.is_none() && self.plane_switch.is_none() {
+            let plane_count = self.plane_count();
+            assert!(plane_count >= 3, "monitor must keep two empty Z boundary planes");
+            assert!(self.active_plane_idx() > 0);
+            assert!(self.active_plane_idx() + 1 < plane_count);
+            for boundary_idx in [0, plane_count - 1] {
+                let boundary = self.workspaces.plane(boundary_idx).unwrap();
+                assert!(
+                    boundary
+                        .workspaces()
+                        .iter()
+                        .all(|workspace| !workspace.has_windows_or_name()),
+                    "outer Z boundary planes must remain empty"
+                );
+            }
         }
         for plane in self.workspaces.iter_planes() {
             assert!(
