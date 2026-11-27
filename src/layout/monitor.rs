@@ -2368,8 +2368,8 @@ impl<W: LayoutElement> Monitor<W> {
         let from_first_y = -render_idx * workspace_step + static_offset.y;
 
         let workspace_count = self.workspaces.len();
-        let full_stack_height = workspace_count as f64 * ws_size.h
-            + workspace_count.saturating_sub(1) as f64 * gap;
+        let full_stack_height =
+            workspace_count as f64 * ws_size.h + workspace_count.saturating_sub(1) as f64 * gap;
         let to_first_y = (self.view_size.h - full_stack_height) / 2.;
 
         self.workspaces
@@ -2381,8 +2381,7 @@ impl<W: LayoutElement> Monitor<W> {
                 // Move the viewport origin into the full horizontally-scrolling
                 // workspace, so columns outside the current viewport are visible.
                 let from_x = static_offset.x;
-                let to_x = (self.view_size.w - content_size.w * zoom) / 2.
-                    + viewport.loc.x * zoom;
+                let to_x = (self.view_size.w - content_size.w * zoom) / 2. + viewport.loc.x * zoom;
                 let x = from_x + (to_x - from_x) * overview_progress;
 
                 // Transition from centering the selected workspace to centering
@@ -2393,7 +2392,9 @@ impl<W: LayoutElement> Monitor<W> {
 
                 // Keep the hit-test rectangle viewport-sized. Rendering itself
                 // is no longer clipped to it while the overview is open.
-                let loc = Point::from((x, y)).to_physical_precise_round(scale).to_logical(scale);
+                let loc = Point::from((x, y))
+                    .to_physical_precise_round(scale)
+                    .to_logical(scale);
                 Rectangle::new(loc, ws_size)
             })
             .collect::<Vec<_>>()
