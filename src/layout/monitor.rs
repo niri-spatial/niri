@@ -1,9 +1,11 @@
+use std::cell::RefCell;
 use std::cmp::min;
 use std::iter::zip;
 use std::rc::Rc;
 use std::time::Duration;
 
 use niri_config::{CornerRadius, LayoutPart};
+use smithay::backend::renderer::element::Kind;
 use smithay::backend::renderer::element::utils::{
     CropRenderElement, Relocate, RelocateRenderElement, RescaleRenderElement,
 };
@@ -24,7 +26,7 @@ use crate::input::swipe_tracker::SwipeTracker;
 use crate::niri_render_elements;
 use crate::render_helpers::renderer::NiriRenderer;
 use crate::render_helpers::shadow::ShadowRenderElement;
-use crate::render_helpers::solid_color::SolidColorRenderElement;
+use crate::render_helpers::solid_color::{SolidColorBuffer, SolidColorRenderElement};
 use crate::render_helpers::xray::XrayPos;
 use crate::render_helpers::RenderCtx;
 use crate::rubber_band::RubberBand;
@@ -83,6 +85,8 @@ pub struct Monitor<W: LayoutElement> {
     insert_hint_element: InsertHintElement,
     /// Location to render the insert hint element.
     insert_hint_render_loc: Option<InsertHintRenderLoc>,
+    /// Reusable buffers for the active-workspace outline in the overview.
+    overview_highlight_buffers: RefCell<[SolidColorBuffer; 4]>,
     /// Whether the overview is open.
     pub(super) overview_open: bool,
     /// Progress of the overview zoom animation, 1 is fully in overview.
@@ -435,6 +439,9 @@ impl<W: LayoutElement> Monitor<W> {
             insert_hint: None,
             insert_hint_element: InsertHintElement::new(options.layout.insert_hint),
             insert_hint_render_loc: None,
+            overview_highlight_buffers: RefCell::new(std::array::from_fn(|_| {
+                SolidColorBuffer::new((1., 1.), [0.25, 0.68, 1.0, 0.96])
+            })),
             overview_open: false,
             overview_progress: None,
             workspace_switch: None,
@@ -2399,6 +2406,78 @@ impl<W: LayoutElement> Monitor<W> {
             })
             .collect::<Vec<_>>()
             .into_iter()
+    }
+
+    /// Returns a blue outline around the active workspace when the overview is fully open.
+    ///
+    /// The outline follows the workspace's full horizontal extent, including off-screen columns.
+    pub fn render_overview_active_workspace_highlight(
+        &self,
+    ) -> Option<[SolidColorRenderElement; 4]> {
+        let progress = self.overview_progress.as_ref()?.clamped_value();
+        if progress < 0.98 {
+            return None;
+        }
+
+        let active_idx = self.active_workspace_idx();
+        let workspace = self.workspaces.iter().nth(active_idx)?;
+        let (content_size, viewport) = workspace.minimap_geometry();
+        let geo = self.workspaces_render_geo().nth(active_idx)?;
+        let zoom = self.overview_zoom();
+
+        // The workspace geometry tracks the visible viewport. Move back to the
+        // full-content origin so the outline surrounds every horizontally
+        // scrolling column in the overview.
+        let content_geo = Rectangle::new(
+            Point::from((geo.loc.x - viewport.loc.x * zoom, geo.loc.y)),
+            content_size.upscale(zoom),
+        );
+        let content_geo = self.transform_workspace_render_geo(content_geo);
+
+        let border = 3.0_f64
+            .min(content_geo.size.w / 4.)
+            .min(content_geo.size.h / 4.);
+        if border <= 0. {
+            return None;
+        }
+
+        let inner_height = (content_geo.size.h - border * 2.).max(0.);
+        let bar_geometries = [
+            Rectangle::new(
+                content_geo.loc,
+                Size::from((content_geo.size.w, border)),
+            ),
+            Rectangle::new(
+                Point::from((
+                    content_geo.loc.x,
+                    content_geo.loc.y + content_geo.size.h - border,
+                )),
+                Size::from((content_geo.size.w, border)),
+            ),
+            Rectangle::new(
+                Point::from((content_geo.loc.x, content_geo.loc.y + border)),
+                Size::from((border, inner_height)),
+            ),
+            Rectangle::new(
+                Point::from((
+                    content_geo.loc.x + content_geo.size.w - border,
+                    content_geo.loc.y + border,
+                )),
+                Size::from((border, inner_height)),
+            ),
+        ];
+
+        let mut buffers = self.overview_highlight_buffers.borrow_mut();
+        Some(std::array::from_fn(|idx| {
+            let geometry = bar_geometries[idx];
+            buffers[idx].resize(geometry.size);
+            SolidColorRenderElement::from_buffer(
+                &buffers[idx],
+                geometry.loc,
+                1.,
+                Kind::Unspecified,
+            )
+        }))
     }
 
     pub fn plane_switch_zoom(&self) -> f64 {
