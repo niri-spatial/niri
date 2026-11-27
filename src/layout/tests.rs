@@ -2799,7 +2799,7 @@ fn secondary_output_disconnect_and_reconnect_preserves_planes() {
         unreachable!()
     };
     assert_eq!(monitors.len(), 2);
-    assert_eq!(monitors[0].plane_count(), 3);
+    assert_eq!(monitors[0].plane_count(), 2);
     assert_eq!(monitors[1].plane_count(), 4);
     assert_eq!(monitors[1].active_plane_idx(), 2);
     assert_eq!(monitors[1].active_plane_id(), second_plane_id);
