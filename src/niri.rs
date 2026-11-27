@@ -4429,12 +4429,36 @@ impl Niri {
                 }};
             }
 
+            // Workspace-attached layer-shell surfaces keep the original Niri
+            // workspace movement, but do not participate in the Z-plane zoom.
+            // This keeps panels and bars from scaling during depth transitions.
+            macro_rules! process_workspace_layer {
+                ($geo:expr) => {{
+                    &mut |elem| {
+                        if let Some(elem) =
+                            scale_relocate_crop(elem, output_scale, zoom, $geo)
+                        {
+                            push(elem.into());
+                        }
+                    }
+                }};
+            }
+
             for (ws, geo) in mon.workspaces_with_render_geo() {
                 let ns = Some(ws.id().get() as usize);
-                let render_geo = mon.transform_workspace_render_geo(geo);
-                let xray_pos = XrayPos::new(render_geo.loc, total_zoom);
-                push_popups_from_layer!(Layer::Bottom, ns, xray_pos, process!(geo));
-                push_popups_from_layer!(Layer::Background, ns, xray_pos, process!(geo));
+                let xray_pos = XrayPos::new(geo.loc, zoom);
+                push_popups_from_layer!(
+                    Layer::Bottom,
+                    ns,
+                    xray_pos,
+                    process_workspace_layer!(geo)
+                );
+                push_popups_from_layer!(
+                    Layer::Background,
+                    ns,
+                    xray_pos,
+                    process_workspace_layer!(geo)
+                );
             }
 
             mon.render_workspaces(ctx.r(), focus_ring, &mut |elem| push(elem.into()));
@@ -4456,11 +4480,21 @@ impl Niri {
                 // namespace on the frame at once. Id + namespace is used as the cache key in the
                 // damage tracker.
                 let ns = Some(ws.id().get() as usize);
-                let render_geo = mon.transform_workspace_render_geo(geo);
-                let xray_pos = XrayPos::new(render_geo.loc, total_zoom);
-                push_normal_from_layer!(Layer::Bottom, ns, xray_pos, process!(geo));
-                push_normal_from_layer!(Layer::Background, ns, xray_pos, process!(geo));
+                let layer_xray_pos = XrayPos::new(geo.loc, zoom);
+                push_normal_from_layer!(
+                    Layer::Bottom,
+                    ns,
+                    layer_xray_pos,
+                    process_workspace_layer!(geo)
+                );
+                push_normal_from_layer!(
+                    Layer::Background,
+                    ns,
+                    layer_xray_pos,
+                    process_workspace_layer!(geo)
+                );
 
+                // Workspace backgrounds still follow the Z-plane transition.
                 process!(geo)(ws.render_background());
             }
         }
