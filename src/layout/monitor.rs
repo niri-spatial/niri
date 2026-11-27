@@ -445,12 +445,12 @@ impl<W: LayoutElement> Monitor<W> {
             layout_config,
         };
 
-        // Create an initial empty plane on each side of the main plane once.
+        // Create an initial empty plane on each side of the active plane once
+        // when this monitor is constructed, regardless of whether its initial
+        // workspaces came from the default configuration or restored state.
         // Subsequent navigation uses the ordinary dynamic plane lifecycle.
-        if needs_initial_workspace {
-            monitor.insert_empty_plane_at(0);
-            monitor.insert_empty_plane_at(monitor.plane_count());
-        }
+        monitor.insert_empty_plane_at(0);
+        monitor.insert_empty_plane_at(monitor.plane_count());
 
         monitor
     }
