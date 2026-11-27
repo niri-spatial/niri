@@ -4435,9 +4435,7 @@ impl Niri {
             macro_rules! process_workspace_layer {
                 ($geo:expr) => {{
                     &mut |elem| {
-                        if let Some(elem) =
-                            scale_relocate_crop(elem, output_scale, zoom, $geo)
-                        {
+                        if let Some(elem) = scale_relocate_crop(elem, output_scale, zoom, $geo) {
                             push(elem.into());
                         }
                     }
@@ -4447,12 +4445,7 @@ impl Niri {
             for (ws, geo) in mon.workspaces_with_render_geo() {
                 let ns = Some(ws.id().get() as usize);
                 let xray_pos = XrayPos::new(geo.loc, zoom);
-                push_popups_from_layer!(
-                    Layer::Bottom,
-                    ns,
-                    xray_pos,
-                    process_workspace_layer!(geo)
-                );
+                push_popups_from_layer!(Layer::Bottom, ns, xray_pos, process_workspace_layer!(geo));
                 push_popups_from_layer!(
                     Layer::Background,
                     ns,
