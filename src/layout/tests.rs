@@ -3670,6 +3670,12 @@ fn moving_active_plane_preserves_workspace_and_replenishes_boundaries() {
     // removed from the interior.
     let output = layout.active_output().unwrap().clone();
     assert!(layout.activate_plane_by_id(&output, first_plane_id).is_some());
+    {
+        let MonitorSet::Normal { monitors, .. } = &mut layout.monitor_set else {
+            unreachable!()
+        };
+        monitors[0].plane_switch = None;
+    }
     assert!(layout.move_active_plane_backward());
 
     let monitor = layout.active_monitor().unwrap();
