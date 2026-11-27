@@ -406,22 +406,15 @@ impl<W: LayoutElement> Workspace<W> {
                 .to_physical_precise_round(scale);
 
                 let mut workspace_elements = Vec::new();
-                workspace.render_floating(
-                    ctx.r(),
-                    XrayPos::default(),
-                    false,
-                    &mut |elem| workspace_elements.push(elem),
-                );
-                workspace.render_scrolling(
-                    ctx.r(),
-                    XrayPos::default(),
-                    false,
-                    &mut |elem| workspace_elements.push(elem),
-                );
+                workspace.render_floating(ctx.r(), XrayPos::default(), false, &mut |elem| {
+                    workspace_elements.push(elem)
+                });
+                workspace.render_scrolling(ctx.r(), XrayPos::default(), false, &mut |elem| {
+                    workspace_elements.push(elem)
+                });
 
                 let workspace_elements = workspace_elements.into_iter().rev().map(|elem| {
-                    let elem =
-                        RescaleRenderElement::from_element(elem, Point::from((0, 0)), zoom);
+                    let elem = RescaleRenderElement::from_element(elem, Point::from((0, 0)), zoom);
                     RelocateRenderElement::from_element(elem, offset, Relocate::Relative)
                 });
                 elements.extend(workspace_elements);
