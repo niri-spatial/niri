@@ -602,6 +602,19 @@ impl<W: LayoutElement> Monitor<W> {
         plane_id
     }
 
+    /// Ensures the active plane is never on the outer edge of the Z sequence.
+    ///
+    /// This is called immediately when activating or moving an edge plane so
+    /// the new empty boundary is present during the transition itself.
+    fn ensure_active_plane_boundaries(&mut self) {
+        if self.active_plane_idx() == 0 {
+            self.insert_empty_plane_at(0);
+        }
+        if self.active_plane_idx() + 1 == self.plane_count() {
+            self.insert_empty_plane_at(self.plane_count());
+        }
+    }
+
     /// Creates and activates an empty plane at the requested depth-order index.
     fn add_plane_at(&mut self, index: usize) -> PlaneId {
         let plane_id = self.insert_empty_plane_at(index);
@@ -667,13 +680,7 @@ impl<W: LayoutElement> Monitor<W> {
             self.plane_switch = (!animation.is_done()).then_some(animation);
         }
 
-        let active_plane_idx = self.active_plane_idx();
-        if active_plane_idx == 0 {
-            self.insert_empty_plane_at(0);
-        }
-        if self.active_plane_idx() + 1 == self.plane_count() {
-            self.insert_empty_plane_at(self.plane_count());
-        }
+        self.ensure_active_plane_boundaries();
 
         if self.workspace_switch.is_none() && self.plane_switch.is_none() {
             self.clean_up_empty_planes();
@@ -720,7 +727,12 @@ impl<W: LayoutElement> Monitor<W> {
             return false;
         }
 
-        self.workspaces.move_plane(index, index - 1).is_ok()
+        let moved = self.workspaces.move_plane(index, index - 1).is_ok();
+        if moved {
+            self.ensure_active_plane_boundaries();
+            self.clean_up_empty_planes();
+        }
+        moved
     }
 
     /// Moves the active plane one step closer to the front in depth order.
@@ -734,7 +746,12 @@ impl<W: LayoutElement> Monitor<W> {
             return false;
         }
 
-        self.workspaces.move_plane(index, next_index).is_ok()
+        let moved = self.workspaces.move_plane(index, next_index).is_ok();
+        if moved {
+            self.ensure_active_plane_boundaries();
+            self.clean_up_empty_planes();
+        }
+        moved
     }
 
     /// Removes a plane and returns it with all of its workspaces.
@@ -757,6 +774,8 @@ impl<W: LayoutElement> Monitor<W> {
         }
 
         self.set_active_workspace_idx(active_workspace_idx);
+        self.ensure_active_plane_boundaries();
+        self.clean_up_empty_planes();
         Ok(removed)
     }
 
