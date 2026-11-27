@@ -264,4 +264,3 @@ fn render_indicator(
         Vec::new(),
     )?)
 }
-
