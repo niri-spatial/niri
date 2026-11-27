@@ -2506,6 +2506,12 @@ impl<W: LayoutElement> Monitor<W> {
         pos_within_output: Point<f64, Logical>,
     ) -> Option<&Workspace<W>> {
         let pos_within_output = self.plane_switch_untransform_pos(pos_within_output);
+        if self.overview_progress.is_some() {
+            return self
+                .workspace_under_untransformed(pos_within_output)
+                .map(|(workspace, _)| workspace);
+        }
+
         self.workspaces_with_render_geo()
             .find_map(|(ws, geo)| geo.contains(pos_within_output).then_some(ws))
     }
