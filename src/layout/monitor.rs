@@ -2347,9 +2347,7 @@ impl<W: LayoutElement> Monitor<W> {
         }
     }
 
-    pub fn workspaces_render_geo(
-        &self,
-    ) -> std::vec::IntoIter<Rectangle<f64, Logical>> {
+    pub fn workspaces_render_geo(&self) -> std::vec::IntoIter<Rectangle<f64, Logical>> {
         let scale = self.scale.fractional_scale();
         let zoom = self.overview_zoom();
 
