@@ -687,13 +687,12 @@ impl<W: LayoutElement> Monitor<W> {
     /// Focuses the adjacent plane farther back in depth order.
     ///
     /// Plane indices increase toward the front. Moving past the back edge
-    /// creates a new plane when the current boundary plane has been used;
-    /// an unused empty boundary plane is kept instead of accumulating blanks.
+    /// creates a new plane when the current active boundary plane has content.
+    /// Empty planes are removed once they become inactive.
     pub fn focus_plane_backward(&mut self) {
         let index = self.active_plane_idx();
         if index == 0 {
-            // Keep a single empty boundary plane. It becomes eligible for
-            // another plane only after it is used.
+            // Reuse the active empty boundary plane until it receives content.
             if !self.active_plane_is_empty() {
                 self.add_plane_at(0);
             }
@@ -705,15 +704,15 @@ impl<W: LayoutElement> Monitor<W> {
 
     /// Focuses the adjacent plane closer to the front in depth order.
     ///
-    /// Moving past the front edge creates a new plane when the current boundary
-    /// plane has been used; an unused empty boundary plane is kept in place.
+    /// Moving past the front edge creates a new plane when the current active
+    /// boundary plane has content. Empty planes are removed once they become inactive.
     pub fn focus_plane_forward(&mut self) {
         let index = self.active_plane_idx() + 1;
         if index < self.plane_count() {
             self.activate_plane(index)
                 .expect("the next plane index must be valid");
         } else if !self.active_plane_is_empty() {
-            // Keep a single empty boundary plane until it receives content.
+            // Reuse the active empty boundary plane until it receives content.
             self.add_plane();
         }
     }
