@@ -4326,7 +4326,7 @@ impl Niri {
         // We use macros instead of closures to avoid borrowing issues (renderer and push() go
         // into different functions).
         macro_rules! push_popups_from_layer {
-            ($layer:expr, $ns:expr, $xray_pos:expr, $backdrop:expr, $push:expr) => {{
+            ($layer:expr, $ns:expr, $xray_pos:expr, $backdrop:expr, $exclusive:expr, $push:expr) => {{
                 self.render_layer_popups(
                     ctx.r(),
                     $ns,
@@ -4334,25 +4334,26 @@ impl Niri {
                     $layer,
                     $xray_pos,
                     $backdrop,
+                    $exclusive,
                     $push,
                 );
             }};
             ($layer:expr, true) => {{
-                push_popups_from_layer!($layer, None, XrayPos::default(), true, &mut |elem| push(
-                    elem.into()
-                ));
+                push_popups_from_layer!($layer, None, XrayPos::default(), true, None, &mut |elem| {
+                    push(elem.into())
+                });
             }};
             ($layer:expr, $ns:expr, $xray_pos:expr, $push:expr) => {{
-                push_popups_from_layer!($layer, $ns, $xray_pos, false, $push);
+                push_popups_from_layer!($layer, $ns, $xray_pos, false, Some(false), $push);
             }};
             ($layer:expr) => {{
-                push_popups_from_layer!($layer, None, XrayPos::default(), false, &mut |elem| push(
-                    elem.into()
-                ));
+                push_popups_from_layer!($layer, None, XrayPos::default(), false, None, &mut |elem| {
+                    push(elem.into())
+                });
             }};
         }
         macro_rules! push_normal_from_layer {
-            ($layer:expr, $ns:expr, $xray_pos:expr, $backdrop:expr, $push:expr) => {{
+            ($layer:expr, $ns:expr, $xray_pos:expr, $backdrop:expr, $exclusive:expr, $push:expr) => {{
                 self.render_layer_normal(
                     ctx.r(),
                     $ns,
@@ -4360,21 +4361,46 @@ impl Niri {
                     $layer,
                     $xray_pos,
                     $backdrop,
+                    $exclusive,
                     $push,
                 );
             }};
             ($layer:expr, true) => {{
-                push_normal_from_layer!($layer, None, XrayPos::default(), true, &mut |elem| {
+                push_normal_from_layer!($layer, None, XrayPos::default(), true, None, &mut |elem| {
                     push(elem.into())
                 });
             }};
             ($layer:expr, $ns:expr, $xray_pos:expr, $push:expr) => {{
-                push_normal_from_layer!($layer, $ns, $xray_pos, false, $push);
+                push_normal_from_layer!($layer, $ns, $xray_pos, false, Some(false), $push);
             }};
             ($layer:expr) => {{
-                push_normal_from_layer!($layer, None, XrayPos::default(), false, &mut |elem| {
+                push_normal_from_layer!($layer, None, XrayPos::default(), false, None, &mut |elem| {
                     push(elem.into())
                 });
+            }};
+        }
+        macro_rules! push_exclusive_popups_from_layer {
+            ($layer:expr) => {{
+                push_popups_from_layer!(
+                    $layer,
+                    None,
+                    XrayPos::default(),
+                    false,
+                    Some(true),
+                    &mut |elem| push(elem.into())
+                );
+            }};
+        }
+        macro_rules! push_exclusive_normal_from_layer {
+            ($layer:expr) => {{
+                push_normal_from_layer!(
+                    $layer,
+                    None,
+                    XrayPos::default(),
+                    false,
+                    Some(true),
+                    &mut |elem| push(elem.into())
+                );
             }};
         }
 
@@ -4454,6 +4480,11 @@ impl Niri {
                 );
             }
 
+            // Exclusive panel popups are rendered once in output coordinates,
+            // so they remain fixed while workspaces move underneath them.
+            push_exclusive_popups_from_layer!(Layer::Bottom);
+            push_exclusive_popups_from_layer!(Layer::Background);
+
             mon.render_workspaces(ctx.r(), focus_ring, &mut |elem| push(elem.into()));
 
             // Keep the active workspace identifiable without covering its windows.
@@ -4490,6 +4521,11 @@ impl Niri {
                 // Workspace backgrounds still follow the Z-plane transition.
                 process!(geo)(ws.render_background());
             }
+
+            // Keep exclusive panels anchored to the output instead of the
+            // workspace viewport.
+            push_exclusive_normal_from_layer!(Layer::Bottom);
+            push_exclusive_normal_from_layer!(Layer::Background);
         }
 
         mon.render_workspace_shadows(ctx.renderer, &mut |elem| push(elem.into()));
@@ -4534,6 +4570,7 @@ impl Niri {
                 Layer::Background,
                 XrayPos::default(),
                 false,
+                None,
                 &mut |elem| elements.push(elem.into()),
             );
             // Avoid unused capacity remaining forever.
@@ -4551,6 +4588,7 @@ impl Niri {
                 Layer::Background,
                 XrayPos::default(),
                 true,
+                None,
                 &mut |elem| elements.push(elem.into()),
             );
             // Avoid unused capacity remaining forever.
@@ -4592,12 +4630,17 @@ impl Niri {
         layer_map: &'a LayerMap,
         layer: Layer,
         for_backdrop: bool,
+        exclusive: Option<bool>,
     ) -> impl Iterator<Item = (&'a MappedLayer, Rectangle<i32, Logical>)> {
         // LayerMap returns layers in reverse stacking order.
         layer_map.layers_on(layer).rev().filter_map(move |surface| {
             let mapped = self.mapped_layer_surfaces.get(surface)?;
 
             if for_backdrop != mapped.place_within_backdrop() {
+                return None;
+            }
+
+            if exclusive.is_some_and(|exclusive| mapped.has_exclusive_zone() != exclusive) {
                 return None;
             }
 
@@ -4615,9 +4658,10 @@ impl Niri {
         layer: Layer,
         xray_pos: XrayPos,
         for_backdrop: bool,
+        exclusive: Option<bool>,
         push: &mut dyn FnMut(LayerSurfaceRenderElement<R>),
     ) {
-        for (mapped, geo) in self.layers_in_render_order(layer_map, layer, for_backdrop) {
+        for (mapped, geo) in self.layers_in_render_order(layer_map, layer, for_backdrop, exclusive) {
             let loc = geo.loc.to_f64();
             let xray_pos = xray_pos.offset(loc);
             mapped.render_normal(ctx.r(), ns, loc, xray_pos, push);
@@ -4633,9 +4677,10 @@ impl Niri {
         layer: Layer,
         xray_pos: XrayPos,
         for_backdrop: bool,
+        exclusive: Option<bool>,
         push: &mut dyn FnMut(LayerSurfaceRenderElement<R>),
     ) {
-        for (mapped, geo) in self.layers_in_render_order(layer_map, layer, for_backdrop) {
+        for (mapped, geo) in self.layers_in_render_order(layer_map, layer, for_backdrop, exclusive) {
             let loc = geo.loc.to_f64();
             let xray_pos = xray_pos.offset(loc);
             mapped.render_popups(ctx.r(), ns, loc, xray_pos, push);
