@@ -713,6 +713,12 @@ impl<W: LayoutElement> Monitor<W> {
                 self.options.animations.workspace_switch.0,
             );
             self.plane_switch = (!animation.is_done()).then_some(animation);
+
+            // With animations disabled, there is no later animation-completion
+            // callback to clean up the plane we just left.
+            if self.plane_switch.is_none() && self.workspace_switch.is_none() {
+                self.clean_up_empty_planes();
+            }
         }
 
         Ok(())
