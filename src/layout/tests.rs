@@ -3475,13 +3475,7 @@ fn remove_active_empty_plane_selects_the_next_plane() {
     let mut layout = check_ops([Op::AddOutput(1)]);
     layout.set_workspace_name("preserved-workspace".into(), None);
 
-    let (original_plane_id, original_workspace_id) = {
-        let monitor = layout.active_monitor().unwrap();
-        (
-            monitor.active_plane_id(),
-            monitor.active_workspace_ref().id(),
-        )
-    };
+    let original_plane_id = layout.active_monitor().unwrap().active_plane_id();
 
     layout.create_plane();
     let empty_plane_id = layout.active_monitor().unwrap().active_plane_id();
@@ -3493,11 +3487,15 @@ fn remove_active_empty_plane_selects_the_next_plane() {
     let monitor = layout.active_monitor().unwrap();
     assert_eq!(monitor.plane_count(), 3);
     assert_eq!(monitor.active_plane_id(), front_boundary_id);
-    assert_eq!(monitor.active_workspace_ref().id(), original_workspace_id);
-    assert_eq!(
-        monitor.active_workspace_ref().name().map(String::as_str),
-        Some("preserved-workspace")
-    );
+    assert!(monitor.active_workspace_ref().name().is_none());
+    assert!(!monitor.active_workspace_ref().has_windows_or_name());
+    assert!(monitor
+        .workspaces
+        .plane_by_id(original_plane_id)
+        .unwrap()
+        .workspaces()
+        .iter()
+        .any(|workspace| workspace.name().map(String::as_str) == Some("preserved-workspace")));
 
     layout.verify_invariants();
 }
