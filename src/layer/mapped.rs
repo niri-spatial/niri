@@ -157,6 +157,14 @@ impl MappedLayer {
         std::mem::take(&mut self.recompute_rules_on_commit)
     }
 
+    /// Whether this layer surface reserves space for an exclusive panel.
+    ///
+    /// Exclusive surfaces such as panels should stay anchored to the output,
+    /// rather than following the workspace that happens to be visible.
+    pub fn has_exclusive_zone(&self) -> bool {
+        self.surface.cached_state().exclusive_zone != ExclusiveZone::DontCare
+    }
+
     pub fn place_within_backdrop(&self) -> bool {
         if !self.rules.place_within_backdrop {
             return false;
