@@ -2705,17 +2705,32 @@ fn output_active_workspace_is_preserved() {
 }
 
 #[test]
-fn new_output_starts_with_one_empty_workspace() {
+fn new_output_starts_with_empty_planes_on_both_sides() {
     let layout = check_ops([Op::AddOutput(1)]);
 
     let MonitorSet::Normal { monitors, .. } = layout.monitor_set else {
         unreachable!()
     };
-    assert_eq!(monitors[0].plane_count(), 1);
-    assert_eq!(monitors[0].workspaces.len(), 1);
-    assert_eq!(monitors[0].active_workspace_idx(), 0);
-}
+    let monitor = &monitors[0];
 
+    assert_eq!(monitor.plane_count(), 3);
+    assert_eq!(monitor.active_plane_idx(), 1);
+    assert_eq!(monitor.active_workspace_idx(), 0);
+    assert!(monitor
+        .workspaces
+        .plane(0)
+        .unwrap()
+        .workspaces()
+        .iter()
+        .all(|workspace| !workspace.has_windows_or_name()));
+    assert!(monitor
+        .workspaces
+        .plane(2)
+        .unwrap()
+        .workspaces()
+        .iter()
+        .all(|workspace| !workspace.has_windows_or_name()));
+}
 #[test]
 fn secondary_output_disconnect_and_reconnect_preserves_planes() {
     let ops = [
@@ -2756,7 +2771,7 @@ fn secondary_output_disconnect_and_reconnect_preserves_planes() {
     let MonitorSet::Normal { monitors, .. } = &layout.monitor_set else {
         unreachable!()
     };
-    assert_eq!(monitors[1].plane_count(), 2);
+    assert_eq!(monitors[1].plane_count(), 4);
     assert_eq!(monitors[1].active_plane_id(), second_plane_id);
     // Plane creation keeps the shared Y coordinate and provides a trailing
     // workspace, so navigating down selects row 2.
@@ -2768,7 +2783,7 @@ fn secondary_output_disconnect_and_reconnect_preserves_planes() {
         unreachable!()
     };
     assert_eq!(monitors.len(), 1);
-    assert_eq!(monitors[0].plane_count(), 3);
+    assert_eq!(monitors[0].plane_count(), 4);
     assert_eq!(
         monitors[0].workspaces.plane(1).unwrap().id(),
         first_plane_id
@@ -2784,18 +2799,18 @@ fn secondary_output_disconnect_and_reconnect_preserves_planes() {
         unreachable!()
     };
     assert_eq!(monitors.len(), 2);
-    assert_eq!(monitors[0].plane_count(), 1);
+    assert_eq!(monitors[0].plane_count(), 3);
     assert_eq!(monitors[1].plane_count(), 2);
-    assert_eq!(monitors[1].active_plane_idx(), 1);
+    assert_eq!(monitors[1].active_plane_idx(), 2);
     assert_eq!(monitors[1].active_plane_id(), second_plane_id);
     // Empty alignment rows are compacted while no outputs are connected.
     assert_eq!(monitors[1].active_workspace_idx(), 1);
     assert_eq!(
-        monitors[1].workspaces.plane(0).unwrap().id(),
+        monitors[1].workspaces.plane(1).unwrap().id(),
         first_plane_id
     );
     assert_eq!(
-        monitors[1].workspaces.plane(1).unwrap().id(),
+        monitors[1].workspaces.plane(2).unwrap().id(),
         second_plane_id
     );
 
@@ -2996,7 +3011,7 @@ fn disconnecting_active_middle_output_falls_back_to_primary() {
         .iter()
         .find(|monitor| monitor.output == disconnected_output)
         .unwrap();
-    assert_eq!(restored_monitor.plane_count(), 2);
+    assert_eq!(restored_monitor.plane_count(), 4);
     assert_eq!(restored_monitor.active_plane_id(), second_plane_id);
     assert_eq!(
         restored_monitor.active_workspace_ref().id(),
@@ -3101,7 +3116,7 @@ fn disconnecting_inactive_middle_output_preserves_primary_and_active_monitor() {
         .iter()
         .find(|monitor| monitor.output == disconnected_output)
         .unwrap();
-    assert_eq!(restored_monitor.plane_count(), 2);
+    assert_eq!(restored_monitor.plane_count(), 4);
     assert_eq!(restored_monitor.active_plane_id(), second_plane_id);
     assert_eq!(
         restored_monitor.active_workspace_ref().id(),
@@ -3228,7 +3243,7 @@ fn primary_output_disconnect_and_reconnect_preserves_planes() {
         .iter()
         .find(|monitor| monitor.output == remaining_primary_output)
         .unwrap();
-    assert_eq!(remaining_monitor.plane_count(), 1);
+    assert_eq!(remaining_monitor.plane_count(), 3);
     assert_eq!(remaining_monitor.active_plane_id(), remaining_plane_id);
     assert_eq!(
         remaining_monitor.active_workspace_ref().id(),
@@ -3239,7 +3254,7 @@ fn primary_output_disconnect_and_reconnect_preserves_planes() {
         .iter()
         .find(|monitor| monitor.output == disconnected_output)
         .unwrap();
-    assert_eq!(restored_monitor.plane_count(), 2);
+    assert_eq!(restored_monitor.plane_count(), 4);
     assert_eq!(restored_monitor.active_plane_id(), second_plane_id);
     assert_eq!(
         restored_monitor.active_workspace_ref().id(),
@@ -3298,7 +3313,7 @@ fn output_disconnect_and_reconnect_preserves_planes() {
     let MonitorSet::Normal { monitors, .. } = &layout.monitor_set else {
         unreachable!()
     };
-    assert_eq!(monitors[0].plane_count(), 2);
+    assert_eq!(monitors[0].plane_count(), 4);
     assert_eq!(monitors[0].active_plane_id(), second_plane_id);
     // Two downward workspace moves place the shared Y position at index 2.
     assert_eq!(monitors[0].active_workspace_idx(), 2);
@@ -3322,7 +3337,7 @@ fn output_disconnect_and_reconnect_preserves_planes() {
         unreachable!()
     };
     assert_eq!(monitors[0].plane_count(), 2);
-    assert_eq!(monitors[0].active_plane_idx(), 1);
+    assert_eq!(monitors[0].active_plane_idx(), 2);
     assert_eq!(monitors[0].active_plane_id(), second_plane_id);
     // Reconnection may change the numeric Y index, but it must restore the
     // same active workspace and align every plane to that shared position.
@@ -3332,11 +3347,11 @@ fn output_disconnect_and_reconnect_preserves_planes() {
         assert_eq!(plane.active_workspace_idx(), shared_workspace_idx);
     }
     assert_eq!(
-        monitors[0].workspaces.plane(0).unwrap().id(),
+        monitors[0].workspaces.plane(1).unwrap().id(),
         first_plane_id
     );
     assert_eq!(
-        monitors[0].workspaces.plane(1).unwrap().id(),
+        monitors[0].workspaces.plane(2).unwrap().id(),
         second_plane_id
     );
 
@@ -3352,9 +3367,9 @@ fn workspace_iteration_exposes_plane_metadata() {
     let second_plane_id = layout.active_monitor().unwrap().active_plane_id().get();
     layout.focus_plane_backward();
 
-    let workspaces = layout
+    let content_planes = layout
         .workspaces_with_plane()
-        .map(
+        .filter_map(
             |(
                 _monitor,
                 global_idx,
@@ -3365,24 +3380,24 @@ fn workspace_iteration_exposes_plane_metadata() {
                 is_plane_workspace_active,
                 _workspace,
             )| {
-                (
+                (plane_id == first_plane_id || plane_id == second_plane_id).then_some((
                     global_idx,
                     plane_id,
                     plane_idx,
                     plane_workspace_idx,
                     is_plane_active,
                     is_plane_workspace_active,
-                )
+                ))
             },
         )
         .collect::<Vec<_>>();
 
     assert_eq!(
-        workspaces,
+        content_planes,
         vec![
-            (0, first_plane_id, 0, 0, true, true),
-            (1, second_plane_id, 1, 0, false, true),
-            (2, second_plane_id, 1, 1, false, false),
+            (2, first_plane_id, 1, 0, true, true),
+            (3, second_plane_id, 2, 0, false, true),
+            (4, second_plane_id, 2, 1, false, false),
         ]
     );
 
@@ -3390,9 +3405,8 @@ fn workspace_iteration_exposes_plane_metadata() {
         .workspaces()
         .map(|(_, idx, _workspace)| idx)
         .collect::<Vec<_>>();
-    assert_eq!(flattened, vec![0, 1, 2]);
+    assert_eq!(flattened, vec![0, 1, 2, 3, 4, 5, 6]);
 }
-
 #[test]
 fn monitor_plane_management_preserves_shared_workspace_position() {
     let ops = [
@@ -3410,65 +3424,52 @@ fn monitor_plane_management_preserves_shared_workspace_position() {
     let original_plane_id = layout.active_monitor().unwrap().active_plane_id();
     assert_eq!(layout.active_monitor().unwrap().active_workspace_idx(), 1);
 
+    {
+        let monitor = layout.active_monitor().unwrap();
+        assert_eq!(monitor.plane_count(), 3);
+        assert_eq!(monitor.active_plane_idx(), 1);
+    }
+
     layout.create_plane();
     layout.verify_invariants();
 
-    let MonitorSet::Normal { monitors, .. } = &mut layout.monitor_set else {
-        unreachable!()
+    let (new_plane_id, back_boundary_id, front_boundary_id) = {
+        let monitor = layout.active_monitor().unwrap();
+        assert_eq!(monitor.plane_count(), 4);
+        assert_eq!(monitor.active_plane_idx(), 2);
+        assert_eq!(monitor.active_workspace_idx(), 1);
+        (
+            monitor.active_plane_id(),
+            monitor.workspaces.plane(0).unwrap().id(),
+            monitor.workspaces.plane(3).unwrap().id(),
+        )
     };
-    let monitor = &mut monitors[0];
-    let new_plane_id = monitor.active_plane_id();
 
-    assert_eq!(monitor.plane_count(), 2);
-    assert_eq!(monitor.active_plane_idx(), 1);
-    assert_eq!(monitor.active_plane_id(), new_plane_id);
+    let monitor = layout.active_monitor().unwrap();
+    monitor.focus_plane_backward();
+    assert_eq!(monitor.active_plane_id(), original_plane_id);
     assert_eq!(monitor.active_workspace_idx(), 1);
 
     monitor.focus_plane_backward();
+    assert_eq!(monitor.active_plane_id(), back_boundary_id);
     assert_eq!(monitor.active_plane_idx(), 0);
-    assert_eq!(monitor.active_plane_id(), original_plane_id);
-    assert_eq!(monitor.active_workspace_idx(), 1);
-
-    // Crossing the back edge creates a new plane before the current first one.
     monitor.focus_plane_backward();
-    let back_plane_id = monitor.active_plane_id();
-    assert_eq!(monitor.plane_count(), 3);
-    assert_eq!(monitor.active_plane_idx(), 0);
-    assert_ne!(back_plane_id, original_plane_id);
-    assert_eq!(monitor.active_workspace_idx(), 1);
+    assert_eq!(monitor.active_plane_id(), back_boundary_id);
+    assert_eq!(monitor.plane_count(), 4);
 
     monitor.focus_plane_forward();
-    assert_eq!(monitor.active_plane_idx(), 1);
     assert_eq!(monitor.active_plane_id(), original_plane_id);
-
     monitor.focus_plane_forward();
-    assert_eq!(monitor.active_plane_idx(), 2);
     assert_eq!(monitor.active_plane_id(), new_plane_id);
-
-    // An unused empty boundary plane is retained instead of creating another.
     monitor.focus_plane_forward();
-    assert_eq!(monitor.active_plane_idx(), 2);
-    assert_eq!(monitor.active_plane_id(), new_plane_id);
-    assert_eq!(monitor.plane_count(), 3);
-
-    let removed = monitor.remove_plane(0).unwrap();
-    assert_eq!(removed.id(), back_plane_id);
-    assert_eq!(monitor.plane_count(), 2);
-    assert_eq!(monitor.active_plane_idx(), 1);
-    assert_eq!(monitor.active_plane_id(), new_plane_id);
+    assert_eq!(monitor.active_plane_id(), front_boundary_id);
+    monitor.focus_plane_forward();
+    assert_eq!(monitor.active_plane_id(), front_boundary_id);
+    assert_eq!(monitor.plane_count(), 4);
     assert_eq!(monitor.active_workspace_idx(), 1);
-
-    let removed = monitor.remove_plane(1).unwrap();
-    assert_eq!(removed.id(), new_plane_id);
-    assert_eq!(monitor.plane_count(), 1);
-    assert_eq!(monitor.active_plane_id(), original_plane_id);
-    assert_eq!(monitor.active_workspace_idx(), 1);
-
-    assert!(monitor.remove_plane(0).is_err());
 
     layout.verify_invariants();
 }
-
 #[test]
 fn remove_active_empty_plane_keeps_previous_plane_selection() {
     let mut layout = check_ops([Op::AddOutput(1)]);
@@ -3489,7 +3490,7 @@ fn remove_active_empty_plane_keeps_previous_plane_selection() {
     assert!(layout.remove_active_plane());
 
     let monitor = layout.active_monitor().unwrap();
-    assert_eq!(monitor.plane_count(), 1);
+    assert_eq!(monitor.plane_count(), 3);
     assert_eq!(monitor.active_plane_id(), original_plane_id);
     assert_eq!(monitor.active_workspace_ref().id(), original_workspace_id);
     assert_eq!(
@@ -3516,6 +3517,7 @@ fn remove_active_empty_first_plane_keeps_next_plane_selection() {
     };
 
     layout.focus_plane_backward();
+    layout.focus_plane_backward();
     assert_eq!(
         layout.active_monitor().unwrap().active_plane_id(),
         empty_plane_id
@@ -3524,7 +3526,7 @@ fn remove_active_empty_first_plane_keeps_next_plane_selection() {
     assert!(layout.remove_active_plane());
 
     let monitor = layout.active_monitor().unwrap();
-    assert_eq!(monitor.plane_count(), 1);
+    assert_eq!(monitor.plane_count(), 3);
     assert_eq!(monitor.active_plane_idx(), 0);
     assert_eq!(monitor.active_plane_id(), next_plane_id);
     assert_eq!(monitor.active_workspace_ref().id(), next_workspace_id);
@@ -3544,7 +3546,7 @@ fn remove_active_plane_rejects_named_workspaces() {
     assert!(!layout.remove_active_plane());
 
     let monitor = layout.active_monitor().unwrap();
-    assert_eq!(monitor.plane_count(), 2);
+    assert_eq!(monitor.plane_count(), 4);
     assert_eq!(monitor.active_plane_id(), plane_id);
     assert_eq!(monitor.active_workspace_ref().id(), workspace_id);
 
@@ -3570,7 +3572,7 @@ fn remove_active_plane_rejects_windows() {
     assert!(!layout.remove_active_plane());
 
     let monitor = layout.active_monitor().unwrap();
-    assert_eq!(monitor.plane_count(), 2);
+    assert_eq!(monitor.plane_count(), 4);
     assert_eq!(monitor.active_plane_id(), plane_id);
     assert!(monitor.active_workspace_ref().has_window(&2));
 
@@ -3582,6 +3584,14 @@ fn remove_active_plane_rejects_last_plane() {
     let mut layout = check_ops([Op::AddOutput(1)]);
     let plane_id = layout.active_monitor().unwrap().active_plane_id();
 
+    {
+        let monitor = layout.active_monitor().unwrap();
+        monitor.remove_plane(2).unwrap();
+        monitor.remove_plane(0).unwrap();
+        assert_eq!(monitor.plane_count(), 1);
+        assert_eq!(monitor.active_plane_id(), plane_id);
+    }
+
     assert!(!layout.remove_active_plane());
 
     let monitor = layout.active_monitor().unwrap();
@@ -3590,7 +3600,6 @@ fn remove_active_plane_rejects_last_plane() {
 
     layout.verify_invariants();
 }
-
 #[test]
 fn moving_active_plane_preserves_workspace_and_stops_at_depth_boundaries() {
     let mut layout = check_ops([Op::AddOutput(1)]);
@@ -4435,7 +4444,7 @@ fn moving_window_to_missing_back_plane_creates_and_activates_it() {
     layout.move_active_window_to_plane_backward(true);
 
     let monitor = layout.active_monitor().unwrap();
-    assert_eq!(monitor.plane_count(), 2);
+    assert_eq!(monitor.plane_count(), 4);
     assert_ne!(monitor.active_plane_id(), source_plane_id);
     assert!(monitor.active_workspace_ref().has_window(&2));
     assert!(!monitor
@@ -4463,7 +4472,7 @@ fn moving_window_to_missing_back_plane_without_focus_keeps_source_active() {
     layout.move_active_window_to_plane_backward(false);
 
     let monitor = layout.active_monitor().unwrap();
-    assert_eq!(monitor.plane_count(), 2);
+    assert_eq!(monitor.plane_count(), 4);
     assert_eq!(monitor.active_plane_id(), source_plane_id);
     assert!(!monitor.active_workspace_ref().has_window(&2));
 
@@ -4493,7 +4502,7 @@ fn moving_window_to_missing_front_plane_creates_and_activates_it() {
     layout.move_active_window_to_plane_forward(true);
 
     let monitor = layout.active_monitor().unwrap();
-    assert_eq!(monitor.plane_count(), 2);
+    assert_eq!(monitor.plane_count(), 4);
     assert_ne!(monitor.active_plane_id(), source_plane_id);
     assert!(monitor.active_workspace_ref().has_window(&2));
     assert!(!monitor
@@ -4697,7 +4706,7 @@ fn moving_column_to_missing_back_plane_creates_and_activates_it() {
     layout.move_active_column_to_plane_backward(true);
 
     let monitor = layout.active_monitor().unwrap();
-    assert_eq!(monitor.plane_count(), 2);
+    assert_eq!(monitor.plane_count(), 4);
     assert_ne!(monitor.active_plane_id(), source_plane_id);
     assert!(monitor.active_workspace_ref().has_window(&2));
     assert!(!monitor
@@ -4725,7 +4734,7 @@ fn moving_floating_column_to_missing_back_plane_without_focus_keeps_source_activ
     layout.move_active_column_to_plane_backward(false);
 
     let monitor = layout.active_monitor().unwrap();
-    assert_eq!(monitor.plane_count(), 2);
+    assert_eq!(monitor.plane_count(), 4);
     assert_eq!(monitor.active_plane_id(), source_plane_id);
     assert!(!monitor.active_workspace_ref().has_window(&2));
 
@@ -4958,7 +4967,7 @@ fn switching_away_from_an_empty_plane_removes_it() {
     let monitor = layout.active_monitor().unwrap();
     assert_eq!(monitor.active_plane_id(), populated_plane_id);
     assert!(monitor.workspaces.plane_by_id(empty_plane_id).is_none());
-    assert_eq!(monitor.plane_count(), 1);
+    assert_eq!(monitor.plane_count(), 3);
     layout.verify_invariants();
 }
 
@@ -4986,7 +4995,7 @@ fn unname_workspace_on_inactive_plane() {
     let monitor = layout.active_monitor().unwrap();
     assert_eq!(monitor.active_plane_id(), active_plane_id);
     assert!(monitor.workspaces.plane_by_id(target_plane_id).is_none());
-    assert_eq!(monitor.plane_count(), 1);
+    assert_eq!(monitor.plane_count(), 3);
     layout.verify_invariants();
 }
 
@@ -5092,8 +5101,8 @@ fn remove_window_from_inactive_plane() {
     assert!(!layout.windows().any(|(_, window)| window.id() == &2));
     assert_eq!(
         layout.active_monitor().unwrap().plane_count(),
-        1,
-        "the inactive plane should disappear when its last window is removed"
+        3,
+        "the inactive plane should disappear while the two boundary planes remain"
     );
     layout.verify_invariants();
 }
@@ -5299,7 +5308,7 @@ fn reconnecting_output_restores_split_plane_fragment() {
         .iter()
         .find(|monitor| monitor.output == original_output)
         .unwrap();
-    assert_eq!(restored_monitor.plane_count(), 1);
+    assert_eq!(restored_monitor.plane_count(), 3);
     let restored_plane = restored_monitor.workspaces.active_plane();
     assert_ne!(restored_plane.id(), original_plane_id);
     assert_eq!(restored_plane.workspaces()[0].id(), returning_workspace_id);
@@ -5383,7 +5392,7 @@ fn reconnecting_output_restores_planes_and_workspace_selection() {
         .iter()
         .find(|monitor| monitor.output == restored_output)
         .unwrap();
-    assert_eq!(restored_monitor.plane_count(), 2);
+    assert_eq!(restored_monitor.plane_count(), 4);
     assert_eq!(restored_monitor.active_plane_id(), second_plane_id);
     assert_eq!(
         restored_monitor.active_workspace_ref().id(),
@@ -5442,7 +5451,7 @@ fn reconnecting_last_output_restores_planes_and_workspace_selection() {
         .iter()
         .find(|monitor| monitor.output == output)
         .unwrap();
-    assert_eq!(restored_monitor.plane_count(), 2);
+    assert_eq!(restored_monitor.plane_count(), 4);
     assert_eq!(restored_monitor.active_plane_id(), second_plane_id);
     assert_eq!(
         restored_monitor.active_workspace_ref().id(),
@@ -5463,89 +5472,92 @@ fn reconnecting_last_output_restores_planes_and_workspace_selection() {
 }
 
 #[test]
-fn plane_navigation_creates_planes_at_both_edges_and_shares_workspace_position() {
-    let ops = [Op::AddOutput(1)];
-    let mut layout = check_ops(ops);
+fn plane_navigation_keeps_empty_planes_at_both_edges_and_shares_workspace_position() {
+    let mut layout = check_ops([Op::AddOutput(1)]);
 
-    // Create a non-zero vertical position on the initial plane.
     layout.set_workspace_name("first-row".into(), None);
     layout.switch_workspace_down();
     layout.set_workspace_name("second-row".into(), None);
     assert_eq!(layout.active_monitor().unwrap().active_workspace_idx(), 1);
 
-    let first_plane_id = layout.active_monitor().unwrap().active_plane_id();
+    let (main_plane_id, back_boundary_id, front_boundary_id) = {
+        let monitor = layout.active_monitor().unwrap();
+        assert_eq!(monitor.plane_count(), 3);
+        assert_eq!(monitor.active_plane_idx(), 1);
+        (
+            monitor.active_plane_id(),
+            monitor.workspaces.plane(0).unwrap().id(),
+            monitor.workspaces.plane(2).unwrap().id(),
+        )
+    };
 
-    // Moving beyond the front edge creates a single empty boundary plane.
-    layout.focus_plane_forward();
-    let front_plane_id = layout.active_monitor().unwrap().active_plane_id();
-    assert_ne!(front_plane_id, first_plane_id);
-    assert!(layout.active_monitor().unwrap().plane_switch.is_some());
-    assert_eq!(layout.active_monitor().unwrap().active_workspace_idx(), 1);
-    assert_eq!(layout.active_monitor().unwrap().plane_count(), 2);
+    // Navigating to an unused boundary selects it without creating more planes.
+    layout.focus_plane_backward();
+    assert_eq!(layout.active_monitor().unwrap().active_plane_id(), back_boundary_id);
+    assert_eq!(layout.active_monitor().unwrap().plane_count(), 3);
 
-    // Further navigation does not accumulate empty planes at the boundary.
-    layout.focus_plane_forward();
-    assert_eq!(
-        layout.active_monitor().unwrap().active_plane_id(),
-        front_plane_id
-    );
-    assert_eq!(layout.active_monitor().unwrap().plane_count(), 2);
-
-    // Once the boundary plane is used, moving past it creates the next empty plane.
+    // Populating the back boundary creates exactly one new empty plane beyond it.
     Op::AddWindow {
         params: TestWindowParams::new(3),
     }
     .apply(&mut layout);
-    layout.focus_plane_forward();
-    let next_front_plane_id = layout.active_monitor().unwrap().active_plane_id();
-    assert_ne!(next_front_plane_id, front_plane_id);
-    assert_eq!(layout.active_monitor().unwrap().plane_count(), 3);
-    assert_eq!(layout.active_monitor().unwrap().active_workspace_idx(), 1);
 
-    // Moving back returns through the existing planes without changing Y.
-    layout.focus_plane_backward();
-    assert_eq!(
-        layout.active_monitor().unwrap().active_plane_id(),
-        front_plane_id
-    );
-    layout.focus_plane_backward();
-    assert_eq!(
-        layout.active_monitor().unwrap().active_plane_id(),
-        first_plane_id
-    );
-    assert_eq!(layout.active_monitor().unwrap().active_workspace_idx(), 1);
-
-    // Moving beyond the back edge creates one empty plane there as well.
-    layout.focus_plane_backward();
-    let back_plane_id = layout.active_monitor().unwrap().active_plane_id();
-    assert_ne!(back_plane_id, first_plane_id);
-    assert_eq!(layout.active_monitor().unwrap().active_workspace_idx(), 1);
-    assert_eq!(layout.active_monitor().unwrap().plane_count(), 4);
-
-    // The new back boundary also remains a single empty plane until used.
-    layout.focus_plane_backward();
-    assert_eq!(
-        layout.active_monitor().unwrap().active_plane_id(),
-        back_plane_id
-    );
-    assert_eq!(layout.active_monitor().unwrap().plane_count(), 4);
-
-    let MonitorSet::Normal { monitors, .. } = &layout.monitor_set else {
-        unreachable!()
+    let new_back_boundary_id = {
+        let monitor = layout.active_monitor().unwrap();
+        assert_eq!(monitor.plane_count(), 4);
+        assert_eq!(monitor.active_plane_idx(), 1);
+        assert_ne!(monitor.workspaces.plane(0).unwrap().id(), back_boundary_id);
+        monitor.workspaces.plane(0).unwrap().id()
     };
-    let monitor = &monitors[0];
+
+    layout.focus_plane_backward();
+    assert_eq!(layout.active_monitor().unwrap().active_plane_id(), new_back_boundary_id);
+    layout.focus_plane_backward();
+    assert_eq!(layout.active_monitor().unwrap().active_plane_id(), new_back_boundary_id);
+    assert_eq!(layout.active_monitor().unwrap().plane_count(), 4);
+
+    // Return to the initial plane and populate the front boundary in the same way.
+    layout.focus_plane_forward();
+    assert_eq!(layout.active_monitor().unwrap().active_plane_id(), back_boundary_id);
+    layout.focus_plane_forward();
+    assert_eq!(layout.active_monitor().unwrap().active_plane_id(), main_plane_id);
+    layout.focus_plane_forward();
+    assert_eq!(layout.active_monitor().unwrap().active_plane_id(), front_boundary_id);
+
+    Op::AddWindow {
+        params: TestWindowParams::new(4),
+    }
+    .apply(&mut layout);
+
+    let new_front_boundary_id = {
+        let monitor = layout.active_monitor().unwrap();
+        assert_eq!(monitor.plane_count(), 5);
+        assert_eq!(monitor.active_plane_idx(), 3);
+        assert_ne!(
+            monitor.workspaces.plane(4).unwrap().id(),
+            front_boundary_id
+        );
+        monitor.workspaces.plane(4).unwrap().id()
+    };
+
+    layout.focus_plane_forward();
+    assert_eq!(layout.active_monitor().unwrap().active_plane_id(), new_front_boundary_id);
+    layout.focus_plane_forward();
+    assert_eq!(layout.active_monitor().unwrap().active_plane_id(), new_front_boundary_id);
+    assert_eq!(layout.active_monitor().unwrap().plane_count(), 5);
+
+    let monitor = layout.active_monitor().unwrap();
     assert_eq!(
         monitor
             .workspaces
             .iter_planes()
             .map(|plane| plane.active_workspace_idx())
             .collect::<Vec<_>>(),
-        vec![1, 1, 1, 1]
+        vec![1, 1, 1, 1, 1]
     );
 
     layout.verify_invariants();
 }
-
 #[test]
 fn switch_ewaf_on() {
     let ops = [
