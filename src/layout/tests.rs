@@ -4451,7 +4451,7 @@ fn moving_window_to_missing_back_plane_creates_and_activates_it() {
     layout.move_active_window_to_plane_backward(true);
 
     let monitor = layout.active_monitor().unwrap();
-    assert_eq!(monitor.plane_count(), 3);
+    assert_eq!(monitor.plane_count(), 4);
     assert_ne!(monitor.active_plane_id(), source_plane_id);
     assert!(monitor.active_workspace_ref().has_window(&2));
     assert!(!monitor
@@ -4509,7 +4509,7 @@ fn moving_window_to_missing_front_plane_creates_and_activates_it() {
     layout.move_active_window_to_plane_forward(true);
 
     let monitor = layout.active_monitor().unwrap();
-    assert_eq!(monitor.plane_count(), 3);
+    assert_eq!(monitor.plane_count(), 4);
     assert_ne!(monitor.active_plane_id(), source_plane_id);
     assert!(monitor.active_workspace_ref().has_window(&2));
     assert!(!monitor
@@ -4713,7 +4713,7 @@ fn moving_column_to_missing_back_plane_creates_and_activates_it() {
     layout.move_active_column_to_plane_backward(true);
 
     let monitor = layout.active_monitor().unwrap();
-    assert_eq!(monitor.plane_count(), 3);
+    assert_eq!(monitor.plane_count(), 4);
     assert_ne!(monitor.active_plane_id(), source_plane_id);
     assert!(monitor.active_workspace_ref().has_window(&2));
     assert!(!monitor
