@@ -7,11 +7,8 @@ use smithay::backend::allocator::Fourcc;
 use smithay::backend::renderer::element::Kind;
 use smithay::backend::renderer::gles::{GlesRenderer, GlesTexture};
 use smithay::output::{Output, WeakOutput};
-use smithay::utils::{Logical, Point, Rectangle, Scale, Size, Transform};
+use smithay::utils::{Logical, Point, Scale, Transform};
 
-use crate::layout::monitor::Monitor;
-use crate::layout::workspace::Workspace;
-use crate::layout::LayoutElement;
 use crate::render_helpers::primary_gpu_texture::PrimaryGpuTextureRenderElement;
 use crate::render_helpers::renderer::NiriRenderer;
 use crate::render_helpers::texture::{TextureBuffer, TextureRenderElement};
@@ -21,10 +18,6 @@ const WIDTH: i32 = 240;
 const HEIGHT: i32 = 96;
 const MARGIN: i32 = 20;
 const PADDING: i32 = 14;
-const MAP_MARGIN: i32 = 10;
-const MAP_WIDTH: i32 = WIDTH - PADDING * 2;
-const MAP_HEIGHT: i32 = 112;
-const PANEL_HEIGHT: i32 = HEIGHT + MAP_MARGIN + MAP_HEIGHT + PADDING;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SpatialPosition {
@@ -61,12 +54,11 @@ impl SpatialIndicator {
         Self::default()
     }
 
-    pub fn render<R: NiriRenderer, W: LayoutElement>(
+    pub fn render<R: NiriRenderer>(
         &self,
         renderer: &mut R,
         output: &Output,
         position: SpatialPosition,
-        monitor: &Monitor<W>,
     ) -> Option<Vec<PrimaryGpuTextureRenderElement>> {
         let scale_factor = output.current_scale().fractional_scale();
         let scale = Scale::from(scale_factor);
@@ -123,112 +115,7 @@ impl SpatialIndicator {
         );
         let panel_element = PrimaryGpuTextureRenderElement(panel_element);
 
-        let workspaces = monitor.active_plane_workspaces();
-        if workspaces.is_empty() {
-            return Some(vec![panel_element]);
-        }
-
-        let workspace_geometries = workspaces
-            .iter()
-            .map(Workspace::<W>::minimap_geometry)
-            .collect::<Vec<_>>();
-        let content_width = workspace_geometries
-            .iter()
-            .map(|(size, _)| size.w)
-            .fold(0., f64::max);
-        let workspace_gap = workspace_geometries[0].0.h * 0.1;
-        let content_height = workspace_geometries
-            .iter()
-            .map(|(size, _)| size.h)
-            .sum::<f64>()
-            + workspace_gap * workspaces.len().saturating_sub(1) as f64;
-        let content_size = Size::from((content_width, content_height));
-        if content_size.w <= 0. || content_size.h <= 0. {
-            return Some(vec![panel_element]);
-        }
-
-        // Fit the complete active-plane overview, not only the selected workspace.
-        let map_zoom = (MAP_WIDTH as f64 / content_size.w).min(MAP_HEIGHT as f64 / content_size.h);
-        if !map_zoom.is_finite() || map_zoom <= 0. {
-            return Some(vec![panel_element]);
-        }
-
-        let map_origin = Point::from((
-            (MAP_WIDTH as f64 - content_size.w * map_zoom) / 2.,
-            (MAP_HEIGHT as f64 - content_size.h * map_zoom) / 2.,
-        ));
-        let map_width_px: i32 = to_physical_precise_round(scale_factor, MAP_WIDTH);
-        let map_height_px: i32 = to_physical_precise_round(scale_factor, MAP_HEIGHT);
-        let map_size = Size::from((map_width_px, map_height_px));
-
-        let map_buffer = match Workspace::<W>::render_overview_minimap_texture(
-            workspaces,
-            renderer.as_gles_renderer(),
-            scale,
-            map_size,
-            map_zoom,
-            map_origin,
-            workspace_gap,
-        ) {
-            Ok(buffer) => buffer,
-            Err(err) => {
-                warn!("failed to render overview minimap: {err:#}");
-                return Some(vec![panel_element]);
-            }
-        };
-
-        let active_index = monitor.active_workspace_idx().min(workspaces.len() - 1);
-        let active_top = workspace_geometries[..active_index]
-            .iter()
-            .map(|(size, _)| size.h + workspace_gap)
-            .sum::<f64>();
-        let active_viewport = Rectangle::new(
-            Point::from((workspace_geometries[active_index].1.loc.x, active_top)),
-            workspace_geometries[active_index].1.size,
-        );
-
-        let map_location =
-            panel_location + Point::from((PADDING as f64, (HEIGHT + MAP_MARGIN) as f64));
-        let map_element = TextureRenderElement::from_texture_buffer(
-            map_buffer,
-            map_location,
-            1.0,
-            None,
-            None,
-            Kind::Unspecified,
-        );
-        let map_element = PrimaryGpuTextureRenderElement(map_element);
-
-        let mut elements = Vec::with_capacity(3);
-        match render_viewport_overlay(
-            renderer.as_gles_renderer(),
-            scale_factor,
-            active_viewport,
-            content_size,
-            &workspace_geometries,
-            workspace_gap,
-            map_zoom,
-            map_origin,
-        ) {
-            Ok(buffer) => {
-                let overlay = TextureRenderElement::from_texture_buffer(
-                    buffer,
-                    map_location,
-                    1.0,
-                    None,
-                    None,
-                    Kind::Unspecified,
-                );
-                // Output elements are stored top-to-bottom, so the active
-                // workspace viewport outline must precede the thumbnail.
-                elements.push(PrimaryGpuTextureRenderElement(overlay));
-            }
-            Err(err) => warn!("failed to render overview minimap viewport: {err:#}"),
-        }
-        elements.push(map_element);
-        elements.push(panel_element);
-
-        Some(elements)
+        Some(vec![panel_element])
     }
 }
 
@@ -238,13 +125,13 @@ fn render_indicator(
     scale_factor: f64,
 ) -> anyhow::Result<TextureBuffer<GlesTexture>> {
     let width: i32 = to_physical_precise_round(scale_factor, WIDTH);
-    let height: i32 = to_physical_precise_round(scale_factor, PANEL_HEIGHT);
+    let height: i32 = to_physical_precise_round(scale_factor, HEIGHT);
     let padding: i32 = to_physical_precise_round(scale_factor, PADDING);
 
     let surface = ImageSurface::create(cairo::Format::ARgb32, width, height)?;
     let cr = cairo::Context::new(&surface)?;
 
-    // A compact, translucent panel containing coordinates and a live workspace preview.
+    // A compact, translucent panel containing X/Y/Z coordinates and the depth track.
     cr.set_source_rgba(0.035, 0.045, 0.065, 0.92);
     cr.rectangle(0., 0., width.into(), height.into());
     cr.fill()?;
@@ -362,26 +249,6 @@ fn render_indicator(
         cr.fill()?;
     }
 
-    // Backplate behind the live workspace thumbnail.
-    let map_left = padding as f64;
-    let map_top: i32 = to_physical_precise_round(scale_factor, HEIGHT + MAP_MARGIN);
-    let map_width = (width - padding * 2) as f64;
-    let map_height: i32 = to_physical_precise_round(scale_factor, MAP_HEIGHT);
-    let map_top = map_top as f64;
-    let map_height = map_height as f64;
-    cr.set_source_rgba(0.012, 0.018, 0.03, 0.98);
-    cr.rectangle(map_left, map_top, map_width, map_height);
-    cr.fill()?;
-    cr.set_source_rgba(0.55, 0.66, 0.78, 0.35);
-    cr.set_line_width(scale_factor.max(1.));
-    cr.rectangle(
-        map_left + 0.5,
-        map_top + 0.5,
-        map_width - 1.,
-        map_height - 1.,
-    );
-    cr.stroke()?;
-
     drop(layout);
     drop(cr);
 
@@ -398,74 +265,3 @@ fn render_indicator(
     )?)
 }
 
-fn render_viewport_overlay(
-    renderer: &mut GlesRenderer,
-    scale_factor: f64,
-    viewport: Rectangle<f64, Logical>,
-    content_size: Size<f64, Logical>,
-    workspace_geometries: &[(Size<f64, Logical>, Rectangle<f64, Logical>)],
-    workspace_gap: f64,
-    map_zoom: f64,
-    map_origin: Point<f64, Logical>,
-) -> anyhow::Result<TextureBuffer<GlesTexture>> {
-    let width: i32 = to_physical_precise_round(scale_factor, MAP_WIDTH);
-    let height: i32 = to_physical_precise_round(scale_factor, MAP_HEIGHT);
-    let surface = ImageSurface::create(cairo::Format::ARgb32, width, height)?;
-    let cr = cairo::Context::new(&surface)?;
-    cr.set_operator(cairo::Operator::Source);
-    cr.set_source_rgba(0., 0., 0., 0.);
-    cr.paint()?;
-    cr.set_operator(cairo::Operator::Over);
-
-    // Subtle outlines keep empty workspaces visible and separate the stacked rows.
-    let border_width: i32 = to_physical_precise_round(scale_factor, 1.);
-    cr.set_line_width(border_width.max(1) as f64);
-    let mut workspace_top = 0.;
-    for (workspace_size, _) in workspace_geometries {
-        let x = map_origin.x * scale_factor;
-        let y = (map_origin.y + workspace_top * map_zoom) * scale_factor;
-        let w = workspace_size.w * map_zoom * scale_factor;
-        let h = workspace_size.h * map_zoom * scale_factor;
-        cr.set_source_rgba(0.55, 0.66, 0.78, 0.24);
-        cr.rectangle(x + 0.5, y + 0.5, (w - 1.).max(0.), (h - 1.).max(0.));
-        cr.stroke()?;
-        workspace_top += workspace_size.h + workspace_gap;
-    }
-
-    let viewport_left = viewport.loc.x.clamp(0., content_size.w);
-    let viewport_right = (viewport.loc.x + viewport.size.w).clamp(viewport_left, content_size.w);
-    let visible_width = viewport_right - viewport_left;
-    let visible_height = viewport
-        .size
-        .h
-        .min((content_size.h - viewport.loc.y).max(0.));
-    if visible_width > 0. && visible_height > 0. {
-        let x = (map_origin.x + viewport_left * map_zoom) * scale_factor;
-        let y = (map_origin.y + viewport.loc.y * map_zoom) * scale_factor;
-        let w = visible_width * map_zoom * scale_factor;
-        let h = visible_height * map_zoom * scale_factor;
-
-        cr.set_source_rgba(0.25, 0.64, 0.98, 0.10);
-        cr.rectangle(x, y, w, h);
-        cr.fill()?;
-
-        cr.set_source_rgba(0.62, 0.88, 1.0, 0.98);
-        let line_width_px: i32 = to_physical_precise_round(scale_factor, 1.5);
-        cr.set_line_width(line_width_px as f64);
-        cr.rectangle(x + 0.5, y + 0.5, (w - 1.).max(0.), (h - 1.).max(0.));
-        cr.stroke()?;
-    }
-
-    drop(cr);
-    let data = surface.take_data()?;
-    Ok(TextureBuffer::from_memory(
-        renderer,
-        &data,
-        Fourcc::Argb8888,
-        (width, height),
-        false,
-        scale_factor,
-        Transform::Normal,
-        Vec::new(),
-    )?)
-}
