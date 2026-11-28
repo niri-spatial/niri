@@ -3482,7 +3482,13 @@ fn remove_active_empty_plane_selects_the_next_plane() {
     let empty_plane_id = layout.active_monitor().unwrap().active_plane_id();
     assert_ne!(empty_plane_id, original_plane_id);
 
-    let front_boundary_id = layout.active_monitor().unwrap().workspaces.plane(3).unwrap().id();
+    let front_boundary_id = layout
+        .active_monitor()
+        .unwrap()
+        .workspaces
+        .plane(3)
+        .unwrap()
+        .id();
     assert!(layout.remove_active_plane());
 
     let monitor = layout.active_monitor().unwrap();
@@ -3523,21 +3529,32 @@ fn removing_either_empty_boundary_plane_replaces_it() {
         assert_eq!(monitor.plane_count(), 3);
         assert_eq!(monitor.active_plane_id(), main_plane_id);
         assert_ne!(monitor.workspaces.plane(0).unwrap().id(), original_back_id);
-        assert!(monitor.workspaces.plane(0).unwrap().workspaces()
+        assert!(monitor
+            .workspaces
+            .plane(0)
+            .unwrap()
+            .workspaces()
             .iter()
             .all(|workspace| !workspace.has_windows_or_name()));
         assert_eq!(monitor.workspaces.plane(2).unwrap().id(), original_front_id);
     }
 
     layout.focus_plane_forward();
-    assert_eq!(layout.active_monitor().unwrap().active_plane_id(), original_front_id);
+    assert_eq!(
+        layout.active_monitor().unwrap().active_plane_id(),
+        original_front_id
+    );
     assert!(layout.remove_active_plane());
 
     let monitor = layout.active_monitor().unwrap();
     assert_eq!(monitor.plane_count(), 3);
     assert_eq!(monitor.active_plane_id(), main_plane_id);
     assert_ne!(monitor.workspaces.plane(2).unwrap().id(), original_front_id);
-    assert!(monitor.workspaces.plane(2).unwrap().workspaces()
+    assert!(monitor
+        .workspaces
+        .plane(2)
+        .unwrap()
+        .workspaces()
         .iter()
         .all(|workspace| !workspace.has_windows_or_name()));
 
@@ -3709,7 +3726,9 @@ fn moving_active_plane_preserves_workspace_and_replenishes_boundaries() {
     // empty plane outside it as well, while the displaced empty plane is
     // removed from the interior.
     let output = layout.active_output().unwrap().clone();
-    assert!(layout.activate_plane_by_id(&output, first_plane_id).is_some());
+    assert!(layout
+        .activate_plane_by_id(&output, first_plane_id)
+        .is_some());
     {
         let MonitorSet::Normal { monitors, .. } = &mut layout.monitor_set else {
             unreachable!()
@@ -3720,7 +3739,10 @@ fn moving_active_plane_preserves_workspace_and_replenishes_boundaries() {
 
     let monitor = layout.active_monitor().unwrap();
     assert_eq!(monitor.active_plane_id(), first_plane_id);
-    assert_eq!(monitor.active_workspace_ref().name().map(String::as_str), Some("back-plane"));
+    assert_eq!(
+        monitor.active_workspace_ref().name().map(String::as_str),
+        Some("back-plane")
+    );
     assert_eq!(monitor.plane_count(), 5);
     assert!(monitor
         .workspaces
@@ -5546,7 +5568,10 @@ fn plane_navigation_keeps_empty_planes_at_both_edges_and_shares_workspace_positi
 
     // Navigating to an unused boundary selects it without creating more planes.
     layout.focus_plane_backward();
-    assert_eq!(layout.active_monitor().unwrap().active_plane_id(), back_boundary_id);
+    assert_eq!(
+        layout.active_monitor().unwrap().active_plane_id(),
+        back_boundary_id
+    );
     assert_eq!(layout.active_monitor().unwrap().plane_count(), 3);
 
     // Populating the back boundary creates exactly one new empty plane beyond it.
@@ -5564,18 +5589,33 @@ fn plane_navigation_keeps_empty_planes_at_both_edges_and_shares_workspace_positi
     };
 
     layout.focus_plane_backward();
-    assert_eq!(layout.active_monitor().unwrap().active_plane_id(), new_back_boundary_id);
+    assert_eq!(
+        layout.active_monitor().unwrap().active_plane_id(),
+        new_back_boundary_id
+    );
     layout.focus_plane_backward();
-    assert_eq!(layout.active_monitor().unwrap().active_plane_id(), new_back_boundary_id);
+    assert_eq!(
+        layout.active_monitor().unwrap().active_plane_id(),
+        new_back_boundary_id
+    );
     assert_eq!(layout.active_monitor().unwrap().plane_count(), 4);
 
     // Return to the initial plane and populate the front boundary in the same way.
     layout.focus_plane_forward();
-    assert_eq!(layout.active_monitor().unwrap().active_plane_id(), back_boundary_id);
+    assert_eq!(
+        layout.active_monitor().unwrap().active_plane_id(),
+        back_boundary_id
+    );
     layout.focus_plane_forward();
-    assert_eq!(layout.active_monitor().unwrap().active_plane_id(), main_plane_id);
+    assert_eq!(
+        layout.active_monitor().unwrap().active_plane_id(),
+        main_plane_id
+    );
     layout.focus_plane_forward();
-    assert_eq!(layout.active_monitor().unwrap().active_plane_id(), front_boundary_id);
+    assert_eq!(
+        layout.active_monitor().unwrap().active_plane_id(),
+        front_boundary_id
+    );
 
     Op::AddWindow {
         params: TestWindowParams::new(4),
@@ -5586,17 +5626,20 @@ fn plane_navigation_keeps_empty_planes_at_both_edges_and_shares_workspace_positi
         let monitor = layout.active_monitor().unwrap();
         assert_eq!(monitor.plane_count(), 5);
         assert_eq!(monitor.active_plane_idx(), 3);
-        assert_ne!(
-            monitor.workspaces.plane(4).unwrap().id(),
-            front_boundary_id
-        );
+        assert_ne!(monitor.workspaces.plane(4).unwrap().id(), front_boundary_id);
         monitor.workspaces.plane(4).unwrap().id()
     };
 
     layout.focus_plane_forward();
-    assert_eq!(layout.active_monitor().unwrap().active_plane_id(), new_front_boundary_id);
+    assert_eq!(
+        layout.active_monitor().unwrap().active_plane_id(),
+        new_front_boundary_id
+    );
     layout.focus_plane_forward();
-    assert_eq!(layout.active_monitor().unwrap().active_plane_id(), new_front_boundary_id);
+    assert_eq!(
+        layout.active_monitor().unwrap().active_plane_id(),
+        new_front_boundary_id
+    );
     assert_eq!(layout.active_monitor().unwrap().plane_count(), 5);
 
     let monitor = layout.active_monitor().unwrap();
