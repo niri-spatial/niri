@@ -797,6 +797,11 @@ impl<W: LayoutElement> Layout<W> {
                     primary.clean_up_workspaces();
                 }
 
+                // Extracting planes can leave empty planes in the middle when the active
+                // plane belongs to a different output. Remove those once any in-flight
+                // plane/workspace transition has finished.
+                primary.clean_up_empty_planes();
+
                 let ws_id_to_activate = self.last_active_workspace_id.remove(&output.name());
 
                 let mut monitor = Monitor::new_with_planes(
