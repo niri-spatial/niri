@@ -3776,14 +3776,14 @@ fn moving_active_plane_preserves_workspace_and_replenishes_boundaries() {
         .workspaces()
         .iter()
         .all(|workspace| !workspace.has_windows_or_name()));
+    let middle_workspace = monitor
+        .workspaces
+        .plane_by_id(middle_plane_id)
+        .unwrap()
+        .active_workspace();
+    assert_eq!(middle_workspace.id(), middle_workspace_id);
     assert_eq!(
-        monitor
-            .workspaces
-            .plane_by_id(middle_plane_id)
-            .unwrap()
-            .active_workspace()
-            .name()
-            .map(String::as_str),
+        middle_workspace.name().map(String::as_str),
         Some("middle-plane")
     );
 
@@ -6152,7 +6152,7 @@ fn move_workspace_to_same_monitor_doesnt_reorder() {
         },
     ];
 
-    let layout = check_ops(ops);
+    let mut layout = check_ops(ops);
     let counts: Vec<_> = layout
         .active_monitor()
         .unwrap()
