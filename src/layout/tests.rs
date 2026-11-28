@@ -2779,6 +2779,14 @@ fn secondary_output_disconnect_and_reconnect_preserves_planes() {
 
     Op::RemoveOutput(2).apply(&mut layout);
 
+    {
+        let MonitorSet::Normal { monitors, .. } = &mut layout.monitor_set else {
+            unreachable!()
+        };
+        monitors[0].plane_switch = None;
+        monitors[0].clean_up_empty_planes();
+    }
+
     let MonitorSet::Normal { monitors, .. } = &layout.monitor_set else {
         unreachable!()
     };
@@ -3221,6 +3229,16 @@ fn primary_output_disconnect_and_reconnect_preserves_planes() {
         layout.active_monitor().unwrap().active_workspace_ref().id(),
         remaining_workspace_id
     );
+    {
+        let MonitorSet::Normal { monitors, .. } = &mut layout.monitor_set else {
+            unreachable!()
+        };
+        let monitor = monitors
+            .iter_mut()
+            .find(|monitor| monitor.output == remaining_primary_output)
+            .unwrap();
+        monitor.plane_switch = None;
+    }
 
     layout.add_output(disconnected_output.clone(), None);
 
@@ -3693,6 +3711,13 @@ fn moving_active_plane_preserves_workspace_and_replenishes_boundaries() {
                 monitor.workspaces.plane(4).unwrap().id(),
             ]
         );
+    }
+
+    {
+        let MonitorSet::Normal { monitors, .. } = &mut layout.monitor_set else {
+            unreachable!()
+        };
+        monitors[0].plane_switch = None;
     }
 
     // Moving populated content into the front boundary preserves its identity
@@ -4554,7 +4579,13 @@ fn moving_window_to_missing_back_plane_without_focus_keeps_source_active() {
     let target_plane = monitor
         .workspaces
         .iter_planes()
-        .find(|plane| plane.id() != source_plane_id)
+        .find(|plane| {
+            plane.id() != source_plane_id
+                && plane
+                    .workspaces()
+                    .iter()
+                    .any(|workspace| workspace.has_window(&2))
+        })
         .unwrap();
     assert!(target_plane
         .workspaces()
@@ -4816,7 +4847,13 @@ fn moving_floating_column_to_missing_back_plane_without_focus_keeps_source_activ
     let target_plane = monitor
         .workspaces
         .iter_planes()
-        .find(|plane| plane.id() != source_plane_id)
+        .find(|plane| {
+            plane.id() != source_plane_id
+                && plane
+                    .workspaces()
+                    .iter()
+                    .any(|workspace| workspace.has_window(&2))
+        })
         .unwrap();
     assert!(target_plane
         .workspaces()
@@ -6117,8 +6154,13 @@ fn move_workspace_to_same_monitor_doesnt_reorder() {
 
     let layout = check_ops(ops);
     let counts: Vec<_> = layout
+        .active_monitor()
+        .unwrap()
+        .workspaces
+        .active_plane()
         .workspaces()
-        .map(|(_, _, ws)| ws.windows().count())
+        .iter()
+        .map(|ws| ws.windows().count())
         .collect();
     assert_eq!(counts, &[1, 2, 0]);
 }
